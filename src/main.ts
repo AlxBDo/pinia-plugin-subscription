@@ -7,7 +7,7 @@ import ExtendsPiniaStore from './extending-pinia-store/plugins/ExtendsPiniaStore
 
 const app = createApp(App)
 const pinia = createPinia()
-pinia.use(createPlugin([ExtendsPiniaStore], true))
+pinia.use(createPlugin([ExtendsPiniaStore]))
 
 app.use(pinia)
 app.mount('#app')

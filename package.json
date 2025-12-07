@@ -1,17 +1,17 @@
 {
   "author": "Alexandre Bidaud <alexbidaud85@gmail.com> (https://github.com/AlxBDo)",
-  "name": "plugin-subscription",
+  "name": "pinia-plugin-subscription",
   "private": true,
   "version": "0.0.0-alpha.1",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/plugin-subscription.js",
-      "require": "./dist/plugin-subscription.umd.cjs"
+      "import": "./dist/pinia-plugin-subscription.js",
+      "require": "./dist/pinia-plugin-subscription.umd.cjs"
     }
   },
-  "main": "./dist/plugin-subscription.umd.cjs",
+  "main": "./dist/pinia-plugin-subscription.umd.cjs",
   "types": "./dist/types/index.d.ts",
   "files": [
     "dist"

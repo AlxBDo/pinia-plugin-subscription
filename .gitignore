@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 
 # Not lib
+plugin-declaration.ts
 src/assets
 src/components
 src/extending-pinia-store

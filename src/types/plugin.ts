@@ -1,4 +1,4 @@
-import type { PiniaPluginContext } from "pinia"
+import type { PiniaPluginContext, Store } from "pinia"
 
 
 export interface CreatePluginOptions {
@@ -9,4 +9,5 @@ export interface CreatePluginOptions {
 
 export interface PluginSubscriber {
     invoke: (context: PiniaPluginContext, debug?: boolean) => void
+    resetStoreCallback?: (store?: Store) => void
 }

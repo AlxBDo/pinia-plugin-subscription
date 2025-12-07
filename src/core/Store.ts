@@ -4,11 +4,11 @@ import { eppsLog } from "../utils/log"
 import type { Store as PiniaStore, StateTree } from "pinia"
 import type { AnyObject } from "../types"
 import type { StoreOptions, PluginStoreOptions, StatePropertyValue } from "../types/store"
+import { hasDeniedFirstChar } from "../utils/store"
 
 
 export default class Store {
     private _debug: boolean = false
-    private _deniedFirstChar = new Set<string>(['_', '$'])
     private _options: StoreOptions
     private _store: PiniaStore
 
@@ -83,7 +83,7 @@ export default class Store {
     }
 
     hasDeniedFirstChar(property: string): boolean {
-        return this._deniedFirstChar.has(property[0] as string)
+        return hasDeniedFirstChar(property[0] as string)
     }
 
     getOption(optionName: keyof StoreOptions) {

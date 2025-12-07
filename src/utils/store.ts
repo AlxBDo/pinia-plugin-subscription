@@ -14,7 +14,7 @@ export function defineAStore<Sto, Sta>(
     storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'> | (() => AnyObject),
     options?: StoreOptions
 ): DefineAugmentedStore<Sto, Sta> {
-    const storeOptions: PluginStoreOptions = options ? { storeOptions: options } : {}
+    const storeOptions: PluginStoreOptions = options ? { storeOptions: options } : {} as PluginStoreOptions
 
     return typeof storeDefinition === 'function'
         ? defineAStoreSetup(
@@ -47,4 +47,10 @@ export function defineAStoreOptionApi<Sto, Sta>(
     }
 
     return defineStore(id, storeDefinition) as unknown as DefineAugmentedStore<Sto, Sta>
+}
+
+const deniedFirstChar = new Set<string>(['_', '$'])
+
+export function hasDeniedFirstChar(property: string): boolean {
+    return deniedFirstChar.has(property[0] as string)
 }
