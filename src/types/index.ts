@@ -15,6 +15,5 @@ export type {
 } from "./store"
 
 export type {
-    CreatePluginOptions,
     PluginSubscriber
 } from "./plugin"

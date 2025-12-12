@@ -1,7 +1,7 @@
 {
   "author": "Alexandre Bidaud <alexbidaud85@gmail.com> (https://github.com/AlxBDo)",
   "name": "pinia-plugin-subscription",
-  "version": "0.0.0-alpha.4",
+  "version": "0.0.0-beta.1",
   "type": "module",
   "exports": {
     ".": {
@@ -19,7 +19,7 @@
     "dev": "vite",
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "build": "vite build && tsc --emitDeclarationOnly --outDir dist",
+    "build": "vitest && vite build && tsc --emitDeclarationOnly --outDir dist",
     "preview": "vite preview"
   },
   "devDependencies": {
