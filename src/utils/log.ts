@@ -1,4 +1,4 @@
-const pluginName = 'plugin-subscription'
+const pluginName = 'pinia-plugin-subscription'
 
 interface IStyleOptions {
     bgColor: string;

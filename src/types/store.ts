@@ -2,7 +2,7 @@ import type { AnyObject } from ".";
 import type { _StoreWithGetters, PiniaCustomProperties, Store, StoreDefinition } from "pinia";
 import type { Ref } from "vue";
 
-export type CustomStore<TStore, TState> = Store & PiniaCustomProperties & StoreDefinition<string, AnyObject & TState, AnyObject, TStore> & TStore
+export type CustomStore<TStore, TState> = Store & PiniaCustomProperties & StoreDefinition<string, AnyObject & TState, AnyObject, TStore> & TStore & TState
 
 export type DefineAugmentedStore<TStore, TState> = (args?: any) => CustomStore<TStore, TState>
 

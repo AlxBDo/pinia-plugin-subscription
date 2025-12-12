@@ -30,21 +30,6 @@ export default class Store {
         this._store = store
     }
 
-
-    /**
-     * Add properties to state
-     * @param {string[]} properties 
-     * @param {AnyObject|undefined} values 
-     */
-    addPropertiesToState(
-        properties: string[],
-        values?: AnyObject
-    ): void {
-        properties.forEach(
-            (property: string) => this.addToState(property, values ? values[property] : undefined)
-        )
-    }
-
     /**
      * Add property to state
      * @param name 

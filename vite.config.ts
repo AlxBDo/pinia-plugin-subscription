@@ -11,8 +11,8 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/lib/main.ts'),
-      name: 'plugin-subscription',
-      fileName: 'plugin-subscription',
+      name: 'pinia-plugin-subscription',
+      fileName: 'pinia-plugin-subscription',
     },
     rollupOptions: {
       external: ['pinia'],

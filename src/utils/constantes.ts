@@ -1,1 +1,1 @@
-export const pluginName: string = 'Epps!'
+export const pluginName: string = 'pinia-plugin-subscription'
