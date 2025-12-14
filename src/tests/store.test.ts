@@ -300,6 +300,27 @@ describe('Store', () => {
         })
     })
 
+    describe('subscriptions API', () => {
+        it('should return undefined when no subscriptions added', () => {
+            const result = storeInstance.getSubscriptions()
+            expect(result).toBeUndefined()
+        })
+
+        it('should add and retrieve plugin subscriptions', () => {
+            const pluginSub = vi.fn((s?: any) => [s])
+
+            storeInstance.addSubscription('myPlugin', pluginSub)
+
+            const subs = storeInstance.getSubscriptions()
+
+            expect(subs).toBeDefined()
+            expect(typeof subs!.myPlugin).toBe('function')
+            // invoking stored subscription should return array as pluginSub does
+            const res = subs!.myPlugin(storeInstance.store as any)
+            expect(res).toEqual([storeInstance.store])
+        })
+    })
+
     describe('getValue', () => {
         it('should extract value from ref', () => {
             const refValue = ref('test')
@@ -351,6 +372,44 @@ describe('Store', () => {
             storeInstance = new Store(mockPiniaStore, mockOptions)
 
             expect(storeInstance.isOptionApi()).toBe(false)
+        })
+    })
+
+    describe('native subscription helpers', () => {
+        it('should return store and callback for onAction when set', () => {
+            const cb = vi.fn()
+            storeInstance.onAction = cb
+
+            const onActionReturn = storeInstance.onAction && storeInstance.onAction()
+
+            expect(onActionReturn).toBeDefined()
+            expect(onActionReturn!.store).toBe(storeInstance.store)
+            expect(onActionReturn!.callback).toBe(cb)
+        })
+
+        it('should return store and callback for storeSubscribe when set', () => {
+            const cb = vi.fn()
+            storeInstance.storeSubscribe = cb
+
+            const subReturn = storeInstance.storeSubscribe && storeInstance.storeSubscribe()
+
+            expect(subReturn).toBeDefined()
+            expect(subReturn!.store).toBe(storeInstance.store)
+            expect(subReturn!.callback).toBe(cb)
+        })
+
+        it('should return undefined for onAction when not set', () => {
+            // ensure not set
+            storeInstance = new Store(mockPiniaStore, mockOptions)
+
+            expect(storeInstance.onAction).toBeUndefined()
+        })
+
+        it('should return undefined for storeSubscribe when not set', () => {
+            // ensure not set
+            storeInstance = new Store(mockPiniaStore, mockOptions)
+
+            expect(storeInstance.storeSubscribe).toBeUndefined()
         })
     })
 

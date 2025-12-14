@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPlugin } from '../plugins/createPlugin'
-import pluginSubscription from '../plugins/pluginCreation'
+import pluginSubscription from '../plugins/pluginSubscription'
 import type { PluginSubscriber } from '../types/plugin'
 
-vi.mock('../plugins/pluginCreation', () => ({
+vi.mock('../plugins/pluginSubscription', () => ({
     default: {
         debug: false,
         subscribers: [],

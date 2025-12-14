@@ -1,4 +1,4 @@
-import pluginSubscription from "./pluginCreation"
+import pluginSubscription from "./pluginSubscription"
 
 import type { PiniaPlugin } from "pinia"
 import type { PluginSubscriber } from "../types/plugin"

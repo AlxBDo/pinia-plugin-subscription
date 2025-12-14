@@ -15,5 +15,5 @@ export type {
 } from "./store"
 
 export type {
-    PluginSubscriber
+    PluginSubscriber as PluginSubscriberInterface
 } from "./plugin"

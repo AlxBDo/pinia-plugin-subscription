@@ -1,19 +1,47 @@
 import { ref, toRef, type Ref } from "vue"
 import { eppsLog } from "../utils/log"
+import { hasDeniedFirstChar } from "../utils/store"
+import { isEmpty } from "../utils/validation"
 
+import type {
+    PluginSubscription,
+    PluginSubscriptions,
+    StoreMutationSubscription,
+    StoreMutationSubscriptionCallback,
+    StoreMutationSubscriptionReturn,
+    StoreOnActionSubscription,
+    StoreOnActionSubscriptionCallback,
+    StoreOnActionSubscriptionReturn
+} from "../types/plugin"
 import type { Store as PiniaStore, StateTree } from "pinia"
 import type { AnyObject } from "../types"
-import type { StoreOptions, PluginStoreOptions, StatePropertyValue } from "../types/store"
-import { hasDeniedFirstChar } from "../utils/store"
+import type { StoreOptions, StatePropertyValue } from "../types/store"
 
 
 export default class Store {
     private _debug: boolean = false
+    private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
     private _store: PiniaStore
+    private _subscriptions: PluginSubscriptions = {}
+    private _storeSubscribe?: StoreMutationSubscriptionCallback
 
     get debug(): boolean { return this._debug }
     set debug(debug: boolean) { this._debug = debug }
+
+    get onAction(): StoreOnActionSubscription | undefined {
+        if (!this._onAction) {
+            return
+        }
+
+        return () => ({
+            store: this.store as PiniaStore,
+            callback: this._onAction
+        }) as StoreOnActionSubscriptionReturn
+    }
+    set onAction(onAction: StoreOnActionSubscriptionCallback) {
+        this._onAction = onAction
+    }
 
     get options(): StoreOptions { return this._options }
 
@@ -23,8 +51,22 @@ export default class Store {
 
     get store(): AnyObject { return this._store }
 
+    get storeSubscribe(): StoreMutationSubscription | undefined {
+        if (!this._storeSubscribe) {
+            return
+        }
 
-    constructor(store: PiniaStore, options: PluginStoreOptions, debug: boolean = false) {
+        return () => ({
+            store: this.store as PiniaStore,
+            callback: this._storeSubscribe
+        }) as StoreMutationSubscriptionReturn
+    }
+    set storeSubscribe(storeSubscribe: StoreMutationSubscriptionCallback) {
+        this._storeSubscribe = storeSubscribe
+    }
+
+
+    constructor(store: PiniaStore, options: AnyObject, debug: boolean = false) {
         this._debug = debug
         this._options = options.storeOptions
         this._store = store
@@ -46,6 +88,10 @@ export default class Store {
         this.store[name] = toRef(this.state, name)
     }
 
+    addSubscription(pluginName: string, subscription: PluginSubscription): void {
+        this._subscriptions[pluginName] = subscription
+    }
+
     /**
      * Create and return a class instance
      * @param store 
@@ -55,7 +101,7 @@ export default class Store {
      */
     static customizeStore<Instance extends Store>(
         store: PiniaStore,
-        options: PluginStoreOptions,
+        options: AnyObject,
         debug: boolean = false
     ): Instance | undefined {
         if (options.storeOptions) {
@@ -77,6 +123,14 @@ export default class Store {
 
     getStatePropertyValue(propertyName: string) {
         return this.getValue(this.state[propertyName])
+    }
+
+    getSubscriptions(): PluginSubscriptions | undefined {
+        if (isEmpty(this._subscriptions)) {
+            return
+        }
+
+        return this._subscriptions
     }
 
     getValue(value: any) {

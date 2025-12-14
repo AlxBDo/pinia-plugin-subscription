@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber } from '../types/plugin'
-import PluginSubscription from '../plugins/pluginCreation'
+import PluginSubscription from '../plugins/pluginSubscription'
 
 function createContext(store: Store): PiniaPluginContext {
     return {
@@ -251,6 +251,78 @@ describe('PluginSubscription', () => {
             PluginSubscription.plugin(mockContext)
 
             expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, false)
+        })
+    })
+
+    describe('subscriptions management', () => {
+        beforeEach(() => {
+            PluginSubscription['_subscriptions'] = []
+        })
+
+        it('addSubscriptions should handle undefined gracefully', () => {
+            PluginSubscription.addSubscriptions(undefined)
+            expect(PluginSubscription.subscriptions).toBeUndefined()
+        })
+
+        it('addSubscriptions should add subscriptions and getter should return them', () => {
+            const subs = { myPlugin: (s?: any) => [s] }
+            PluginSubscription.addSubscriptions(subs)
+
+            const got = PluginSubscription.subscriptions
+            expect(got).toBeDefined()
+            expect(got).toEqual([subs])
+        })
+
+        it('findPluginSubscriptions should return matching subscriptions', () => {
+            const subs1 = { foo: (s?: any) => [s] }
+            const subs2 = { bar: (s?: any) => [s] }
+
+            PluginSubscription.addSubscriptions(subs1)
+            PluginSubscription.addSubscriptions(subs2)
+
+            const found = PluginSubscription.findPluginSubscriptions('foo')
+            expect(found).toBeDefined()
+            expect(found!.length).toBe(1)
+            expect(found![0]).toBe(subs1)
+        })
+
+        it('subscriptionDelivery should invoke subscribers for stores returned by subscriptions and wire native subscriptions', () => {
+            const subscriber: any = {
+                name: 'foo',
+                invoke: vi.fn(),
+            }
+
+            const mutationCb = vi.fn()
+            const onActionCb = vi.fn()
+
+            const fakeStoreForMutation: any = {
+                $id: 'mut-store',
+                $subscribe: (cb: Function) => cb({ type: 'mut' })
+            }
+
+            const fakeStoreForAction: any = {
+                $id: 'act-store',
+                $onAction: (cb: Function) => cb({ after: true, args: [], name: 'test' })
+            }
+
+            subscriber.storeMutationSubscription = () => ({ store: fakeStoreForMutation, callback: mutationCb })
+            subscriber.storeOnActionSubscription = () => ({ store: fakeStoreForAction, callback: onActionCb })
+
+            PluginSubscription.addSubscriber(subscriber)
+
+            const baseStore: any = { $state: {}, $id: 'base', $patch: vi.fn(), $reset: vi.fn() }
+
+            PluginSubscription.addSubscriptions({ foo: (s: any) => [s, baseStore] })
+
+            // run plugin which will call subscriptionDelivery
+            PluginSubscription.plugin({ store: baseStore, options: {} } as any)
+
+            // initial invoke + two stores returned by subscription => at least 3 calls
+            expect(subscriber.invoke).toHaveBeenCalled()
+
+            // mutation and action callbacks should have been called by the fake stores
+            expect(mutationCb).toHaveBeenCalled()
+            expect(onActionCb).toHaveBeenCalled()
         })
     })
 
