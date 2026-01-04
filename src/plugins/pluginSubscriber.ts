@@ -1,14 +1,23 @@
 import Store from "../core/Store";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type { AnyObject } from "../types";
-import type { PluginSubscriber as PluginSubscriberInterface, PluginSubscriptions, StoreMutationSubscription, StoreOnActionSubscription } from "../types/plugin";
+import type {
+    PluginSubscriber as PluginSubscriberInterface,
+    PluginSubscriptions,
+    StoreMutationSubscription,
+    StoreOnActionSubscription
+} from "../types/plugin";
+import { Console } from "../types/log";
 
 
-type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject, debug?: boolean) => Instance | undefined
+type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject, debug: boolean, customConsole?: Console) => Instance | undefined
+
 
 export default abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
+    private _console?: Console
     private _createInstance: CreateInstance
     private _name: string
+    private _pluginOptions?: AnyObject
     private _storeInstance?: Instance
     protected _resetStoreCallback?: (store?: Store) => void
     private _storeOnActionSubscription?: StoreOnActionSubscription
@@ -16,8 +25,21 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     private _subscriptions?: PluginSubscriptions
     protected pluginCreated?: (store: PiniaStore) => void
 
+
+    get console(): Console {
+        return this._console ?? console
+    }
+
     get name(): string {
         return this._name;
+    }
+
+    get pluginOptions(): AnyObject {
+        return this._pluginOptions ?? {};
+    }
+
+    set pluginOptions(options: AnyObject | undefined) {
+        this._pluginOptions = options;
     }
 
     get resetStoreCallback(): ((store?: PiniaStore) => void) | undefined {
@@ -40,17 +62,21 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     }
 
 
-    constructor(pluginName: string, createInstanceFunction: CreateInstance) {
+    constructor(pluginName: string, createInstanceFunction: CreateInstance, pluginConsole?: Console) {
         this._name = pluginName
         this._createInstance = createInstanceFunction
+
+        if (pluginConsole) {
+            this._console = pluginConsole
+        }
     }
 
 
     public invoke(
         { store, options }: PiniaPluginContext,
-        debug?: boolean
+        debug: boolean
     ): void {
-        this._storeInstance = this._createInstance(store, options, debug) as Instance
+        this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions }, debug, this.console) as Instance
 
         if (!this._storeInstance) {
             return

@@ -5,6 +5,14 @@ export interface SearchCollectionCriteria {
     [key: number | string | symbol]: boolean | number | string;
 }
 
+export {
+    Console,
+    LogType,
+    StyleDefinition as ConsoleStyleDefinition,
+    StyleDefinitionKeys as ConsoleStyleDefinitionKeys,
+    StyleDefinitions as ConsoleStyleDefinitions
+} from './log'
+
 export type {
     CustomStore,
     DefineAugmentedStore,
@@ -15,5 +23,7 @@ export type {
 } from "./store"
 
 export type {
-    PluginSubscriber as PluginSubscriberInterface
+    PluginSubscriber as PluginSubscriberInterface,
+    StoreMutationSubscriptionCallback,
+    StoreOnActionCallbackParameters
 } from "./plugin"

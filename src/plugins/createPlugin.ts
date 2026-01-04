@@ -1,4 +1,4 @@
-import pluginSubscription from "./pluginSubscription"
+import PluginSubscription from "./pluginSubscription"
 
 import type { PiniaPlugin } from "pinia"
 import type { PluginSubscriber } from "../types/plugin"
@@ -9,8 +9,7 @@ export function createPlugin(subscribers: PluginSubscriber[], debug: boolean = f
         debug = false
     }
 
-    pluginSubscription.debug = debug
-    pluginSubscription.subscribers = subscribers
+    const pluginSubscription = new PluginSubscription(subscribers, debug)
 
     return pluginSubscription.plugin.bind(pluginSubscription)
 }

@@ -1,8 +1,11 @@
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
+import { StoreOptions } from "./store"
+import { Console, PluginSubscriberInterface } from "."
 
 
 export interface PluginSubscriber {
-    invoke: (context: PiniaPluginContext, debug?: boolean) => void
+    console?: Console
+    invoke: (context: PiniaPluginContext, debug: boolean) => void
     name: string
     resetStoreCallback?: (store?: Store) => void
     storeOnActionSubscription?: StoreOnActionSubscription
@@ -15,20 +18,24 @@ export interface NativePiniaSubscriptionReturn<Callback> {
     callback: Callback
 }
 
-export interface OnActionParameters {
+export interface StoreOnActionCallbackParameters {
     after: Function
     args: any[] | object
     name: string
 }
 
 
-export type PluginSubscription = (store?: Store) => Store[] | undefined
+export interface PluginSubscription {
+    stores?: Store[]
+    subscription: PluginSubscriberInterface
+    subscriptionOptions?: StoreOptions
+}
 
 export type PluginSubscriptions = Record<string, PluginSubscription>
 
 export type NativePiniaSubscription<Callback> = () => NativePiniaSubscriptionReturn<Callback>
 
-export type StoreOnActionSubscriptionCallback = (params: OnActionParameters) => void
+export type StoreOnActionSubscriptionCallback = (params: StoreOnActionCallbackParameters) => void
 
 export type StoreOnActionSubscriptionReturn = NativePiniaSubscriptionReturn<StoreOnActionSubscriptionCallback>
 

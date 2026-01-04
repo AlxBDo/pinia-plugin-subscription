@@ -314,9 +314,9 @@ describe('Store', () => {
             const subs = storeInstance.getSubscriptions()
 
             expect(subs).toBeDefined()
-            expect(typeof subs!.myPlugin).toBe('function')
+            expect(typeof subs!.myPlugin.subscription).toBe('function')
             // invoking stored subscription should return array as pluginSub does
-            const res = subs!.myPlugin(storeInstance.store as any)
+            const res = subs!.myPlugin.subscription(storeInstance.store as any)
             expect(res).toEqual([storeInstance.store])
         })
     })
