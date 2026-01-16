@@ -2,7 +2,6 @@ import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation
 import { StoreOptions } from "./store"
 import { Console, PluginSubscriberInterface } from "."
 
-
 export interface PluginSubscriber {
     console?: Console
     invoke: (context: PiniaPluginContext, debug: boolean) => void

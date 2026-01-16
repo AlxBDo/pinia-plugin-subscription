@@ -26,8 +26,8 @@ import App from './App.vue'
 const app = createApp(App)
 const pinia = createPinia()
 
-// Register plugin (subscribers array, debug flag)
-pinia.use(createPlugin([myStoreSubscriber]))
+// Register plugin (subscribers array, debug  = list of target plugins)
+pinia.use(createPlugin([myStoreSubscriber], ['my-plugin']))
 
 app.use(pinia)
 app.mount('#app')
@@ -65,6 +65,7 @@ class MyStore extends Store {
 }
 
 export const myStoreSubscriber = {
+  name: 'my-plugin'
   invoke: (context, debug) => {
     // create an instance of the Store subclass when options.storeOptions is present
     const myStore = MyStore.customizeStore(context.store, context.options, debug)
@@ -110,9 +111,9 @@ export const myStoreSubscriber = {
 
  Creates a Pinia plugin from the provided `subscribers` and optional `debug` flag. Each subscriber will be invoked with the Pinia plugin context when a store is registered.
 
- ### `PluginSubscriber`
+ ### `PluginSubscriberInterface`
 
-The `PluginSubscriber` interface has been extended: it's still an object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, but it can now expose several useful properties for plugins:
+The `PluginSubscriberInterface` interface has been extended: it's still an object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, but it can now expose several useful properties for plugins:
 
 - **`resetStoreCallback?: (store?: Store) => void`**: callback invoked when the store is reset.
 - **`storeOnActionSubscription?: StoreOnActionSubscription`**: provides a native Pinia `onAction` subscription via a getter returning `{ store, callback }`.
@@ -179,3 +180,14 @@ Other small helpers exposed: `stateHas(property)`, `storeHas(property)` and `get
   - Branches: **86.53%** (45/52)
   - Functions: **100%** (38/38)
   - Lines: **97.59%** (81/83)
+
+
+## Notes
+
+The $reset method is available for stores augmented by the plugin (also compositionApi store 😁).
+
+---
+
+## License
+
+MIT

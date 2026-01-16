@@ -57,6 +57,7 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     get subscriptions(): PluginSubscriptions | undefined {
         return this._subscriptions
     }
+
     set subscriptions(subscriptions: PluginSubscriptions) {
         this._subscriptions = subscriptions
     }

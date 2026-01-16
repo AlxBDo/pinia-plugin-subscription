@@ -5,14 +5,24 @@ import { isEmpty } from "../utils/validation"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
-import type { PluginSubscriber, PluginSubscriptions, StoreMutationSubscription, StoreOnActionSubscription } from "../types/plugin"
+import type {
+    PluginSubscriber,
+    PluginSubscriptions,
+    StoreMutationSubscription,
+    StoreOnActionSubscription
+} from "../types/plugin"
+
+const className = 'PluginSubscription'
 
 
 export default class PluginSubscription extends Debug {
-    protected _className: string = 'PluginSubscription'
+    protected _className: string = className
+    private _pluginDebug?: string[]
     private _resetStoreCallback: Function[] = []
     private _subscribers: PluginSubscriber[] = []
+    private _subscribersDelivered: Set<string> = new Set()
     private _subscriptions: PluginSubscriptions[] = []
+    private _subscriptionsDelivered: Set<string> = new Set()
 
     set subscribers(subscribers: PluginSubscriber[]) {
         this._subscribers = subscribers
@@ -24,14 +34,19 @@ export default class PluginSubscription extends Debug {
         }
     }
 
-    constructor(subscribers: PluginSubscriber[], debug?: boolean) {
-        super(debug ?? false, PluginConsole)
+    constructor(subscribers: PluginSubscriber[], debug?: string[]) {
+        super(!!debug?.includes(className), PluginConsole)
+        this._pluginDebug = Array.isArray(debug) ? debug : undefined
         this._subscribers = subscribers
     }
 
 
     private addResetStoreCallback(callback: Function): void {
         this._resetStoreCallback.push(callback)
+    }
+
+    private definePluginDebug(subscriber: PluginSubscriber): boolean {
+        return !!this._pluginDebug?.includes(subscriber.name)
     }
 
     private executeResetStoreCallbacks(store: Store): void {
@@ -43,7 +58,7 @@ export default class PluginSubscription extends Debug {
             return
         }
 
-        this.debugLog(`plugin() - store: ${store.$id}`, [
+        this.debugLog(`plugin() - ${store.$id}`, [
             'subscriber:', this._subscribers,
             'store:', store,
             'options:', options
@@ -52,7 +67,15 @@ export default class PluginSubscription extends Debug {
         try {
             this._subscribers.forEach(
                 subscriber => {
-                    subscriber.invoke({ store, options } as PiniaPluginContext, this.debug)
+                    if (this._subscribersDelivered.has(`${subscriber.name}-${store.$id}`)) {
+                        return
+                    }
+
+                    subscriber.invoke(
+                        { store, options } as PiniaPluginContext,
+                        this.definePluginDebug(subscriber)
+                    )
+                    this._subscribersDelivered.add(`${subscriber.name}-${store.$id}`)
 
                     if (subscriber.subscriptions) {
                         this.subscriptionDelivery({ store, options } as PiniaPluginContext, subscriber.subscriptions)
@@ -96,7 +119,7 @@ export default class PluginSubscription extends Debug {
         const { store, callback } = subscription()
 
         store.$onAction(({ after, args, name }) => {
-            this.debugLog(`storeOnActionSubscription ${store.$id}`, [after, args, name, store])
+            this.debugLog(`storeOnActionSubscription ${store.$id}`, { after, args, name, store })
             callback({ after, args, name })
         })
     }
@@ -105,7 +128,7 @@ export default class PluginSubscription extends Debug {
         const { store, callback } = subscription()
 
         store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
-            this.debugLog(`$subscribe ${store.$id}`, [mutation, store])
+            this.debugLog(`$subscribe ${store.$id}`, { mutation, store })
             callback(mutation)
         })
     }
@@ -113,18 +136,27 @@ export default class PluginSubscription extends Debug {
     private subscriptionDelivery({ store, options }: PiniaPluginContext, pluginSubscriptions: PluginSubscriptions): void {
         Object.entries(pluginSubscriptions).forEach(([pluginName, pluginSubscription]) => {
             try {
+                if (this._subscriptionsDelivered.has(`${pluginName}-${store.$id}`)) {
+                    return
+                }
+
                 const { subscription, subscriptionOptions, stores } = pluginSubscription
 
                 this.debugLog(`subscriptionDelivery() - store: ${store.$id}`, [
                     'pluginName:', pluginName,
                     'subscription:', subscription,
-                    'options:', subscriptionOptions
+                    'options:', pluginSubscription
                 ])
 
+                const pluginOptions = {
+                    storeOptions: { ...((options as AnyObject)?.storeOptions ?? {}), ...subscriptionOptions }
+                } as AnyObject
+
                 subscription.invoke(
-                    { store, options: { ...options, ...subscriptionOptions } } as PiniaPluginContext,
+                    { store, options: { ...options, ...pluginOptions } } as PiniaPluginContext,
                     this.debug
                 )
+                this._subscriptionsDelivered.add(`${pluginName}-${store.$id}`)
 
                 if (!isEmpty(stores)) {
                     stores?.forEach(
@@ -133,7 +165,7 @@ export default class PluginSubscription extends Debug {
                                 store,
                                 options: {
                                     ...options,
-                                    ...subscriptionOptions,
+                                    ...pluginOptions,
                                     ...((store as AnyObject)?.storeOptions ?? {})
                                 }
                             } as PiniaPluginContext,
@@ -142,7 +174,7 @@ export default class PluginSubscription extends Debug {
                     )
                 }
             } catch (e) {
-                this.logError(`subscriptionDelivery() - ${pluginName}`, e, store, options)
+                this.logError(`subscriptionDelivery()`, e, store, options)
             }
         })
     }

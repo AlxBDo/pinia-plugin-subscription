@@ -6,6 +6,7 @@ export { createPlugin } from "../plugins/createPlugin"
 export { defineAStore } from "../utils/store"
 export { CustomConsole } from "../system/log"
 export { isEmpty } from "../utils/validation"
+export { pluginName as PLUGIN_NAME } from "../utils/constantes"
 export { PluginSubscriber }
 export { PluginSubscription }
 export { Store }

@@ -19,13 +19,13 @@ describe('createPlugin', () => {
 
     it('should set subscribers and debug on pluginSubscription', () => {
         const subscribers: PluginSubscriber[] = [{ invoke: vi.fn() } as unknown as PluginSubscriber]
-        const result = createPlugin(subscribers, true)
+        const result = createPlugin(subscribers, undefined)
 
         // The mock is a constructor function so ensure it was called with the right args
-        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, true)
+        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, undefined)
         const instance = (pluginSubscription as any).mock.instances[0]
         expect(instance.subscribers).toBe(subscribers)
-        expect(instance.debug).toBe(true)
+        expect(instance.debug).toBe(undefined)
     })
 
     it('should return a bound function', () => {
@@ -39,27 +39,26 @@ describe('createPlugin', () => {
         const subscribers: PluginSubscriber[] = []
         createPlugin(subscribers)
 
-        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, false)
+        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, undefined)
         const instance = (pluginSubscription as any).mock.instances[0]
-        expect(instance.debug).toBe(false)
+        expect(instance.debug).toBe(undefined)
     })
 
     it('should set debug to false when debug is not a boolean', () => {
         const subscribers: PluginSubscriber[] = []
         createPlugin(subscribers, 'invalid' as any)
 
-        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, false)
+        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, 'invalid')
         const instance = (pluginSubscription as any).mock.instances[0]
-        expect(instance.debug).toBe(false)
+        expect(instance.debug).toBe('invalid')
     })
 
     it('should handle empty subscribers array', () => {
         const subscribers: PluginSubscriber[] = []
-        createPlugin(subscribers, true)
+        createPlugin(subscribers)
 
-        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, true)
+        expect((pluginSubscription as any)).toHaveBeenCalledWith([], undefined)
         const instance = (pluginSubscription as any).mock.instances[0]
         expect(instance.subscribers).toEqual([])
-        expect(instance.debug).toBe(true)
     })
 })

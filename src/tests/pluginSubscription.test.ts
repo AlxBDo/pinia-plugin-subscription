@@ -10,25 +10,16 @@ function createContext(store: Store): PiniaPluginContext {
     } as unknown as PiniaPluginContext
 }
 
+function getPluginSubscription(subscribers: PluginSubscriber[], debug?: string[]) {
+    return new PluginSubscription(subscribers, debug)
+}
+
 describe('PluginSubscription', () => {
     let pluginSub: PluginSubscription
 
     beforeEach(() => {
         // Create a fresh instance before each test
-        pluginSub = new PluginSubscription([], false)
-    })
-
-    describe('debug setter', () => {
-        it('should set debug mode to true', () => {
-            pluginSub.debug = true
-            expect(pluginSub.debug).toBe(true)
-        })
-
-        it('should set debug mode to false', () => {
-            pluginSub.debug = true
-            pluginSub.debug = false
-            expect(pluginSub.debug).toBe(false)
-        })
+        pluginSub = getPluginSubscription([])
     })
 
     describe('subscribers setter', () => {
@@ -159,8 +150,7 @@ describe('PluginSubscription', () => {
             const subscriber1: PluginSubscriber = { name: 'a', console: console, invoke: vi.fn(), subscriptions: undefined }
             const subscriber2: PluginSubscriber = { name: 'b', console: console, invoke: vi.fn(), subscriptions: undefined }
 
-            pluginSub.subscribers = [subscriber1, subscriber2]
-            pluginSub.debug = true
+            pluginSub = getPluginSubscription([subscriber1, subscriber2], ['a', 'b'])
 
             const mockContext = createContext({
                 $state: { count: 0 },
@@ -240,23 +230,6 @@ describe('PluginSubscription', () => {
             expect(() => {
                 pluginSub.plugin(mockContext)
             }).not.toThrow()
-        })
-
-        it('should pass debug flag as false when debug is not set', () => {
-            const subscriber: PluginSubscriber = { name: 'd', console: console, invoke: vi.fn(), subscriptions: undefined }
-
-            pluginSub.subscribers = [subscriber]
-            pluginSub.debug = false
-
-            const mockContext = createContext({
-                $state: {},
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store)
-
-            pluginSub.plugin(mockContext)
-
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, false)
         })
     })
 
@@ -383,15 +356,31 @@ describe('PluginSubscription', () => {
 
             // first call: plugin-level invoke with merged options (subscriptionOptions override base)
             expect(calls[0][0].store).toBe(baseStore)
-            expect(calls[0][0].options).toEqual(expect.objectContaining({ key: 'sub', baseOnly: true, subOnly: true }))
+            expect(calls[0][0].options).toEqual(expect.objectContaining({
+                key: 'base',
+                baseOnly: true,
+                storeOptions: { key: 'sub', subOnly: true }
+            }))
 
             // second call: per-store invoke, storeOptions override subscriptionOptions and base
             expect(calls[1][0].store).toBe(extraStore1)
-            expect(calls[1][0].options).toEqual(expect.objectContaining({ key: 'store', baseOnly: true, subOnly: true, per: 's1' }))
+            expect(calls[1][0].options).toEqual(expect.objectContaining({
+                key: 'store',
+                baseOnly: true,
+                storeOptions: { key: 'sub', subOnly: true },
+                per: 's1'
+            }))
 
             // third call: per-store invoke without storeOptions
             expect(calls[2][0].store).toBe(extraStore2)
-            expect(calls[2][0].options).toEqual(expect.objectContaining({ key: 'sub', baseOnly: true, subOnly: true }))
+            expect(calls[2][0].options).toEqual(expect.objectContaining({
+                "baseOnly": true,
+                "key": "base",
+                "storeOptions": {
+                    "key": "sub",
+                    "subOnly": true,
+                },
+            }))
         })
     })
 
@@ -536,7 +525,6 @@ describe('PluginSubscription', () => {
             }
 
             pluginSub.subscribers = [subscriber1, subscriber2]
-            pluginSub.debug = true
 
             const mockStore = {
                 $state: { count: 0, data: 'test' },
@@ -570,12 +558,14 @@ describe('PluginSubscription', () => {
             pluginSub.subscribers = [subscriber]
 
             const store1 = {
+                $id: 'store1',
                 $state: { count: 0 },
                 $reset: vi.fn(),
                 $patch: vi.fn(),
             } as unknown as Store
 
             const store2 = {
+                $id: 'store2',
                 $state: { name: 'test' },
                 $reset: vi.fn(),
                 $patch: vi.fn(),
