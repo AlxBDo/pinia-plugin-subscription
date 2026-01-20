@@ -4,7 +4,7 @@ import { Console, PluginSubscriberInterface } from "."
 
 export interface PluginSubscriber {
     console?: Console
-    invoke: (context: PiniaPluginContext, debug: boolean) => void
+    invoke: (context: PiniaPluginContext, debug: boolean) => boolean
     name: string
     resetStoreCallback?: (store?: Store) => void
     storeOnActionSubscription?: StoreOnActionSubscription

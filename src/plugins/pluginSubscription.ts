@@ -35,7 +35,7 @@ export default class PluginSubscription extends Debug {
     }
 
     constructor(subscribers: PluginSubscriber[], debug?: string[]) {
-        super(!!debug?.includes(className), PluginConsole)
+        super(Array.isArray(debug) && !!debug?.includes(className), PluginConsole)
         this._pluginDebug = Array.isArray(debug) ? debug : undefined
         this._subscribers = subscribers
     }
@@ -71,10 +71,14 @@ export default class PluginSubscription extends Debug {
                         return
                     }
 
-                    subscriber.invoke(
-                        { store, options } as PiniaPluginContext,
-                        this.definePluginDebug(subscriber)
-                    )
+                    if (
+                        !subscriber.invoke(
+                            { store, options } as PiniaPluginContext,
+                            this.definePluginDebug(subscriber)
+                        )) {
+                        return
+                    }
+
                     this._subscribersDelivered.add(`${subscriber.name}-${store.$id}`)
 
                     if (subscriber.subscriptions) {
@@ -145,7 +149,8 @@ export default class PluginSubscription extends Debug {
                 this.debugLog(`subscriptionDelivery() - store: ${store.$id}`, [
                     'pluginName:', pluginName,
                     'subscription:', subscription,
-                    'options:', pluginSubscription
+                    'options:', pluginSubscription,
+                    'stores:', stores
                 ])
 
                 const pluginOptions = {

@@ -52,7 +52,7 @@ describe('PluginSubscription', () => {
     describe('reset callbacks via plugin', () => {
         it('should register reset callback provided by subscriber during plugin init', () => {
             const callback = vi.fn()
-            const subscriber: PluginSubscriber = { name: 's', console: console, invoke: vi.fn(), resetStoreCallback: callback, subscriptions: undefined }
+            const subscriber: PluginSubscriber = { name: 's', console: console, invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback, subscriptions: undefined }
 
             pluginSub.subscribers = [subscriber]
 
@@ -70,8 +70,8 @@ describe('PluginSubscription', () => {
         it('should execute multiple reset callbacks when $reset is called', () => {
             const callback1 = vi.fn()
             const callback2 = vi.fn()
-            const subscriber1: PluginSubscriber = { name: 's1', console: console, invoke: vi.fn(), resetStoreCallback: callback1, subscriptions: undefined }
-            const subscriber2: PluginSubscriber = { name: 's2', console: console, invoke: vi.fn(), resetStoreCallback: callback2, subscriptions: undefined }
+            const subscriber1: PluginSubscriber = { name: 's1', console: console, invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback1, subscriptions: undefined }
+            const subscriber2: PluginSubscriber = { name: 's2', console: console, invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback2, subscriptions: undefined }
 
             pluginSub.subscribers = [subscriber1, subscriber2]
 
@@ -147,8 +147,8 @@ describe('PluginSubscription', () => {
         })
 
         it('should invoke all subscribers with correct context and debug flag', () => {
-            const subscriber1: PluginSubscriber = { name: 'a', console: console, invoke: vi.fn(), subscriptions: undefined }
-            const subscriber2: PluginSubscriber = { name: 'b', console: console, invoke: vi.fn(), subscriptions: undefined }
+            const subscriber1: PluginSubscriber = { name: 'a', console: console, invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }
+            const subscriber2: PluginSubscriber = { name: 'b', console: console, invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }
 
             pluginSub = getPluginSubscription([subscriber1, subscriber2], ['a', 'b'])
 
@@ -169,7 +169,7 @@ describe('PluginSubscription', () => {
             const subscriber: PluginSubscriber = {
                 name: 'r',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 resetStoreCallback: resetCallback,
                 subscriptions: undefined,
             }
@@ -268,7 +268,7 @@ describe('PluginSubscription', () => {
             const subscriber: any = {
                 name: 'foo',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
             }
 
             const mutationCb = vi.fn()
@@ -317,7 +317,7 @@ describe('PluginSubscription', () => {
             const subscriber: any = {
                 name: 'foo',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
             }
 
             const pluginSubscriptionInvoke = vi.fn()
@@ -392,7 +392,7 @@ describe('PluginSubscription', () => {
             const subscriber: PluginSubscriber = {
                 name: 'a',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 resetStoreCallback: callback1,
                 subscriptions: undefined,
             }
@@ -421,7 +421,7 @@ describe('PluginSubscription', () => {
             const subscriber: PluginSubscriber = {
                 name: 'b',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
 
@@ -451,7 +451,7 @@ describe('PluginSubscription', () => {
             const subscriber: PluginSubscriber = {
                 name: 'c',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
 
@@ -479,7 +479,7 @@ describe('PluginSubscription', () => {
             const subscriber: PluginSubscriber = {
                 name: 's',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
 
@@ -513,14 +513,14 @@ describe('PluginSubscription', () => {
             const subscriber1: PluginSubscriber = {
                 name: 'a',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 resetStoreCallback: resetCallback,
                 subscriptions: undefined,
             }
             const subscriber2: PluginSubscriber = {
                 name: 'b',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
 
@@ -551,7 +551,7 @@ describe('PluginSubscription', () => {
             const subscriber: PluginSubscriber = {
                 name: 'multi',
                 console: console,
-                invoke: vi.fn(),
+                invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
 

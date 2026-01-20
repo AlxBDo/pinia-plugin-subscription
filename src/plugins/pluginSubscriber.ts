@@ -76,11 +76,11 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     public invoke(
         { store, options }: PiniaPluginContext,
         debug: boolean
-    ): void {
+    ): boolean {
         this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions }, debug, this.console) as Instance
 
         if (!this._storeInstance) {
-            return
+            return false
         }
 
         this._subscriptions = this._storeInstance.getSubscriptions()
@@ -90,5 +90,7 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
         if (this.pluginCreated) {
             this.pluginCreated(store)
         }
+
+        return true
     }
 }
