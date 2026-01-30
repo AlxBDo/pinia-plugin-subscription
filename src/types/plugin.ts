@@ -9,7 +9,7 @@ export interface PluginSubscriber {
     resetStoreCallback?: (store?: Store) => void
     storeOnActionSubscription?: StoreOnActionSubscription
     storeMutationSubscription?: StoreMutationSubscription
-    subscriptions: PluginSubscriptions | undefined
+    subscriptions?: PluginSubscriptions
 }
 
 export interface NativePiniaSubscriptionReturn<Callback> {

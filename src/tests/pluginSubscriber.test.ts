@@ -46,6 +46,7 @@ describe('PluginSubscriber (abstract)', () => {
 
         const instance = {
             getSubscriptions: vi.fn().mockReturnValue(subscriptions),
+            resetCallback: (s?: any) => { /* noop */ },
             storeSubscribe: 'storeSubscribeValue',
             onAction: 'onActionValue',
         }

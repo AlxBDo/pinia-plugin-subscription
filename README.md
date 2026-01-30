@@ -1,13 +1,12 @@
  # pinia-plugin-subscription
 
- ![Pinia](https://img.shields.io/badge/Pinia-2.x-blue?logo=pinia) ![Vue](https://img.shields.io/badge/Vue-3.x-brightgreen?logo=vue.js) ![Nuxt](https://img.shields.io/badge/Nuxt-3.x-00C58E?logo=nuxt.js) ![Vitest](https://img.shields.io/badge/Vitest-tested-brightgreen?logo=vitest)
-
  Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a `Store` base class for store helpers.
 
  This project provides:
  - a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia;
  - a `Store` base class (helper wrapper) to ease interacting with Pinia stores from subscribers or other plugin code;
- - an API to create a Pinia plugin from a list of subscribers.
+ - an API to create a Pinia plugin from a list of subscribers;
+ - the $reset method to all stores modified by the plugin.
 
  The main goal is to offer a clear API for writing reusable Pinia plugins and to make it easy to extend stores from plugin code.
 
@@ -36,106 +35,130 @@ app.mount('#app')
 2. A subscriber example using a `Store` subclass:
 
 ```typescript
-// src/core/my-store.ts
-import { Store } from 'pinia-plugin-subscription'
+import { PluginSubscriber, Store } from 'pinia-plugin-subscription';
+import { PluginConsole } from "../../system/log";
 
-class MyStore extends Store {
+class MyPlugin extends Store {
   constructor(store, options, debug = false) {
     super(store, options, debug)
     this.doSomething()
   }
+  // ...
+}
 
-  private doSomething() {
-    try {
-      console.log('store', this.store)
-      console.log('state', this.state)
-      console.log('store options', this.options)
+class MyPluginSubscriber extends PluginSubscriber<MyPlugin> {
+    constructor() {
+        super(
+            # pinia-plugin-subscription
 
-      // conditionaly property added
-      if(
-          (!this.stateHas('myProperty') || this.getStatePropertyValue('myProperty') === 'old-value') 
-          && this.storeHas('myAction')
-      ){
-        this.addToState('myProperty', 'new-value')
-      }
-    } catch(e) {
-      this.debugLog(e)
-    }
+Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a `Store` base class for store helpers.
+
+## Overview
+
+- Provides a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia.
+- Offers a `Store` base class (wrapper) to ease interacting with Pinia stores from subscribers or plugin code.
+- Supplies a `createPlugin` factory to build a Pinia plugin from a list of subscribers.
+- Enables callbacks to run when stores are reset by the plugin.
+
+## Installation
+
+Ensure Pinia is installed, then register the plugin in your `main.ts`:
+
+```typescript
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import { createPlugin } from 'pinia-plugin-subscription'
+import { myStoreSubscriber } from './src/core/my-store'
+import App from './App.vue'
+
+const app = createApp(App)
+const pinia = createPinia()
+
+// Register plugin (subscribers array, debug mode)
+pinia.use(createPlugin([myStoreSubscriber], true))
+
+app.use(pinia)
+app.mount('#app')
+```
+
+## Usage — Examples
+
+**1) Subscriber using a `Store` subclass:**
+
+```typescript
+import PluginSubscriber from 'pinia-plugin-subscription'
+import { Store } from 'pinia-plugin-subscription'
+
+class MyPlugin extends Store {
+  constructor(store, options, debug = false) {
+    super(store, options, debug)
+    this.doSomething()
   }
 }
 
-export const myStoreSubscriber = {
-  name: 'my-plugin'
-  invoke: (context, debug) => {
-    // create an instance of the Store subclass when options.storeOptions is present
-    const myStore = MyStore.customizeStore(context.store, context.options, debug)
-    if (!myStore) return
+class MyPluginSubscriber extends PluginSubscriber<MyPlugin> {
+  constructor() {
+    super('my-plugin', MyPlugin.customizeStore.bind(MyPlugin))
+  }
+}
 
-    //Execute logic if store is augmented by plugin
-    doAnotherthing(myStore)
+export const myStoreSubscriber = new MyPluginSubscriber()
+```
+
+**2) Simple subscriber implementing `PluginSubscriberInterface`:**
+
+```typescript
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
+
+export const myStoreSubscriber: PluginSubscriberInterface = {
+  name: 'my-plugin',
+  invoke: (context, debug) => {
+    // context contains `store`, `options`, `pinia`
+    console.log('store registered', context.store.$id)
   },
   resetStoreCallback: (store) => {
-    console.log('[subscriber] store reset:', store?.$id)
+    console.log('store reset:', store.$id)
   }
 }
 ```
 
- ### Advanced usage
+## Advanced Features
 
- #### Debug mode
+- **Debug mode:** Pass `true` as the second argument to `createPlugin` to enable detailed logging and plugin filtering.
+- **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 
- Enable debug mode to log store changes and internal actions:
+## API Reference
 
- ```typescript
- pinia.use(createPlugin([subscriber], true))
- ```
+### `createPlugin(subscribers: PluginSubscriber[], debug?: boolean): PiniaPlugin`
 
- #### Reset store callbacks
+Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered.
 
- Subscribers may define `resetStoreCallback` to run custom logic when a store reset is handled by the plugin.
+### `PluginSubscriberInterface`
 
- ```typescript
- const subscriber = {
-   invoke: (context, debug) => {
-     console.log('Store changed:', context.store.$state)
-   },
-   resetStoreCallback: (store) => {
-     console.log('Store reset:', store.$id)
-   }
- }
- ```
+An object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, plus optional properties:
 
- ## API
+- `resetStoreCallback?: (store?: any) => void`
+- `storeOnActionSubscription?: { store, callback }` (getter)
+- `storeMutationSubscription?: { store, callback }` (getter)
+- `subscriptions?: Record<string, Function>` (plugin-specific subscription functions)
 
- ### `createPlugin(subscribers: PluginSubscriber[], debug?: boolean): PiniaPlugin`
+## The `PluginSubscriber` Abstract Class
 
- Creates a Pinia plugin from the provided `subscribers` and optional `debug` flag. Each subscriber will be invoked with the Pinia plugin context when a store is registered.
+The project provides an abstract `PluginSubscriber` implementation (see [src/plugins/pluginSubscriber.ts](src/plugins/pluginSubscriber.ts)) to simplify creating reusable subscribers.
 
- ### `PluginSubscriberInterface`
+**Typical usage:**
 
-The `PluginSubscriberInterface` interface has been extended: it's still an object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, but it can now expose several useful properties for plugins:
+- The subscriber instantiates a `Store` (or subclass) via a factory (`MyStore.customizeStore`).
+- The instance exposes:
+  - `subscriptions` (from `getSubscriptions()`)
+  - `storeMutationSubscription` (from `storeSubscribe`)
+  - `storeOnActionSubscription` (from `onAction`)
+  - optional `pluginCreated(store)` hook called after initialization
 
-- **`resetStoreCallback?: (store?: Store) => void`**: callback invoked when the store is reset.
-- **`storeOnActionSubscription?: StoreOnActionSubscription`**: provides a native Pinia `onAction` subscription via a getter returning `{ store, callback }`.
-- **`storeMutationSubscription?: StoreMutationSubscription`**: provides a native mutation subscription (`store.$subscribe`) via a getter returning `{ store, callback }`.
-- **`subscriptions: PluginSubscriptions | undefined`**: an object listing plugin-specific subscription functions (see `Store.addSubscription`).
-
-These additions make it easier for subscribers to integrate with Pinia's native event cycle and to expose reusable extension points.
-
-## The `PluginSubscriber` class (abstract)
-
-The project provides an abstract `PluginSubscriber` implementation ([src/plugins/pluginSubscriber.ts](src/plugins/pluginSubscriber.ts)) that makes it easy to create reusable subscribers:
-
-- Constructor: `new PluginSubscriber(pluginName: string, createInstanceFunction: CreateInstance)`
-- Main behavior: in `invoke(context, debug)` the class creates a helper instance (`Store` or subclass) via the `createInstanceFunction` (typically `MyStore.customizeStore`) and exposes on the instance:
-  - `subscriptions` (from `store.getSubscriptions()`)
-  - `storeMutationSubscription` (from `store.storeSubscribe`)
-  - `storeOnActionSubscription` (from `store.onAction`)
-  - optionally a `pluginCreated(store)` hook called after initialization
-
+**Example:**
 
 ```typescript
-import PluginSubscriber from './src/plugins/pluginSubscriber'
+import PluginSubscriber from 'pinia-plugin-subscription'
 import StoreExtension from './src/extending-pinia-store/core/StoreExtension'
 import { addStore } from './src/extending-pinia-store/plugins/stores'
 
@@ -149,44 +172,33 @@ class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
 export const extendingStoreSubscriber = new ExtendingStoreSubscriber()
 ```
 
-Here `ExtendingStoreSubscriber` provides a `createInstanceFunction` that returns a `StoreExtension` instance if `options.storeOptions` is present, and sets a `pluginCreated` hook (here `addStore`) to run plugin-specific logic once the instance is ready.
+## The `Store` Class — Summary
 
- ## The `Store` class (summary)
+The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper around a `PiniaStore` providing:
 
- The `Store` class (in [src/core/Store.ts](src/core/Store.ts)) is a base wrapper around a `PiniaStore` exposing helpers:
+- **Properties:** `debug`, `options`, `state`, `store`.
+- **Useful methods:**
+  - `addToState(name, value?)` — adds a property to store state and exposes it as a `Ref` when appropriate.
+  - `addSubscription(pluginName, subscription)` — registers a plugin-specific subscription function.
+  - `getSubscriptions()` — returns registered subscriptions.
+  - `storeSubscribe` (getter/setter) — factory for `store.$subscribe` ({ store, callback }).
+  - `onAction` (getter/setter) — factory for `onAction` ({ store, callback }).
+  - `static customizeStore(store, options, debug?)` — recommended factory for class instantiation.
+  - `debugLog(message, args)` — conditional logging.
+  - Helpers: `stateHas()`, `storeHas()`, `getValue()`.
 
- - Properties: `debug`, `options`, `state`, `store`.
- - Useful methods:
-   - `addToState(name, value?)`: adds a property to the store state and exposes it as a `Ref` on the store when appropriate.
-   - `addSubscription(pluginName, subscription)`: registers a plugin-specific subscription function (accessible via `getSubscriptions`).
-   - `getSubscriptions()`: returns subscriptions registered with `addSubscription` (or `undefined`).
-   - `storeSubscribe` (getter/setter): exposes a mutation subscription callback (`store.$subscribe`) as a factory returning `{ store, callback }`.
-   - `onAction` (getter/setter): exposes a Pinia `onAction` callback in the same form.
-   - `static customizeStore(store, options, debug?)`: instantiate the class (or subclass) when `options.storeOptions` is present.
-   - `debugLog(message, args)`: conditional logging when `debug` is true.
-   - `hasDeniedFirstChar(property)`, `getOption(...)`, `getValue(value)`, `getStatePropertyValue(...)`.
-   - `isOptionApi()`: true when the store uses Pinia Options API.
+## Testing
 
-Other small helpers exposed: `stateHas(property)`, `storeHas(property)` and `getValue` to retrieve the real value of a `Ref` or a raw value.
+This plugin is tested with Vitest. Coverage reports are available in the `coverage/` directory:
 
- `Store.customizeStore(...)` is the recommended entry point used by subscribers to create store helper instances.
+- Statements: **97.64%** (83/85)
+- Branches: **86.53%** (45/52)
+- Functions: **100%** (38/38)
+- Lines: **97.59%** (81/83)
 
-  
- ## Testing
+## Contributing
 
-  This plugin is tested with Vitest. Coverage (from the included coverage report at [coverage/index.html](coverage/index.html)):
-
-  - Statements: **97.64%** (83/85)
-  - Branches: **86.53%** (45/52)
-  - Functions: **100%** (38/38)
-  - Lines: **97.59%** (81/83)
-
-
-## Notes
-
-The $reset method is available for stores augmented by the plugin (also compositionApi store 😁).
-
----
+Pull requests are welcome. Please respect the project's coding style and add tests for new features.
 
 ## License
 
