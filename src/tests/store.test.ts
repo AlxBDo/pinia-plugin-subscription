@@ -6,10 +6,15 @@ import type { Store as PiniaStore } from 'pinia'
 import type { PluginStoreOptions, StoreOptions } from '../types'
 import { defineAStore } from '../utils/store'
 
+class StoreChild extends Store {
+    protected static override _requiredKeys?: string[] | undefined = ['test']
+}
+
 describe('Store', () => {
     let mockPiniaStore: PiniaStore
     let mockOptions: PluginStoreOptions
     let storeInstance: Store
+    let childInstance: StoreChild
 
     beforeEach(() => {
         mockPiniaStore = {
@@ -159,16 +164,16 @@ describe('Store', () => {
 
     describe('customizeStore (static)', () => {
         it('should create a Store instance when options.storeOptions exists', () => {
-            const options = { storeOptions: {} as StoreOptions }
-            const result = Store.customizeStore<Store>(mockPiniaStore, options, false)
+            const options = { storeOptions: { test: true } as StoreOptions }
+            const result = StoreChild.customizeStore<Store>(mockPiniaStore, options, false)
 
             expect(result).toBeInstanceOf(Store)
             expect(result?.debug).toBe(false)
         })
 
         it('should set debug mode in customized store', () => {
-            const options = { storeOptions: {} as StoreOptions }
-            const result = Store.customizeStore<Store>(mockPiniaStore, options, true)
+            const options = { storeOptions: { test: true } as StoreOptions }
+            const result = StoreChild.customizeStore<Store>(mockPiniaStore, options, true)
 
             expect(result?.debug).toBe(true)
         })
@@ -182,12 +187,13 @@ describe('Store', () => {
 
         it('should work with custom Store subclass', () => {
             class CustomStore extends Store {
+                protected static override _requiredKeys?: string[] | undefined = ['test']
                 getCustomValue() {
                     return 'custom'
                 }
             }
 
-            const options = { storeOptions: {} as StoreOptions }
+            const options = { storeOptions: { test: true } as StoreOptions }
             const result = CustomStore.customizeStore<CustomStore>(mockPiniaStore, options)
 
             expect(result).toBeInstanceOf(CustomStore)

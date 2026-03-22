@@ -15,7 +15,6 @@ export {
 
 export type {
     CustomStore,
-    DefineAugmentedStore,
     PluginStoreOptions,
     StatePropertyValue,
     StoreOptions,

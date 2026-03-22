@@ -1,5 +1,5 @@
 import { defineStore } from "pinia"
-import type { DefineStoreOptions, StateTree } from "pinia"
+import type { DefineStoreOptions, StateTree, StoreDefinition } from "pinia"
 import type { AnyObject } from "../types"
 import type { DefineAugmentedStore, PluginStoreOptions, StoreOptions } from "../types/store"
 
@@ -13,10 +13,10 @@ export function defineAStore<Sto, Sta>(
     id: string,
     storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'> | (() => AnyObject),
     options?: StoreOptions
-): DefineAugmentedStore<Sto, Sta> {
+): StoreDefinition & Sta & Sto {
     const storeOptions: PluginStoreOptions = options ? { storeOptions: options } : {} as PluginStoreOptions
 
-    return typeof storeDefinition === 'function'
+    return (typeof storeDefinition === 'function'
         ? defineAStoreSetup(
             id,
             storeDefinition,
@@ -26,27 +26,27 @@ export function defineAStore<Sto, Sta>(
             id,
             storeDefinition,
             storeOptions
-        )
+        )) as StoreDefinition & Sta & Sto
 }
 
-export function defineAStoreSetup<Sto, Sta>(
+export function defineAStoreSetup(
     id: string,
     storeDefinition: () => AnyObject,
     options: PluginStoreOptions
-): DefineAugmentedStore<Sto, Sta> {
-    return defineStore(id, storeDefinition, options as AnyObject) as unknown as DefineAugmentedStore<Sto, Sta>
+) {
+    return defineStore(id, storeDefinition, options as AnyObject)
 }
 
-export function defineAStoreOptionApi<Sto, Sta>(
+export function defineAStoreOptionApi(
     id: string,
-    storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'>,
+    storeDefinition: AnyObject,
     options?: PluginStoreOptions
-): DefineAugmentedStore<Sto, Sta> {
+) {
     if (options) {
-        storeDefinition = { ...storeDefinition, ...(options ?? {}) } as Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'>
+        storeDefinition = { ...storeDefinition, ...(options ?? {}) }
     }
 
-    return defineStore(id, storeDefinition) as unknown as DefineAugmentedStore<Sto, Sta>
+    return defineStore(id, storeDefinition)
 }
 
 const deniedFirstChar = new Set<string>(['_', '$'])

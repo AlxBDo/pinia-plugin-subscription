@@ -10,56 +10,6 @@
 
  The main goal is to offer a clear API for writing reusable Pinia plugins and to make it easy to extend stores from plugin code.
 
-### Basic usage
-
-1. Import the plugin factory and register your subscribers with Pinia:
-
-```typescript
-// main.ts
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import { createPlugin } from 'pinia-plugin-subscription'
-import myStoreSubscriber from './src/core/my-store'
-import App from './App.vue'
-
-const app = createApp(App)
-const pinia = createPinia()
-
-// Register plugin (subscribers array, debug  = list of target plugins)
-pinia.use(createPlugin([myStoreSubscriber], ['my-plugin']))
-
-app.use(pinia)
-app.mount('#app')
-```
-
-2. A subscriber example using a `Store` subclass:
-
-```typescript
-import { PluginSubscriber, Store } from 'pinia-plugin-subscription';
-import { PluginConsole } from "../../system/log";
-
-class MyPlugin extends Store {
-  constructor(store, options, debug = false) {
-    super(store, options, debug)
-    this.doSomething()
-  }
-  // ...
-}
-
-class MyPluginSubscriber extends PluginSubscriber<MyPlugin> {
-    constructor() {
-        super(
-            # pinia-plugin-subscription
-
-Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a `Store` base class for store helpers.
-
-## Overview
-
-- Provides a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia.
-- Offers a `Store` base class (wrapper) to ease interacting with Pinia stores from subscribers or plugin code.
-- Supplies a `createPlugin` factory to build a Pinia plugin from a list of subscribers.
-- Enables callbacks to run when stores are reset by the plugin.
-
 ## Installation
 
 Ensure Pinia is installed, then register the plugin in your `main.ts`:
@@ -90,6 +40,9 @@ import PluginSubscriber from 'pinia-plugin-subscription'
 import { Store } from 'pinia-plugin-subscription'
 
 class MyPlugin extends Store {
+  protected override _className: string = 'MyPlugin'
+  protected static override _requiredKeys?: string[] | undefined = ['my-plugin-option']
+
   constructor(store, options, debug = false) {
     super(store, options, debug)
     this.doSomething()
@@ -112,10 +65,14 @@ import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
 
 export const myStoreSubscriber: PluginSubscriberInterface = {
   name: 'my-plugin',
+
   invoke: (context, debug) => {
     // context contains `store`, `options`, `pinia`
     console.log('store registered', context.store.$id)
+
+    return true
   },
+  
   resetStoreCallback: (store) => {
     console.log('store reset:', store.$id)
   }
@@ -189,16 +146,7 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
 
 ## Testing
 
-This plugin is tested with Vitest. Coverage reports are available in the `coverage/` directory:
-
-- Statements: **97.64%** (83/85)
-- Branches: **86.53%** (45/52)
-- Functions: **100%** (38/38)
-- Lines: **97.59%** (81/83)
-
-## Contributing
-
-Pull requests are welcome. Please respect the project's coding style and add tests for new features.
+This plugin is tested with Vitest. Coverage reports are available in the `coverage/` directory.
 
 ## License
 

@@ -120,7 +120,7 @@ export default class Store extends Debug {
     }
 
     protected static hasRequiredKeys(options: AnyObject): boolean {
-        return this._requiredKeys === undefined || this._requiredKeys?.every(requiredKey => !!options[requiredKey])
+        return this._requiredKeys !== undefined && this._requiredKeys?.every(requiredKey => !!options[requiredKey])
     }
 
     getOption(optionName: keyof StoreOptions) {

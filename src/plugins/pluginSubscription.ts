@@ -1,6 +1,5 @@
 import Debug from "../system/Debug"
 import { PluginConsole } from "../system/log"
-import { hasDeniedFirstChar } from "../utils/store"
 import { isEmpty } from "../utils/validation"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
@@ -99,23 +98,19 @@ export default class PluginSubscription extends Debug {
                 }
             )
 
-            this.rewriteResetStore({ store } as PiniaPluginContext, Object.assign({}, store.$state), Object.assign({}, store))
+            this.rewriteResetStore({ store } as PiniaPluginContext, JSON.stringify(store.$state), Object.assign({}, store))
         } catch (e) {
             this.logError(e, store, options)
         }
     }
 
-    private rewriteResetStore({ store }: PiniaPluginContext, initState: StateTree, customStore: AnyObject): void {
+    private rewriteResetStore({ store }: PiniaPluginContext, initState: string, customStore: AnyObject): void {
         store.$reset = () => {
+            this.debugLog('rewriteResetStore()', { initState, store, customStore })
+
             this.executeResetStoreCallbacks(store)
 
-            Object.keys(customStore).forEach((key: string) => {
-                if (!hasDeniedFirstChar(key)) {
-                    store[key] = initState[key] ?? customStore[key]
-                }
-            })
-
-            store.$patch(JSON.parse(JSON.stringify(initState)))
+            store.$patch(JSON.parse(initState))
         }
     }
 

@@ -19,7 +19,7 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     private _name: string
     private _pluginOptions?: AnyObject
     private _storeInstance?: Instance
-    protected _resetStoreCallback?: (store?: Store) => void
+    protected _resetStoreCallback?: (store?: PiniaStore) => void
     private _storeOnActionSubscription?: StoreOnActionSubscription
     private _storeMutationSubscription?: StoreMutationSubscription
     private _subscriptions?: PluginSubscriptions

@@ -4,10 +4,12 @@ import './style.css'
 import App from './App.vue'
 import { createPlugin } from './plugins/createPlugin'
 import { extendingStoreSubscriber } from './extending-pinia-store/plugins/ExtendingStoreSubscriber'
+import { pluginName } from './utils/constantes'
 
 const app = createApp(App)
 const pinia = createPinia()
-pinia.use(createPlugin([extendingStoreSubscriber]))
+
+pinia.use(createPlugin([extendingStoreSubscriber], [pluginName]))
 
 app.use(pinia)
 app.mount('#app')
