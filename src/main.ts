@@ -9,7 +9,11 @@ import { pluginName } from './utils/constantes'
 const app = createApp(App)
 const pinia = createPinia()
 
-pinia.use(createPlugin([extendingStoreSubscriber], [pluginName]))
+pinia.use(
+    createPlugin(
+        [extendingStoreSubscriber],
+        [pluginName, 'pinia-plugin-extending-store', 'PluginSubscription']
+    ))
 
 app.use(pinia)
 app.mount('#app')

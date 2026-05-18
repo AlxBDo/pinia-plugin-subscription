@@ -40,7 +40,6 @@ import PluginSubscriber from 'pinia-plugin-subscription'
 import { Store } from 'pinia-plugin-subscription'
 
 class MyPlugin extends Store {
-  protected override _className: string = 'MyPlugin'
   protected static override _requiredKeys?: string[] | undefined = ['my-plugin-option']
 
   constructor(store, options, debug = false) {

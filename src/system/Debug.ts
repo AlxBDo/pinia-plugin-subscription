@@ -1,7 +1,7 @@
 import type { Console } from "../types/log"
 
 export default abstract class Debug {
-    protected abstract _className: string
+    protected _className: string
     private _console?: Console
     private _debug: boolean = false
 
@@ -17,6 +17,7 @@ export default abstract class Debug {
 
     constructor(debug: boolean, customConsole?: Console) {
         this._debug = debug
+        this._className = this.constructor.name
 
         if (customConsole) {
             this._console = customConsole
