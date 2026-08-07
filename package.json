@@ -1,8 +1,28 @@
 {
-  "author": "Alexandre Bidaud <alexbidaud85@gmail.com> (https://github.com/AlxBDo)",
   "name": "pinia-plugin-subscription",
-  "version": "0.0.3",
+  "version": "0.1.0",
+  "description": "Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a Store base class for store helpers.",
   "type": "module",
+  "author": "Alexandre Bidaud <alexbidaud85@gmail.com> (https://github.com/AlxBDo)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlxBDo/pinia-plugin-subscription.git"
+  },
+  "homepage": "https://github.com/AlxBDo/pinia-plugin-subscription",
+  "bugs": {
+    "url": "https://github.com/AlxBDo/pinia-plugin-subscription/issues"
+  },
+  "keywords": [
+    "pinia",
+    "vue",
+    "plugin",
+    "store",
+    "subscription",
+    "vue3",
+    "state-management",
+    "typescript"
+  ],
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
@@ -21,6 +41,10 @@
     "coverage": "vitest run --coverage",
     "build": "vitest && vite build && tsc --emitDeclarationOnly --outDir dist",
     "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "pinia": "^2.0.0 || ^3.0.0",
+    "vue": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
