@@ -19,6 +19,7 @@ import type { StoreOptions, StatePropertyValue } from "../types/store"
 
 
 export default class Store extends Debug {
+    protected _className = 'Store'
     private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
     private _store: PiniaStore

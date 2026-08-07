@@ -15,6 +15,7 @@ const className = 'PluginSubscription'
 
 
 export default class PluginSubscription extends Debug {
+    protected _className: string = className
     private _pluginDebug?: string[]
     private _resetStoreCallback: Function[] = []
     private _subscribers: PluginSubscriber[] = []
