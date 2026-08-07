@@ -1,7 +1,7 @@
 import type { Console } from "../types/log"
 
 export default abstract class Debug {
-    protected _className: string
+    protected abstract _className: string
     private _console?: Console
     private _debug: boolean = false
 
