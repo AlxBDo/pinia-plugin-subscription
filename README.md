@@ -151,3 +151,7 @@ This plugin is tested with Vitest. Coverage reports are available in the `covera
 ## License
 
 MIT
+
+## Publishing
+
+Releases are published to npm via GitHub Actions. The workflow uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.
