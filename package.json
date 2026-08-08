@@ -34,7 +34,10 @@
   "main": "./dist/pinia-plugin-subscription.umd.cjs",
   "types": "./dist/types/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md"
   ],
   "engines": {
     "node": ">=18"
