@@ -17,7 +17,6 @@ export default abstract class Debug {
 
     constructor(debug: boolean, customConsole?: Console) {
         this._debug = debug
-        this._className = this.constructor.name
 
         if (customConsole) {
             this._console = customConsole
