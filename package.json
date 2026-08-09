@@ -1,6 +1,6 @@
 {
   "name": "pinia-plugin-subscription",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a Store base class for store helpers.",
   "type": "module",
   "sideEffects": false,
@@ -47,6 +47,7 @@
     "provenance": true
   },
   "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "vite",
     "test": "vitest",
     "coverage": "vitest run --coverage",

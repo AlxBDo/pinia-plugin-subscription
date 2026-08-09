@@ -12,6 +12,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/types"],
-  "exclude": ["src/types/list.ts"]
+  "include": ["src/types/index.ts"]
 }
