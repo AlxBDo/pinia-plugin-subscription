@@ -3,7 +3,7 @@ import PluginSubscription from '../plugins/pluginSubscription'
 import Store from '../core/Store'
 
 export { createPlugin } from "../plugins/createPlugin"
-export { defineAStore } from "../utils/store"
+export { defineAStore, getDefineAStoreSetupContext } from "../utils/store"
 export { CustomConsole } from "../system/log"
 export { isEmpty } from "../utils/validation"
 export { pluginName as PLUGIN_NAME } from "../utils/constantes"
