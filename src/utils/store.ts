@@ -1,17 +1,12 @@
 import { defineStore } from "pinia"
 import type { DefineStoreOptions, StateTree, StoreDefinition } from "pinia"
 import type { AnyObject } from "../types"
-import type { DefineAugmentedStore, PluginStoreOptions, StoreOptions } from "../types/store"
+import type { DefineAStoreSetupContext, PluginStoreOptions, StoreOptions } from "../types/store"
 
 
 export const itemState = {
     '@id': undefined,
     id: undefined
-}
-
-export interface DefineAStoreSetupContext {
-    id: string
-    extensions: Record<string, unknown>
 }
 
 type DefineAStoreSetup = (ctx?: DefineAStoreSetupContext) => AnyObject

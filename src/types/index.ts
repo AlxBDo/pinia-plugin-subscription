@@ -205,6 +205,7 @@ export declare class Store extends Debug {
     getSubscriptions(): PluginSubscriptions | undefined
     getValue(value: any): any
     hasDeniedFirstChar(property: string): boolean
+    protected static hasRequiredKeys(options: AnyObject): boolean
     isOptionApi(): boolean
     stateHas(property: string): boolean
     storeHas(property: string): boolean
