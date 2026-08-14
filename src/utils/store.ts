@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import type { DefineStoreOptions, StateTree, StoreDefinition } from "pinia"
 import type { AnyObject } from "../types"
-import type { DefineAugmentedStore, PluginStoreOptions, StoreOptions } from "../types/store"
+import type { DefineAStoreSetupContext, PluginStoreOptions, StoreOptions } from "../types/store"
 
 
 export const itemState = {
@@ -9,9 +9,13 @@ export const itemState = {
     id: undefined
 }
 
+type DefineAStoreSetup = (ctx?: DefineAStoreSetupContext) => AnyObject
+
+const defineAStoreSetupContexts = new WeakMap<AnyObject, DefineAStoreSetupContext>()
+
 export function defineAStore<Sto, Sta>(
     id: string,
-    storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'> | (() => AnyObject),
+    storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'> | DefineAStoreSetup,
     options?: StoreOptions
 ): StoreDefinition & Sta & Sto {
     const storeOptions: PluginStoreOptions = options ? { storeOptions: options } : {} as PluginStoreOptions
@@ -29,12 +33,26 @@ export function defineAStore<Sto, Sta>(
         )) as StoreDefinition & Sta & Sto
 }
 
+export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined {
+    return defineAStoreSetupContexts.get(store)
+}
+
 export function defineAStoreSetup(
     id: string,
-    storeDefinition: () => AnyObject,
+    storeDefinition: DefineAStoreSetup,
     options: PluginStoreOptions
 ) {
-    return defineStore(id, storeDefinition, options as AnyObject)
+    const setupContext: DefineAStoreSetupContext = {
+        id,
+        extensions: {}
+    }
+    const useStore = defineStore(id, () => storeDefinition(setupContext), options as AnyObject)
+
+    return Object.assign(((...args: Parameters<typeof useStore>) => {
+        const store = useStore(...args)
+        defineAStoreSetupContexts.set(store as AnyObject, setupContext)
+        return store
+    }) as typeof useStore, useStore)
 }
 
 export function defineAStoreOptionApi(

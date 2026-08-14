@@ -4,6 +4,11 @@ import type { Ref } from "vue";
 
 export type CustomStore<TStore, TState> = Store & TStore & TState & PiniaCustomProperties & StoreDefinition
 
+export interface DefineAStoreSetupContext {
+    id: string
+    extensions: Record<string, unknown>
+}
+
 export type DefineAugmentedStore<TStore, TState> = (args?: any) => CustomStore<TStore, TState>
 
 export type ObjectBaseProperty = Record<string, OptionBaseProperty | OptionBaseProperty[]>

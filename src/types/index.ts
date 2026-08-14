@@ -48,6 +48,11 @@ export interface PluginStoreOptions {
     storeOptions: StoreOptions
 }
 
+export interface DefineAStoreSetupContext {
+    id: string
+    extensions: Record<string, unknown>
+}
+
 export type StatePropertyValue = StdStatePropertyValue
     | Ref<StdStatePropertyValue>
     | StdStatePropertyValue[]
@@ -103,9 +108,17 @@ export declare function createPlugin(subscribers: PluginSubscriberInterface[], d
 
 export declare function defineAStore<Sto, Sta>(
     id: string,
-    storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'> | (() => AnyObject),
+    storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'>,
     options?: StoreOptions
 ): StoreDefinition & Sta & Sto
+
+export declare function defineAStore<Sto, Sta>(
+    id: string,
+    storeDefinition: (ctx?: DefineAStoreSetupContext) => AnyObject,
+    options?: StoreOptions
+): StoreDefinition & Sta & Sto
+
+export declare function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined
 
 export declare function isEmpty(value: any): boolean
 
@@ -192,6 +205,7 @@ export declare class Store extends Debug {
     getSubscriptions(): PluginSubscriptions | undefined
     getValue(value: any): any
     hasDeniedFirstChar(property: string): boolean
+    protected static hasRequiredKeys(options: AnyObject): boolean
     isOptionApi(): boolean
     stateHas(property: string): boolean
     storeHas(property: string): boolean
