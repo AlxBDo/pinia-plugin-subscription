@@ -12,6 +12,7 @@ export const itemState = {
 type DefineAStoreSetup = (ctx?: DefineAStoreSetupContext) => AnyObject
 
 const defineAStoreSetupContexts = new WeakMap<AnyObject, DefineAStoreSetupContext>()
+const defineAStoreSetupContextsById = new Map<string, DefineAStoreSetupContext>()
 
 export function defineAStore<Sto, Sta>(
     id: string,
@@ -35,6 +36,9 @@ export function defineAStore<Sto, Sta>(
 
 export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined {
     return defineAStoreSetupContexts.get(store)
+        ?? (typeof store?.$id === 'string'
+            ? defineAStoreSetupContextsById.get(store.$id)
+            : undefined)
 }
 
 export function defineAStoreSetup(
@@ -46,6 +50,7 @@ export function defineAStoreSetup(
         id,
         extensions: {}
     }
+    defineAStoreSetupContextsById.set(id, setupContext)
     const useStore = defineStore(id, () => storeDefinition(setupContext), options as AnyObject)
 
     return Object.assign(((...args: Parameters<typeof useStore>) => {
