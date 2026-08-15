@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
-const { defineStoreMock } = vi.hoisted(() => ({
+const { defineStoreMock, beforeReturnStoreMock } = vi.hoisted(() => ({
+    beforeReturnStoreMock: vi.fn(),
     defineStoreMock: vi.fn((id: string, storeDefinition: unknown) => {
-        const useStore = vi.fn(() => ({
-            $id: id,
-            ...((typeof storeDefinition === 'function' ? storeDefinition() : {}) as object)
-        }))
+        const useStore = vi.fn(() => {
+            const store = {
+                $id: id,
+                ...((typeof storeDefinition === 'function' ? storeDefinition() : {}) as object)
+            }
+            beforeReturnStoreMock(store)
+            return store
+        })
 
         return Object.assign(useStore, { $id: id })
     })
@@ -26,6 +31,7 @@ import { defineAStore, getDefineAStoreSetupContext } from '../utils/store'
 describe('defineAStore setup context', () => {
     beforeEach(() => {
         defineStoreMock.mockClear()
+        beforeReturnStoreMock.mockClear()
     })
 
     it('keeps supporting setup callbacks without context', () => {
@@ -61,5 +67,24 @@ describe('defineAStore setup context', () => {
             extensions: {}
         })
         expect(getDefineAStoreSetupContext(store)).toBe(capturedContext)
+    })
+
+    it('retrieves setup context by id before store registration in weak map', () => {
+        let setupContextFromPluginPhase: ReturnType<typeof getDefineAStoreSetupContext>
+
+        const useStore = defineAStore('timingStore', () => ({
+            count: ref(2)
+        }))
+
+        beforeReturnStoreMock.mockImplementation((store: { $id: string }) => {
+            setupContextFromPluginPhase = getDefineAStoreSetupContext(store)
+        })
+
+        useStore()
+
+        expect(setupContextFromPluginPhase).toEqual({
+            id: 'timingStore',
+            extensions: {}
+        })
     })
 })
