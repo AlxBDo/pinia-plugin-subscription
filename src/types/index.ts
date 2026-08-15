@@ -22,6 +22,11 @@ export interface Console {
     error(...args: any): void
 }
 
+export interface DefineAStoreSetupContext {
+    id: string
+    extensions: Record<string, unknown>
+}
+
 export type LogType = 'error' | 'info'
 
 export type StyleDefinitionKeys = 'bgColor' | 'color' | 'icon'
@@ -119,6 +124,8 @@ export declare function defineAStore<Sto, Sta>(
 ): StoreDefinition & Sta & Sto
 
 export declare function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined
+
+export declare function getExtendingStore<Sta, Sto>(ctx: { extensions: Record<string, Sta & Sto> }): Sta & Sto
 
 export declare function isEmpty(value: any): boolean
 

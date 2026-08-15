@@ -34,13 +34,6 @@ export function defineAStore<Sto, Sta>(
         )) as StoreDefinition & Sta & Sto
 }
 
-export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined {
-    return defineAStoreSetupContexts.get(store)
-        ?? (typeof store?.$id === 'string'
-            ? defineAStoreSetupContextsById.get(store.$id)
-            : undefined)
-}
-
 export function defineAStoreSetup(
     id: string,
     storeDefinition: DefineAStoreSetup,
@@ -76,4 +69,20 @@ const deniedFirstChar = new Set<string>(['_', '$'])
 
 export function hasDeniedFirstChar(property: string): boolean {
     return deniedFirstChar.has(property[0] as string)
+}
+
+export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined {
+    return defineAStoreSetupContexts.get(store)
+        ?? (typeof store?.$id === 'string'
+            ? defineAStoreSetupContextsById.get(store.$id)
+            : undefined)
+}
+
+/**
+ * Get the extending store from the context.
+ * @param ctx The context containing the extensions.
+ * @returns The extending store casted to the specified types.
+ */
+export function getExtendingStore<Sta, Sto>(ctx: { extensions: Record<string, Sta & Sto> }) {
+    return ctx.extensions.extending as Sta & Sto
 }
