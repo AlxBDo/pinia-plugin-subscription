@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-08-15
+
+### Added
+- Added setup context lookup by store ID before the store is registered in the `WeakMap`.
+- Added the `DefineAStoreSetupContext` type with store ID and extension metadata.
+- Added the `getExtendingStore()` helper to retrieve the extending store from a setup context.
+- Exported `getExtendingStore()` from the public library entry point.
+- Added test coverage for retrieving setup context by ID before store registration.
+
+### Changed
+- Stored setup contexts in an ID-indexed `Map` in addition to the store-indexed `WeakMap`.
+- Added the protected static `Store.hasRequiredKeys()` helper.
+- Promoted `DefineAStoreSetupContext` to the shared store types.
+
 ## [0.1.2] - 2026-08-09
 
 ### Fix
