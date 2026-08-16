@@ -22,11 +22,6 @@ export interface Console {
     error(...args: any): void
 }
 
-export interface DefineAStoreSetupContext {
-    id: string
-    extensions: Record<string, unknown>
-}
-
 export type LogType = 'error' | 'info'
 
 export type StyleDefinitionKeys = 'bgColor' | 'color' | 'icon'
@@ -53,9 +48,22 @@ export interface PluginStoreOptions {
     storeOptions: StoreOptions
 }
 
-export interface DefineAStoreSetupContext {
+export type EmptyExtensions = Record<never, never>
+
+export interface DefineAStoreSetupExtensions<TEnhancedStore> {
+    /**
+     * @deprecated Use enhancedStore instead.
+     */
+    extending?: TEnhancedStore
+    enhancedStore?: TEnhancedStore
+}
+
+export interface DefineAStoreSetupContext<
+    TEnhancedStore,
+    TExtraExtensions extends Record<string, unknown> = EmptyExtensions
+> {
     id: string
-    extensions: Record<string, unknown>
+    extensions: DefineAStoreSetupExtensions<TEnhancedStore> & TExtraExtensions
 }
 
 export type StatePropertyValue = StdStatePropertyValue
@@ -119,13 +127,39 @@ export declare function defineAStore<Sto, Sta>(
 
 export declare function defineAStore<Sto, Sta>(
     id: string,
-    storeDefinition: (ctx?: DefineAStoreSetupContext) => AnyObject,
+    storeDefinition: (ctx?: DefineAStoreSetupContext<AnyObject>) => AnyObject,
     options?: StoreOptions
 ): StoreDefinition & Sta & Sto
 
-export declare function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined
+export declare function defineAStoreCtx<Sto, Sta>(
+    id: string,
+    storeDefinition: (ctx: DefineAStoreSetupContext<Sto & Sta>) => AnyObject,
+    options?: StoreOptions
+): StoreDefinition & Sta & Sto
 
-export declare function getExtendingStore<Sta, Sto>(ctx: { extensions: Record<string, Sta & Sto> }): Sta & Sto
+export declare function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string, unknown>>(
+    id: string,
+    storeDefinition: (ctx: DefineAStoreSetupContext<Sto & Sta, TExtraExtensions>) => AnyObject,
+    options?: StoreOptions
+): StoreDefinition & Sta & Sto
+
+export declare function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext<AnyObject> | undefined
+
+export declare function getEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<TEnhancedStore>
+): TEnhancedStore
+
+export declare function setEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<TEnhancedStore>,
+    store: TEnhancedStore
+): void
+
+/**
+ * @deprecated Use getEnhancedStore instead.
+ */
+export declare function getExtendingStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<TEnhancedStore>
+): TEnhancedStore
 
 export declare function isEmpty(value: any): boolean
 

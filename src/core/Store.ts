@@ -1,6 +1,6 @@
 import { ref, toRef, type Ref } from "vue"
 import Debug from "../system/Debug"
-import { hasDeniedFirstChar } from "../utils/store"
+import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
 
 import type {
@@ -71,6 +71,13 @@ export default class Store extends Debug {
         super(debug, customConsole)
         this._options = options.storeOptions
         this._store = store
+
+        if (this._options?.enhanceStore) {
+            const ctx = getDefineAStoreSetupContext(this.store)
+            if (ctx) {
+                setEnhancedStore(ctx, this)
+            }
+        }
     }
 
     /**

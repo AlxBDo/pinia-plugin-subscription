@@ -26,7 +26,14 @@ vi.mock('pinia', async () => {
     }
 })
 
-import { defineAStore, getDefineAStoreSetupContext } from '../utils/store'
+import {
+    defineAStore,
+    defineAStoreCtx,
+    getDefineAStoreSetupContext,
+    getEnhancedStore,
+    getExtendingStore,
+    setEnhancedStore
+} from '../utils/store'
 
 describe('defineAStore setup context', () => {
     beforeEach(() => {
@@ -86,5 +93,38 @@ describe('defineAStore setup context', () => {
             id: 'timingStore',
             extensions: {}
         })
+    })
+
+    it('requires and provides typed context with defineAStoreCtx', () => {
+        const useStore = defineAStoreCtx<{}, { count: number }, { initialCount?: number }>('ctxRequiredStore', (ctx) => {
+            const initialCount = typeof ctx.extensions.initialCount === 'number'
+                ? ctx.extensions.initialCount
+                : 0
+
+            return { count: ref(initialCount) }
+        })
+
+        const store = useStore()
+        const setupContext = getDefineAStoreSetupContext(store)
+
+        expect(store.$id).toBe('ctxRequiredStore')
+        expect(setupContext?.id).toBe('ctxRequiredStore')
+    })
+
+    it('sets and retrieves enhanced store with extending backward compatibility', () => {
+        const useStore = defineAStoreCtx<{ addItem: () => void }, {}>('enhancedStore', (ctx) => {
+            const enhancedStore = { addItem: vi.fn() }
+            setEnhancedStore(ctx, enhancedStore)
+
+            return {
+                enhancedFromNewKey: getEnhancedStore(ctx),
+                enhancedFromDeprecatedKey: getExtendingStore(ctx)
+            }
+        })
+
+        const store = useStore()
+
+        expect(store.enhancedFromNewKey).toBeDefined()
+        expect(store.enhancedFromDeprecatedKey).toBe(store.enhancedFromNewKey)
     })
 })

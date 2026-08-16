@@ -1,10 +1,35 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { ref, isRef } from 'vue'
 
+const { defineStoreMock, beforeReturnStoreMock } = vi.hoisted(() => ({
+    beforeReturnStoreMock: vi.fn(),
+    defineStoreMock: vi.fn((id: string, storeDefinition: unknown) => {
+        const useStore = vi.fn(() => {
+            const store = {
+                $id: id,
+                ...((typeof storeDefinition === 'function' ? storeDefinition() : {}) as object)
+            }
+            beforeReturnStoreMock(store)
+            return store
+        })
+
+        return Object.assign(useStore, { $id: id })
+    })
+}))
+
+vi.mock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+
+    return {
+        ...actual,
+        defineStore: defineStoreMock
+    }
+})
+
 import Store from '../core/Store'
 import type { Store as PiniaStore } from 'pinia'
 import type { PluginStoreOptions, StoreOptions } from '../types'
-import { defineAStore } from '../utils/store'
+import { defineAStore, defineAStoreCtx, getDefineAStoreSetupContext } from '../utils/store'
 
 class StoreChild extends Store {
     protected static override _requiredKeys?: string[] | undefined = ['test']
@@ -17,6 +42,9 @@ describe('Store', () => {
     let childInstance: StoreChild
 
     beforeEach(() => {
+        defineStoreMock.mockClear()
+        beforeReturnStoreMock.mockClear()
+
         mockPiniaStore = {
             $state: { test: 'my string' },
             $subscribe: vi.fn(),
@@ -54,6 +82,32 @@ describe('Store', () => {
             const emptyOptions = {} as PluginStoreOptions
             const store = new Store(mockPiniaStore, emptyOptions, false)
             expect(store.options).toBeUndefined()
+        })
+
+        it('should only attach the enhanced store when enhanceStore is enabled', () => {
+            const useStore = defineAStoreCtx('enhanceStoreContext', () => ({
+                count: ref(1)
+            }))
+            const piniaStore = useStore()
+
+            const store = new Store(piniaStore, { storeOptions: { enhanceStore: true } } as PluginStoreOptions, false)
+            const setupContext = getDefineAStoreSetupContext(piniaStore)
+
+            expect(setupContext?.extensions.enhancedStore).toBe(store)
+            expect(setupContext?.extensions.extending).toBe(store)
+        })
+
+        it('should not attach the enhanced store when enhanceStore is absent', () => {
+            const useStore = defineAStoreCtx('withoutEnhanceStore', () => ({
+                count: ref(1)
+            }))
+            const piniaStore = useStore()
+
+            new Store(piniaStore, { storeOptions: {} } as PluginStoreOptions, false)
+            const setupContext = getDefineAStoreSetupContext(piniaStore)
+
+            expect(setupContext?.extensions.enhancedStore).toBeUndefined()
+            expect(setupContext?.extensions.extending).toBeUndefined()
         })
     })
 
