@@ -17,7 +17,7 @@ Ensure Pinia is installed, then register the plugin in your `main.ts`:
 ```typescript
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createPlugin } from 'pinia-plugin-subscription'
+import { createPlugin, PLUGIN_NAME as PPS } from 'pinia-plugin-subscription'
 import { myStoreSubscriber } from './src/core/my-store'
 import App from './App.vue'
 
@@ -25,7 +25,7 @@ const app = createApp(App)
 const pinia = createPinia()
 
 // Register plugin (subscribers array, debug mode)
-pinia.use(createPlugin([myStoreSubscriber], true))
+pinia.use(createPlugin([myStoreSubscriber], [PPS]))
 
 app.use(pinia)
 app.mount('#app')
@@ -89,6 +89,28 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
 ### `createPlugin(subscribers: PluginSubscriber[], debug?: boolean): PiniaPlugin`
 
 Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered.
+
+### `defineAStoreCtx(id, setup, options?)`
+
+Use this helper when your setup callback must always receive a typed `ctx`.
+
+```typescript
+import { defineAStoreCtx, getEnhancedStore } from 'pinia-plugin-subscription'
+
+type EnhancedStore = { addItem: (value: unknown) => void }
+
+export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
+  const enhanced = getEnhancedStore<EnhancedStore>(ctx)
+
+  return {
+    addViaEnhanced: (value: unknown) => enhanced.addItem(value)
+  }
+})
+```
+
+`ctx.extensions` now supports:
+- `enhancedStore` (recommended)
+- `extending` (deprecated alias for backward compatibility)
 
 ### `PluginSubscriberInterface`
 

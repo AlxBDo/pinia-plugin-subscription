@@ -4,9 +4,22 @@ import type { Ref } from "vue";
 
 export type CustomStore<TStore, TState> = Store & TStore & TState & PiniaCustomProperties & StoreDefinition
 
-export interface DefineAStoreSetupContext {
+export type EmptyExtensions = Record<never, never>
+
+export interface DefineAStoreSetupExtensions<TEnhancedStore> {
+    /**
+     * @deprecated Use enhancedStore instead.
+     */
+    extending?: TEnhancedStore
+    enhancedStore?: TEnhancedStore
+}
+
+export interface DefineAStoreSetupContext<
+    TEnhancedStore,
+    TExtraExtensions extends Record<string, unknown> = EmptyExtensions
+> {
     id: string
-    extensions: Record<string, unknown>
+    extensions: DefineAStoreSetupExtensions<TEnhancedStore> & TExtraExtensions
 }
 
 export type DefineAugmentedStore<TStore, TState> = (args?: any) => CustomStore<TStore, TState>

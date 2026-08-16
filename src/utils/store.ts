@@ -1,7 +1,12 @@
 import { defineStore } from "pinia"
 import type { DefineStoreOptions, StateTree, StoreDefinition } from "pinia"
 import type { AnyObject } from "../types"
-import type { DefineAStoreSetupContext, PluginStoreOptions, StoreOptions } from "../types/store"
+import type {
+    DefineAStoreSetupContext,
+    EmptyExtensions,
+    PluginStoreOptions,
+    StoreOptions
+} from "../types/store"
 
 
 export const itemState = {
@@ -9,14 +14,17 @@ export const itemState = {
     id: undefined
 }
 
-type DefineAStoreSetup = (ctx?: DefineAStoreSetupContext) => AnyObject
+type DefineAStoreSetup<TEnhancedStore, TExtraExtensions extends Record<string, unknown> = EmptyExtensions> =
+    (ctx: DefineAStoreSetupContext<TEnhancedStore, TExtraExtensions>) => AnyObject
 
-const defineAStoreSetupContexts = new WeakMap<AnyObject, DefineAStoreSetupContext>()
-const defineAStoreSetupContextsById = new Map<string, DefineAStoreSetupContext>()
+const defineAStoreSetupContexts = new WeakMap<AnyObject, DefineAStoreSetupContext<AnyObject>>()
+const defineAStoreSetupContextsById = new Map<string, DefineAStoreSetupContext<AnyObject>>()
 
 export function defineAStore<Sto, Sta>(
     id: string,
-    storeDefinition: Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'> | DefineAStoreSetup,
+    storeDefinition:
+        Omit<DefineStoreOptions<string, StateTree & Sta, AnyObject, Partial<Sto>>, 'id'>
+        | ((ctx?: DefineAStoreSetupContext<AnyObject>) => AnyObject),
     options?: StoreOptions
 ): StoreDefinition & Sta & Sto {
     const storeOptions: PluginStoreOptions = options ? { storeOptions: options } : {} as PluginStoreOptions
@@ -24,7 +32,7 @@ export function defineAStore<Sto, Sta>(
     return (typeof storeDefinition === 'function'
         ? defineAStoreSetup(
             id,
-            storeDefinition,
+            storeDefinition as DefineAStoreSetup<AnyObject>,
             storeOptions
         )
         : defineAStoreOptionApi(
@@ -34,17 +42,43 @@ export function defineAStore<Sto, Sta>(
         )) as StoreDefinition & Sta & Sto
 }
 
+export function defineAStoreCtx<Sto, Sta>(
+    id: string,
+    storeDefinition: DefineAStoreSetup<Sto & Sta>,
+    options?: StoreOptions
+): StoreDefinition & Sta & Sto
+
+export function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string, unknown>>(
+    id: string,
+    storeDefinition: DefineAStoreSetup<Sto & Sta, TExtraExtensions>,
+    options?: StoreOptions
+): StoreDefinition & Sta & Sto
+
+export function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string, unknown> = EmptyExtensions>(
+    id: string,
+    storeDefinition: DefineAStoreSetup<Sto & Sta, TExtraExtensions>,
+    options?: StoreOptions
+): StoreDefinition & Sta & Sto {
+    const storeOptions: PluginStoreOptions = options ? { storeOptions: options } : {} as PluginStoreOptions
+
+    return defineAStoreSetup(
+        id,
+        storeDefinition as DefineAStoreSetup<AnyObject>,
+        storeOptions
+    ) as StoreDefinition & Sta & Sto
+}
+
 export function defineAStoreSetup(
     id: string,
-    storeDefinition: DefineAStoreSetup,
+    storeDefinition: DefineAStoreSetup<AnyObject>,
     options: PluginStoreOptions
 ) {
-    const setupContext: DefineAStoreSetupContext = {
+    const setupContext: DefineAStoreSetupContext<AnyObject> = {
         id,
         extensions: {}
     }
     defineAStoreSetupContextsById.set(id, setupContext)
-    const useStore = defineStore(id, () => storeDefinition(setupContext), options as AnyObject)
+    const useStore = defineStore(id, () => storeDefinition(setupContext), options as PluginStoreOptions)
 
     return Object.assign(((...args: Parameters<typeof useStore>) => {
         const store = useStore(...args)
@@ -71,7 +105,7 @@ export function hasDeniedFirstChar(property: string): boolean {
     return deniedFirstChar.has(property[0] as string)
 }
 
-export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext | undefined {
+export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetupContext<AnyObject> | undefined {
     return defineAStoreSetupContexts.get(store)
         ?? (typeof store?.$id === 'string'
             ? defineAStoreSetupContextsById.get(store.$id)
@@ -79,10 +113,40 @@ export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetup
 }
 
 /**
- * Get the extending store from the context.
+ * Get the enhanced store from the context.
  * @param ctx The context containing the extensions.
- * @returns The extending store casted to the specified types.
+ * @returns The enhanced store casted to the specified types.
  */
-export function getExtendingStore<Sta, Sto>(ctx: { extensions: Record<string, Sta & Sto> }) {
-    return ctx.extensions.extending as Sta & Sto
+export function getEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<TEnhancedStore>
+): TEnhancedStore {
+    const enhancedStore = ctx.extensions.enhancedStore ?? ctx.extensions.extending
+
+    if (!enhancedStore) {
+        throw new Error(`${ctx.id}Store - getEnhancedStore - Error: enhanced store is required`)
+    }
+
+    return enhancedStore
+}
+
+/**
+ * Set the enhanced store in context with deprecated alias support.
+ * @param ctx The context containing the extensions.
+ * @param store The store to expose as enhancement.
+ */
+export function setEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<TEnhancedStore>,
+    store: TEnhancedStore
+): void {
+    ctx.extensions.enhancedStore = store
+    ctx.extensions.extending = store
+}
+
+/**
+ * @deprecated Use getEnhancedStore instead.
+ */
+export function getExtendingStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<TEnhancedStore>
+): TEnhancedStore {
+    return getEnhancedStore<TEnhancedStore>(ctx)
 }
