@@ -93,8 +93,8 @@ describe('Store', () => {
             const store = new Store(piniaStore, { storeOptions: { enhanceStore: true } } as PluginStoreOptions, false)
             const setupContext = getDefineAStoreSetupContext(piniaStore)
 
-            expect(setupContext?.extensions.enhancedStore).toBe(store)
-            expect(setupContext?.extensions.extending).toBe(store)
+            expect(setupContext?.extensions.enhancedStore).toBe(store.store)
+            expect(setupContext?.extensions.extending).toBe(store.store)
         })
 
         it('should not attach the enhanced store when enhanceStore is absent', () => {
