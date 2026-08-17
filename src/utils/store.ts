@@ -51,8 +51,6 @@ export function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string
         ? { storeOptions: { ...options, enhanceStore: true } }
         : {} as PluginStoreOptions
 
-    console.log('--- defineAStoreCtx ---', id, storeOptions, options)
-
     return defineAStoreSetup(
         id,
         storeDefinition as DefineAStoreSetup<AnyObject>,
