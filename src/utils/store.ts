@@ -47,11 +47,9 @@ export function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string
     storeDefinition: DefineAStoreSetup<Sto & Sta, TExtraExtensions>,
     options?: StoreOptions
 ): StoreDefinition & Sta & Sto {
-    const storeOptions: PluginStoreOptions = options
-        ? { storeOptions: { ...options, enhanceStore: true } }
-        : {} as PluginStoreOptions
-
-    console.log('--- defineAStoreCtx ---', id, storeOptions, options)
+    const storeOptions: PluginStoreOptions = {
+        storeOptions: { ...(options ?? {}), enhanceStore: true }
+    }
 
     return defineAStoreSetup(
         id,
@@ -65,10 +63,11 @@ export function defineAStoreSetup(
     storeDefinition: DefineAStoreSetup<AnyObject>,
     options: PluginStoreOptions
 ) {
-    const setupContext: DefineAStoreSetupContext<AnyObject> = {
+    const setupContext = defineAStoreSetupContextsById.get(id) ?? {
         id,
         extensions: {}
-    }
+    } as DefineAStoreSetupContext<AnyObject>
+
     defineAStoreSetupContextsById.set(id, setupContext)
     const useStore = defineStore(id, () => storeDefinition(setupContext), options as PluginStoreOptions)
 

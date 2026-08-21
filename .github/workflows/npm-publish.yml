@@ -28,7 +28,14 @@ jobs:
       - name: Build package
         run: npm run build
 
-      - name: Publish to npm with provenance
+      - name: Publish beta to npm with provenance
+        if: github.event.release.prerelease == true
+        run: npm publish --tag beta --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish stable release to npm with provenance
+        if: github.event.release.prerelease != true
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

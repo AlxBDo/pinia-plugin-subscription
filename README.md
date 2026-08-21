@@ -81,7 +81,7 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
 
 ## Advanced Features
 
-- **Debug mode:** Pass `true` as the second argument to `createPlugin` to enable detailed logging and plugin filtering.
+- **Debug mode:** Specifies the name of the plugin(s) to debug as the second argument to `createPlugin` to enable detailed logging.
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 
 ## API Reference
@@ -92,7 +92,7 @@ Creates and returns a Pinia plugin from the provided `subscribers`. Each subscri
 
 ### `defineAStoreCtx(id, setup, options?)`
 
-Use this helper when your setup callback must always receive a typed `ctx`.
+Use actions or access the state, added by one or more plugins, when defining the store.
 
 ```typescript
 import { defineAStoreCtx, getEnhancedStore } from 'pinia-plugin-subscription'
@@ -109,8 +109,7 @@ export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
 ```
 
 `ctx.extensions` now supports:
-- `enhancedStore` (recommended)
-- `extending` (deprecated alias for backward compatibility)
+- `enhancedStore`
 
 ### `PluginSubscriberInterface`
 
@@ -176,4 +175,4 @@ MIT
 
 ## Publishing
 
-Releases are published to npm via GitHub Actions. The workflow uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.
+Releases are published to npm via GitHub Actions. GitHub releases marked as pre-releases are published with the `beta` dist-tag using `npm publish --tag beta`; stable releases use the default `latest` tag. The workflow uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.
