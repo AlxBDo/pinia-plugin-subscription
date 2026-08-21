@@ -67,6 +67,7 @@ export function defineAStoreSetup(
         id,
         extensions: {}
     }
+
     defineAStoreSetupContextsById.set(id, setupContext)
     const useStore = defineStore(id, () => storeDefinition(setupContext), options as PluginStoreOptions)
 

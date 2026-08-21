@@ -127,4 +127,45 @@ describe('defineAStore setup context', () => {
         expect(store.enhancedFromNewKey).toBeDefined()
         expect(store.enhancedFromDeprecatedKey).toBe(store.enhancedFromNewKey)
     })
+
+    it('reuses setup context for duplicated store ids', () => {
+        const storesById = new Map<string, { $id: string }>()
+
+        defineStoreMock.mockImplementation((id: string, storeDefinition: unknown) => {
+            const useStore = vi.fn(() => {
+                let store = storesById.get(id)
+
+                if (!store) {
+                    store = {
+                        $id: id,
+                        ...((typeof storeDefinition === 'function' ? storeDefinition() : {}) as object)
+                    } as { $id: string }
+                    storesById.set(id, store)
+                }
+
+                beforeReturnStoreMock(store)
+                return store
+            })
+
+            return Object.assign(useStore, { $id: id })
+        })
+
+        const useStoreA = defineAStoreCtx<{ getEnhanced: () => unknown }, {}>('sharedCtxStore', (ctx) => ({
+            getEnhanced: () => getEnhancedStore(ctx)
+        }))
+
+        const storeA = useStoreA()
+        const setupContext = getDefineAStoreSetupContext(storeA)
+        expect(setupContext).toBeDefined()
+        setEnhancedStore(setupContext!, storeA)
+
+        const useStoreB = defineAStoreCtx<{ getEnhanced: () => unknown }, {}>('sharedCtxStore', (ctx) => ({
+            getEnhanced: () => getEnhancedStore(ctx)
+        }))
+
+        const storeB = useStoreB()
+
+        expect(storeB).toBe(storeA)
+        expect(storeB.getEnhanced()).toBe(storeA)
+    })
 })
