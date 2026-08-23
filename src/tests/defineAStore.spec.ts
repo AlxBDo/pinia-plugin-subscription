@@ -50,10 +50,7 @@ describe('defineAStore setup context', () => {
 
         expect(store.$id).toBe('legacyStore')
         expect(store.count.value).toBe(0)
-        expect(getDefineAStoreSetupContext(store)).toEqual({
-            id: 'legacyStore',
-            extensions: {}
-        })
+        expect(getDefineAStoreSetupContext(store)).toBeUndefined()
     })
 
     it('provides the setup context when requested', () => {
@@ -73,15 +70,15 @@ describe('defineAStore setup context', () => {
             id: 'ctxStore',
             extensions: {}
         })
-        expect(getDefineAStoreSetupContext(store)).toBe(capturedContext)
+        expect(getDefineAStoreSetupContext(store)).toBeUndefined()
     })
 
-    it('retrieves setup context by id before store registration in weak map', () => {
+    it('retrieves setup context by id before store registration in weak map when enhancedStore is enabled', () => {
         let setupContextFromPluginPhase: ReturnType<typeof getDefineAStoreSetupContext>
 
         const useStore = defineAStore('timingStore', () => ({
             count: ref(2)
-        }))
+        }), { enhancedStore: true })
 
         beforeReturnStoreMock.mockImplementation((store: { $id: string }) => {
             setupContextFromPluginPhase = getDefineAStoreSetupContext(store)

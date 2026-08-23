@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `getDefineAStoreSetupContext()` now falls back to store ID lookup during plugin execution timing.
+- `defineAStoreSetup()` now stores setup contexts only for stores with `storeOptions.enhancedStore = true`.
 - Public exports now include `defineAStoreCtx`, `getEnhancedStore`, and `setEnhancedStore`.
 - GitHub Actions now publishes GitHub pre-releases to npm with the `beta` dist-tag.
 
