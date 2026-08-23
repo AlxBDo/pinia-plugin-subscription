@@ -84,13 +84,13 @@ describe('Store', () => {
             expect(store.options).toBeUndefined()
         })
 
-        it('should only attach the enhanced store when enhanceStore is enabled', () => {
+        it('should only attach the enhanced store when enhancedStore is enabled', () => {
             const useStore = defineAStoreCtx('enhanceStoreContext', () => ({
                 count: ref(1)
             }))
             const piniaStore = useStore()
 
-            const store = new Store(piniaStore, { storeOptions: { enhanceStore: true } } as PluginStoreOptions, false)
+            const store = new Store(piniaStore, { storeOptions: { enhancedStore: true } } as PluginStoreOptions, false)
             const setupContext = getDefineAStoreSetupContext(piniaStore)
 
             expect(setupContext?.extensions.enhancedStore).toBe(store.store)

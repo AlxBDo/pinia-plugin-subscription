@@ -48,8 +48,8 @@ export function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string
     options?: StoreOptions
 ): StoreDefinition & Sta & Sto {
     const storeOptions: PluginStoreOptions = options
-        ? { storeOptions: { ...options, enhanceStore: true } }
-        : {} as PluginStoreOptions
+        ? { storeOptions: { ...options, enhancedStore: true } }
+        : { storeOptions: { enhancedStore: true } } as PluginStoreOptions
 
     return defineAStoreSetup(
         id,
@@ -68,12 +68,19 @@ export function defineAStoreSetup(
         extensions: {}
     }
 
-    defineAStoreSetupContextsById.set(id, setupContext)
+    const shouldStoreSetupContext = options?.storeOptions?.enhancedStore === true
+
+    if (shouldStoreSetupContext) {
+        defineAStoreSetupContextsById.set(id, setupContext)
+    }
+
     const useStore = defineStore(id, () => storeDefinition(setupContext), options as PluginStoreOptions)
 
     return Object.assign(((...args: Parameters<typeof useStore>) => {
         const store = useStore(...args)
-        defineAStoreSetupContexts.set(store as AnyObject, setupContext)
+        if (shouldStoreSetupContext) {
+            defineAStoreSetupContexts.set(store as AnyObject, setupContext)
+        }
         return store
     }) as typeof useStore, useStore)
 }

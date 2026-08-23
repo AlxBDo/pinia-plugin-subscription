@@ -111,6 +111,8 @@ export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
 `ctx.extensions` now supports:
 - `enhancedStore`
 
+The setup context is indexed internally only when `storeOptions.enhancedStore` is set to `true` (this is enabled automatically by `defineAStoreCtx`).
+
 ### `PluginSubscriberInterface`
 
 An object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, plus optional properties:

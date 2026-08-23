@@ -72,7 +72,7 @@ export default class Store extends Debug {
         this._options = options.storeOptions
         this._store = store
 
-        if (this._options?.enhanceStore) {
+        if (this._options?.enhancedStore) {
             const ctx = getDefineAStoreSetupContext(this.store)
 
             if (ctx) {
