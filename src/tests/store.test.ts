@@ -97,7 +97,7 @@ describe('Store', () => {
             expect(setupContext?.extensions.extending).toBe(store.store)
         })
 
-        it('should not attach the enhanced store when enhanceStore is absent', () => {
+        it('should not attach the enhanced store when enhancedStore is absent', () => {
             const useStore = defineAStoreCtx('withoutEnhanceStore', () => ({
                 count: ref(1)
             }))

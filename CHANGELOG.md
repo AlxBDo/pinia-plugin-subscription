@@ -15,8 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `getDefineAStoreSetupContext()` now falls back to store ID lookup during plugin execution timing.
 - `defineAStoreSetup()` now stores setup contexts only for stores with `storeOptions.enhancedStore = true`.
+- `defineAStoreSetup()` now removes ID-indexed setup contexts after weak-map registration and on store disposal.
+- `defineAStoreSetup()` now logs setup-context map size transitions when `storeOptions.debug = true`.
 - Public exports now include `defineAStoreCtx`, `getEnhancedStore`, and `setEnhancedStore`.
 - GitHub Actions now publishes GitHub pre-releases to npm with the `beta` dist-tag.
+
+### Added
+- Added a Vitest performance-oriented test for setup-context tracking behavior with and without `enhancedStore`.
 
 ### Deprecated
 - `ctx.extensions.extending` is deprecated. Use `ctx.extensions.enhancedStore`.
