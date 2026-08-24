@@ -19,6 +19,44 @@ type DefineAStoreSetup<TEnhancedStore, TExtraExtensions extends Record<string, u
 
 const defineAStoreSetupContexts = new WeakMap<AnyObject, DefineAStoreSetupContext<AnyObject>>()
 const defineAStoreSetupContextsById = new Map<string, DefineAStoreSetupContext<AnyObject>>()
+const setupContextDisposeWrappedStores = new WeakSet<AnyObject>()
+const setupContextMapWarnThreshold = 50
+
+function isSetupContextDebugEnabled(options: PluginStoreOptions): boolean {
+    return options?.storeOptions?.debug === true
+}
+
+function logSetupContextMapSizes(id: string, options: PluginStoreOptions, action: string): void {
+    if (!isSetupContextDebugEnabled(options)) {
+        return
+    }
+
+    const setupContextByIdSize = defineAStoreSetupContextsById.size
+    console.debug(`[defineAStoreSetup] ${id} - ${action} (contextsById=${setupContextByIdSize})`)
+
+    if (setupContextByIdSize >= setupContextMapWarnThreshold) {
+        console.warn(`[defineAStoreSetup] contextsById reached ${setupContextByIdSize} entries`)
+    }
+}
+
+function registerSetupContextCleanupOnDispose(
+    store: AnyObject,
+    id: string,
+    options: PluginStoreOptions
+): void {
+    if (setupContextDisposeWrappedStores.has(store) || typeof store.$dispose !== 'function') {
+        return
+    }
+
+    const originalDispose = store.$dispose as (...args: unknown[]) => unknown
+    store.$dispose = (...args: unknown[]) => {
+        defineAStoreSetupContexts.delete(store)
+        defineAStoreSetupContextsById.delete(id)
+        logSetupContextMapSizes(id, options, 'dispose cleanup')
+        return originalDispose.apply(store, args)
+    }
+    setupContextDisposeWrappedStores.add(store)
+}
 
 export function defineAStore<Sto, Sta>(
     id: string,
@@ -70,17 +108,23 @@ export function defineAStoreSetup(
 
     const shouldStoreSetupContext = options?.storeOptions?.enhancedStore === true
 
-    if (shouldStoreSetupContext) {
-        defineAStoreSetupContextsById.set(id, setupContext)
-    }
-
     const useStore = defineStore(id, () => storeDefinition(setupContext), options as PluginStoreOptions)
 
     return Object.assign(((...args: Parameters<typeof useStore>) => {
+        if (shouldStoreSetupContext) {
+            defineAStoreSetupContextsById.set(id, setupContext)
+            logSetupContextMapSizes(id, options, 'registered context by id')
+        }
+
         const store = useStore(...args)
+
         if (shouldStoreSetupContext) {
             defineAStoreSetupContexts.set(store as AnyObject, setupContext)
+            defineAStoreSetupContextsById.delete(id)
+            logSetupContextMapSizes(id, options, 'moved context to weak map')
+            registerSetupContextCleanupOnDispose(store as AnyObject, id, options)
         }
+
         return store
     }) as typeof useStore, useStore)
 }

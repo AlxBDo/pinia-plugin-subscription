@@ -112,6 +112,8 @@ export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
 - `enhancedStore`
 
 The setup context is indexed internally only when `storeOptions.enhancedStore` is set to `true` (this is enabled automatically by `defineAStoreCtx`).
+The temporary lookup by store id is now cleaned as soon as the weak-map association is established (and on store dispose), which limits map growth over time.
+When `storeOptions.debug` is `true`, setup-context map size transitions are logged for observability.
 
 ### `PluginSubscriberInterface`
 

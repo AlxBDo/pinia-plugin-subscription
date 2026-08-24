@@ -7,6 +7,7 @@ const { defineStoreMock, beforeReturnStoreMock } = vi.hoisted(() => ({
         const useStore = vi.fn(() => {
             const store = {
                 $id: id,
+                $dispose: vi.fn(),
                 ...((typeof storeDefinition === 'function' ? storeDefinition() : {}) as object)
             }
             beforeReturnStoreMock(store)
@@ -90,6 +91,7 @@ describe('defineAStore setup context', () => {
             id: 'timingStore',
             extensions: {}
         })
+        expect(getDefineAStoreSetupContext({ $id: 'timingStore' })).toBeUndefined()
     })
 
     it('requires and provides typed context with defineAStoreCtx', () => {
@@ -123,6 +125,63 @@ describe('defineAStore setup context', () => {
 
         expect(store.enhancedFromNewKey).toBeDefined()
         expect(store.enhancedFromDeprecatedKey).toBe(store.enhancedFromNewKey)
+    })
+
+    it('re-registers id lookup for each store access when enhancedStore is enabled', () => {
+        const setupContextFromPluginPhaseByCall: Array<ReturnType<typeof getDefineAStoreSetupContext>> = []
+
+        const useStore = defineAStore('repeatTimingStore', () => ({
+            count: ref(3)
+        }), { enhancedStore: true })
+
+        beforeReturnStoreMock.mockImplementation((store: { $id: string }) => {
+            setupContextFromPluginPhaseByCall.push(getDefineAStoreSetupContext(store))
+        })
+
+        useStore()
+        useStore()
+
+        expect(setupContextFromPluginPhaseByCall).toHaveLength(2)
+        expect(setupContextFromPluginPhaseByCall[0]).toEqual({
+            id: 'repeatTimingStore',
+            extensions: {}
+        })
+        expect(setupContextFromPluginPhaseByCall[1]).toEqual({
+            id: 'repeatTimingStore',
+            extensions: {}
+        })
+    })
+
+    it('cleans setup context lookup on store dispose', () => {
+        const useStore = defineAStoreCtx('disposableCtxStore', () => ({
+            count: ref(1)
+        }))
+
+        const store = useStore()
+
+        expect(getDefineAStoreSetupContext(store)).toEqual({
+            id: 'disposableCtxStore',
+            extensions: {}
+        })
+
+        store.$dispose()
+
+        expect(getDefineAStoreSetupContext(store)).toBeUndefined()
+        expect(getDefineAStoreSetupContext({ $id: 'disposableCtxStore' })).toBeUndefined()
+    })
+
+    it('logs setup context map sizes in debug mode', () => {
+        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => { })
+
+        const useStore = defineAStore('debugCtxStore', () => ({
+            count: ref(1)
+        }), { enhancedStore: true, debug: true })
+        useStore()
+
+        expect(debugSpy).toHaveBeenCalled()
+        expect(debugSpy.mock.calls.some((call) => String(call[0]).includes('contextsById='))).toBe(true)
+
+        debugSpy.mockRestore()
     })
 
     it('reuses setup context for duplicated store ids', () => {
