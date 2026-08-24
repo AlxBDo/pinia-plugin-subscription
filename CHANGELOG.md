@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6]
+
+### Added
+- Added `execution` and `hydrationScheduler` support on `PluginSubscriber` / `PluginSubscriberInterface`.
+- Added `createHydrationPlugin()` as the dedicated Nuxt / SSR hydration helper.
+- Added `PluginSubscriptionOptions` for hydration-specific runtime overrides without changing the default `createPlugin()` API.
+
+### Changed
+- The execution policy now defaults to the subscriber itself, with framework-specific overrides available only through the hydration helper.
+- `PluginSubscription` resolves hydration timing from the subscriber before falling back to the global runtime scheduler.
+
+### Fixed
+- Avoided SSR hydration crashes by allowing client-only Pinia plugins to be skipped on the server or deferred on the client.
+
+## [0.1.5]
+
+Minor change
+
+
 ## [0.1.4]
 
 ### Added

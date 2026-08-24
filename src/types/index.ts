@@ -76,6 +76,26 @@ export type StoreOptions = Record<string, StoreOptionsPropertyValue>
 
 export type StoreOptionsPropertyValue = OptionBaseProperty | OptionBaseProperty[] | ObjectBaseProperty | ObjectBaseProperty[]
 
+export type PluginHydrationScheduler = (callback: () => void) => void
+
+export type PluginHydrationTiming = 'defer' | 'immediate'
+
+export type PluginRuntimeEnvironment = 'client' | 'server'
+
+export type PluginExecutionEnvironment = PluginRuntimeEnvironment | 'both'
+
+export interface PluginExecutionOptions {
+    environment?: PluginExecutionEnvironment
+    hydration?: PluginHydrationTiming
+}
+
+export interface PluginSubscriptionOptions {
+    execution?: PluginExecutionOptions
+    hydrationScheduler?: PluginHydrationScheduler
+    runtimeEnvironment?: PluginRuntimeEnvironment
+    subscriberExecution?: Record<string, PluginExecutionOptions>
+}
+
 export interface NativePiniaSubscriptionReturn<Callback> {
     store: PiniaStore
     callback: Callback
@@ -89,6 +109,8 @@ export interface StoreOnActionCallbackParameters {
 
 export interface PluginSubscriberInterface {
     console?: Console
+    execution?: PluginExecutionOptions
+    hydrationScheduler?: PluginHydrationScheduler
     invoke: (context: PiniaPluginContext, debug: boolean) => boolean
     name: string
     resetStoreCallback?: (store?: PiniaStore) => void
@@ -118,6 +140,11 @@ export type StoreMutationSubscription = NativePiniaSubscription<StoreMutationSub
 export declare const PLUGIN_NAME: string
 
 export declare function createPlugin(subscribers: PluginSubscriberInterface[], debug?: string[]): PiniaPlugin
+
+export declare function createHydrationPlugin(
+    subscribers: PluginSubscriberInterface[],
+    options?: PluginSubscriptionOptions
+): PiniaPlugin
 
 export declare function defineAStore<Sto, Sta>(
     id: string,
@@ -189,6 +216,8 @@ export declare abstract class CustomConsole implements Console {
 
 export declare abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
     console: Console
+    execution?: PluginExecutionOptions
+    hydrationScheduler?: PluginHydrationScheduler
     name: string
     pluginOptions: AnyObject
     resetStoreCallback?: (store?: PiniaStore) => void
@@ -210,7 +239,11 @@ export declare abstract class PluginSubscriber<Instance extends Store> implement
 export declare class PluginSubscription extends Debug {
     protected _className: string
 
-    constructor(subscribers: PluginSubscriberInterface[], debug?: string[])
+    constructor(
+        subscribers: PluginSubscriberInterface[],
+        debug?: string[],
+        pluginOptions?: PluginSubscriptionOptions
+    )
 
     plugin(context: PiniaPluginContext): void
 }

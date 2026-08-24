@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPlugin } from '../plugins/createPlugin'
+import { createHydrationPlugin } from '../plugins/createHydrationPlugin'
 import pluginSubscription from '../plugins/pluginSubscription'
 import type { PluginSubscriber } from '../types/plugin'
 
 vi.mock('../plugins/pluginSubscription', () => ({
-    default: vi.fn().mockImplementation(function (subscribers: any, debug: boolean) {
-        // emulate instance properties
+    default: vi.fn().mockImplementation(function (
+        this: {
+            debug?: unknown
+            plugin?: ReturnType<typeof vi.fn>
+            subscribers?: unknown
+        },
+        subscribers: any,
+        debug: boolean
+    ) {
         this.subscribers = subscribers
         this.debug = debug
         this.plugin = vi.fn()
@@ -19,9 +27,8 @@ describe('createPlugin', () => {
 
     it('should set subscribers and debug on pluginSubscription', () => {
         const subscribers: PluginSubscriber[] = [{ invoke: vi.fn() } as unknown as PluginSubscriber]
-        const result = createPlugin(subscribers, undefined)
+        createPlugin(subscribers, undefined)
 
-        // The mock is a constructor function so ensure it was called with the right args
         expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, undefined)
         const instance = (pluginSubscription as any).mock.instances[0]
         expect(instance.subscribers).toBe(subscribers)
@@ -30,9 +37,9 @@ describe('createPlugin', () => {
 
     it('should return a bound function', () => {
         const subscribers: PluginSubscriber[] = []
-        const result = createPlugin(subscribers)
+        const plugin = createPlugin(subscribers)
 
-        expect(typeof result).toBe('function')
+        expect(typeof plugin).toBe('function')
     })
 
     it('should default debug to false when not provided', () => {
@@ -44,13 +51,11 @@ describe('createPlugin', () => {
         expect(instance.debug).toBe(undefined)
     })
 
-    it('should set debug to false when debug is not a boolean', () => {
+    it('should accept a debug list as second argument', () => {
         const subscribers: PluginSubscriber[] = []
-        createPlugin(subscribers, 'invalid' as any)
+        createPlugin(subscribers, ['PluginSubscription'])
 
-        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, 'invalid')
-        const instance = (pluginSubscription as any).mock.instances[0]
-        expect(instance.debug).toBe('invalid')
+        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, ['PluginSubscription'])
     })
 
     it('should handle empty subscribers array', () => {
@@ -60,5 +65,19 @@ describe('createPlugin', () => {
         expect((pluginSubscription as any)).toHaveBeenCalledWith([], undefined)
         const instance = (pluginSubscription as any).mock.instances[0]
         expect(instance.subscribers).toEqual([])
+    })
+
+    it('should forward hydration options to createHydrationPlugin', () => {
+        const subscribers: PluginSubscriber[] = [{ invoke: vi.fn() } as unknown as PluginSubscriber]
+        const options = { runtimeEnvironment: 'client', hydrationScheduler: vi.fn() }
+
+        createHydrationPlugin(subscribers, options)
+
+        expect((pluginSubscription as any)).toHaveBeenCalledWith(subscribers, undefined, {
+            execution: undefined,
+            hydrationScheduler: options.hydrationScheduler,
+            runtimeEnvironment: 'client',
+            subscriberExecution: undefined,
+        })
     })
 })

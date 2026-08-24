@@ -83,12 +83,57 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
 
 - **Debug mode:** Specifies the name of the plugin(s) to debug as the second argument to `createPlugin` to enable detailed logging.
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
+- **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 
 ## API Reference
 
-### `createPlugin(subscribers: PluginSubscriber[], debug?: boolean): PiniaPlugin`
+### `createPlugin(subscribers: PluginSubscriber[], debug?: string[]): PiniaPlugin`
 
 Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered.
+
+### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
+
+Creates a Pinia plugin dedicated to SSR / Nuxt hydration orchestration. This helper is useful when a store plugin needs a runtime-specific scheduler or environment override without forcing every app to re-declare the plugin’s execution policy.
+
+```typescript
+import { createHydrationPlugin, PLUGIN_NAME as PPS } from 'pinia-plugin-subscription'
+
+pinia.use(createHydrationPlugin([
+  persistedStateSubscriber
+], {
+  debug: [PPS],
+  hydrationScheduler: (run) => {
+    nextTick(() => run())
+  }
+}))
+```
+
+### SSR / Nuxt hydration control
+
+The source of truth for hydration policy stays on the subscriber itself. For example, a client-only plugin should declare its execution directly:
+
+```typescript
+export const persistedStateSubscriber: PluginSubscriberInterface = {
+  name: 'persisted-state',
+  execution: {
+    environment: 'client',
+    hydration: 'defer',
+  },
+  hydrationScheduler: (run) => {
+    nextTick(() => run())
+  },
+  invoke: (context, debug) => {
+    // ...
+    return true
+  }
+}
+```
+
+Available execution options:
+
+- `environment: 'both' | 'client' | 'server'` — controls where the subscriber is allowed to run.
+- `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules execution after hydration.
+- `hydrationScheduler` can be provided either on a subscriber or via `createHydrationPlugin()` to override the execution timing when needed.
 
 ### `defineAStoreCtx(id, setup, options?)`
 
@@ -119,6 +164,7 @@ When `storeOptions.debug` is `true`, setup-context map size transitions are logg
 
 An object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, plus optional properties:
 
+- `execution?: { environment?: 'both' | 'client' | 'server'; hydration?: 'immediate' | 'defer' }`
 - `resetStoreCallback?: (store?: any) => void`
 - `storeOnActionSubscription?: { store, callback }` (getter)
 - `storeMutationSubscription?: { store, callback }` (getter)
@@ -147,12 +193,30 @@ import { addStore } from './src/extending-pinia-store/plugins/stores'
 class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
   constructor() {
     super('extendsPiniaStore', StoreExtension.customizeStore.bind(StoreExtension))
+
+    // Controls when this subscriber may run and whether it should wait for hydration on the client.
+    this.execution = {
+      environment: 'client',
+      hydration: 'defer',
+    }
+
+    // Optional framework-specific scheduler for deferred execution.
+    this.hydrationScheduler = (run) => {
+      nextTick(() => run())
+    }
+
     this.pluginCreated = addStore
   }
 }
 
 export const extendingStoreSubscriber = new ExtendingStoreSubscriber()
 ```
+
+This example shows the recommended pattern for SSR / Nuxt-safe plugins:
+
+- `execution.environment` restricts the subscriber to `'both'`, `'client'`, or `'server'`
+- `execution.hydration` is `'immediate'` by default and can be set to `'defer'` when the plugin must wait for client hydration
+- `hydrationScheduler` lets you override the runtime scheduling behavior, for example with Nuxt/Vue `nextTick()`
 
 ## The `Store` Class — Summary
 

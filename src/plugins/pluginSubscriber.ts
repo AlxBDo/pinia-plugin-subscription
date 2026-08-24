@@ -2,12 +2,14 @@ import Store from "../core/Store";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type { AnyObject } from "../types";
 import type {
+    PluginExecutionOptions,
+    PluginHydrationScheduler,
     PluginSubscriber as PluginSubscriberInterface,
     PluginSubscriptions,
     StoreMutationSubscription,
     StoreOnActionSubscription
 } from "../types/plugin";
-import { Console } from "../types/log";
+import type { Console } from "../types/log";
 
 
 type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject, debug: boolean, customConsole?: Console) => Instance | undefined
@@ -24,6 +26,8 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     private _storeMutationSubscription?: StoreMutationSubscription
     private _subscriptions?: PluginSubscriptions
     protected pluginCreated?: (store: PiniaStore) => void
+    public execution?: PluginExecutionOptions
+    public hydrationScheduler?: PluginHydrationScheduler
 
 
     get console(): Console {
