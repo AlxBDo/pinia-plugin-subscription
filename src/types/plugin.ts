@@ -1,9 +1,32 @@
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
-import { StoreOptions } from "./store"
-import { Console, PluginSubscriberInterface } from "."
+import type { StoreOptions } from "./store"
+import type { Console, PluginSubscriberInterface } from "."
+
+export type PluginHydrationScheduler = (callback: () => void) => void
+
+export type PluginHydrationTiming = 'defer' | 'immediate'
+
+export type PluginRuntimeEnvironment = 'client' | 'server'
+
+export type PluginExecutionEnvironment = PluginRuntimeEnvironment | 'both'
+
+export interface PluginExecutionOptions {
+    environment?: PluginExecutionEnvironment
+    hydration?: PluginHydrationTiming
+}
+
+export interface PluginSubscriptionOptions {
+    debug?: string[]
+    execution?: PluginExecutionOptions
+    hydrationScheduler?: PluginHydrationScheduler
+    runtimeEnvironment?: PluginRuntimeEnvironment
+    subscriberExecution?: Record<string, PluginExecutionOptions>
+}
 
 export interface PluginSubscriber {
     console?: Console
+    execution?: PluginExecutionOptions
+    hydrationScheduler?: PluginHydrationScheduler
     invoke: (context: PiniaPluginContext, debug: boolean) => boolean
     name: string
     resetStoreCallback?: (store?: Store) => void

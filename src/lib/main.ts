@@ -3,6 +3,15 @@ import PluginSubscription from '../plugins/pluginSubscription'
 import Store from '../core/Store'
 
 export { createPlugin } from "../plugins/createPlugin"
+export { createHydrationPlugin } from "../plugins/createHydrationPlugin"
+export type {
+    PluginExecutionEnvironment,
+    PluginExecutionOptions,
+    PluginHydrationScheduler,
+    PluginHydrationTiming,
+    PluginRuntimeEnvironment,
+    PluginSubscriptionOptions
+} from "../types/plugin"
 export {
     defineAStore,
     defineAStoreCtx,

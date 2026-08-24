@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
-import type { PluginSubscriber } from '../types/plugin'
+import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../plugins/pluginSubscription'
 
 function createContext(store: Store): PiniaPluginContext {
@@ -10,8 +10,12 @@ function createContext(store: Store): PiniaPluginContext {
     } as unknown as PiniaPluginContext
 }
 
-function getPluginSubscription(subscribers: PluginSubscriber[], debug?: string[]) {
-    return new PluginSubscription(subscribers, debug)
+function getPluginSubscription(
+    subscribers: PluginSubscriber[],
+    debugOrOptions?: PluginSubscriptionOptions | string[],
+    options?: PluginSubscriptionOptions
+) {
+    return new PluginSubscription(subscribers, debugOrOptions, options)
 }
 
 describe('PluginSubscription', () => {
@@ -162,6 +166,73 @@ describe('PluginSubscription', () => {
 
             expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, true)
             expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, true)
+        })
+
+        it('should skip client-only subscribers while running on the server', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'client-only',
+                console: console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+
+            pluginSub = getPluginSubscription([subscriber], {
+                runtimeEnvironment: 'server',
+                subscriberExecution: {
+                    'client-only': {
+                        environment: 'client'
+                    }
+                }
+            })
+
+            const mockContext = createContext({
+                $id: 'server-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store)
+
+            pluginSub.plugin(mockContext)
+
+            expect(subscriber.invoke).not.toHaveBeenCalled()
+        })
+
+        it('should defer subscriber execution until the hydration scheduler runs on the client', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'deferred',
+                console: console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+            const scheduledCallbacks: Array<() => void> = []
+
+            pluginSub = getPluginSubscription([subscriber], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: (callback) => {
+                    scheduledCallbacks.push(callback)
+                },
+                subscriberExecution: {
+                    deferred: {
+                        hydration: 'defer'
+                    }
+                }
+            })
+
+            const mockContext = createContext({
+                $id: 'client-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store)
+
+            pluginSub.plugin(mockContext)
+
+            expect(subscriber.invoke).not.toHaveBeenCalled()
+            expect(scheduledCallbacks).toHaveLength(1)
+
+            scheduledCallbacks[0]!()
+
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, false)
         })
 
         it('should add reset store callback from subscriber if provided', () => {
@@ -355,16 +426,16 @@ describe('PluginSubscription', () => {
             const calls = pluginSubscriptionInvoke.mock.calls
 
             // first call: plugin-level invoke with merged options (subscriptionOptions override base)
-            expect(calls[0][0].store).toBe(baseStore)
-            expect(calls[0][0].options).toEqual(expect.objectContaining({
+            expect(calls[0]![0].store).toBe(baseStore)
+            expect(calls[0]![0].options).toEqual(expect.objectContaining({
                 key: 'base',
                 baseOnly: true,
                 storeOptions: { key: 'sub', subOnly: true }
             }))
 
             // second call: per-store invoke, storeOptions override subscriptionOptions and base
-            expect(calls[1][0].store).toBe(extraStore1)
-            expect(calls[1][0].options).toEqual(expect.objectContaining({
+            expect(calls[1]![0].store).toBe(extraStore1)
+            expect(calls[1]![0].options).toEqual(expect.objectContaining({
                 key: 'store',
                 baseOnly: true,
                 storeOptions: { key: 'sub', subOnly: true },
@@ -372,8 +443,8 @@ describe('PluginSubscription', () => {
             }))
 
             // third call: per-store invoke without storeOptions
-            expect(calls[2][0].store).toBe(extraStore2)
-            expect(calls[2][0].options).toEqual(expect.objectContaining({
+            expect(calls[2]![0].store).toBe(extraStore2)
+            expect(calls[2]![0].options).toEqual(expect.objectContaining({
                 "baseOnly": true,
                 "key": "base",
                 "storeOptions": {
@@ -381,6 +452,53 @@ describe('PluginSubscription', () => {
                     "subOnly": true,
                 },
             }))
+        })
+
+        it('should defer nested subscription delivery until hydration scheduler runs on the client', () => {
+            const nestedInvoke = vi.fn()
+            const subscriber: PluginSubscriber = {
+                name: 'root',
+                console: console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: {
+                    child: {
+                        subscription: {
+                            name: 'child',
+                            console,
+                            execution: { hydration: 'defer' },
+                            invoke: nestedInvoke
+                        }
+                    }
+                }
+            }
+            const scheduledCallbacks: Array<() => void> = []
+
+            pluginSub = getPluginSubscription([subscriber], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: (callback) => {
+                    scheduledCallbacks.push(callback)
+                }
+            })
+
+            const baseStore: any = {
+                $id: 'deferred-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn()
+            }
+
+            pluginSub.plugin({ store: baseStore, options: {} } as any)
+
+            expect(subscriber.invoke).toHaveBeenCalledOnce()
+            expect(nestedInvoke).not.toHaveBeenCalled()
+            expect(scheduledCallbacks).toHaveLength(1)
+
+            scheduledCallbacks[0]!()
+
+            expect(nestedInvoke).toHaveBeenCalledWith(
+                { store: baseStore, options: { storeOptions: {} } },
+                false
+            )
         })
     })
 
