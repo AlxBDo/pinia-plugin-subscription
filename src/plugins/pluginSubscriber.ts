@@ -38,6 +38,10 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
         return this._name;
     }
 
+    get storeInstance(): Instance | undefined {
+        return this._storeInstance
+    }
+
     get pluginOptions(): AnyObject {
         return this._pluginOptions ?? {};
     }
@@ -76,6 +80,14 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
         }
     }
 
+
+    public hydrate(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+        return
+    }
+
+    public afterHydration(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+        return
+    }
 
     public invoke(
         { store, options }: PiniaPluginContext,

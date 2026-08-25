@@ -110,6 +110,7 @@ export interface StoreOnActionCallbackParameters {
 export interface PluginSubscriberInterface {
     console?: Console
     execution?: PluginExecutionOptions
+    hydrate?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
     hydrationScheduler?: PluginHydrationScheduler
     invoke: (context: PiniaPluginContext, debug: boolean) => boolean
     name: string
@@ -117,6 +118,7 @@ export interface PluginSubscriberInterface {
     storeOnActionSubscription?: StoreOnActionSubscription
     storeMutationSubscription?: StoreMutationSubscription
     subscriptions?: PluginSubscriptions
+    afterHydration?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
 }
 
 export interface PluginSubscriptionDefinition {
@@ -217,6 +219,7 @@ export declare abstract class CustomConsole implements Console {
 export declare abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
     console: Console
     execution?: PluginExecutionOptions
+    hydrate(context: PiniaPluginContext, debug: boolean): void | Promise<void>
     hydrationScheduler?: PluginHydrationScheduler
     name: string
     pluginOptions: AnyObject
@@ -224,6 +227,7 @@ export declare abstract class PluginSubscriber<Instance extends Store> implement
     storeOnActionSubscription?: StoreOnActionSubscription
     storeMutationSubscription?: StoreMutationSubscription
     subscriptions?: PluginSubscriptions
+    afterHydration(context: PiniaPluginContext, debug: boolean): void | Promise<void>
     protected pluginCreated?: (store: PiniaStore) => void
     protected _resetStoreCallback?: (store?: PiniaStore) => void
 
@@ -234,6 +238,7 @@ export declare abstract class PluginSubscriber<Instance extends Store> implement
     )
 
     invoke(context: PiniaPluginContext, debug: boolean): boolean
+    get storeInstance(): Instance | undefined
 }
 
 export declare class PluginSubscription extends Debug {
@@ -256,6 +261,9 @@ export declare class Store extends Debug {
     state: StateTree
     storeSubscribe: StoreMutationSubscriptionCallback | undefined
     readonly store: AnyObject
+
+    hydrate(): void | Promise<void>
+    afterHydration(): void | Promise<void>
 
     constructor(store: PiniaStore, options: AnyObject, debug?: boolean, customConsole?: Console)
 

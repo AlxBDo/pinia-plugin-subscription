@@ -117,6 +117,7 @@ export default class PluginSubscription extends Debug {
 
     private executeSubscriber(context: PiniaPluginContext, subscriber: PluginSubscriber): void {
         const subscriberKey = this.defineSubscriberKey(subscriber, context.store)
+        const debug = this.definePluginDebug(subscriber)
 
         if (this._subscribersDelivered.has(subscriberKey)) {
             return
@@ -125,12 +126,22 @@ export default class PluginSubscription extends Debug {
         if (
             !subscriber.invoke(
                 context,
-                this.definePluginDebug(subscriber)
+                debug
             )) {
             return
         }
 
         this._subscribersDelivered.add(subscriberKey)
+
+        const hydrate = subscriber.hydrate?.(context, debug)
+        if (hydrate && typeof (hydrate as Promise<void>).then === 'function') {
+            ;(hydrate as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+        }
+
+        const afterHydration = subscriber.afterHydration?.(context, debug)
+        if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
+            ;(afterHydration as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+        }
 
         if (subscriber.subscriptions) {
             this.subscriptionDelivery(context, subscriber.subscriptions)

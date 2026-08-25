@@ -11,13 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `execution` and `hydrationScheduler` support on `PluginSubscriber` / `PluginSubscriberInterface`.
 - Added `createHydrationPlugin()` as the dedicated Nuxt / SSR hydration helper.
 - Added `PluginSubscriptionOptions` for hydration-specific runtime overrides without changing the default `createPlugin()` API.
+- Added optional `hydrate()` and `afterHydration()` lifecycle hooks to the subscriber and base `Store` contract for SSR-safe initialization logic.
 
 ### Changed
 - The execution policy now defaults to the subscriber itself, with framework-specific overrides available only through the hydration helper.
 - `PluginSubscription` resolves hydration timing from the subscriber before falling back to the global runtime scheduler.
+- The base `Store` class now exposes lifecycle stubs so browser-only bootstrap code can be triggered after the plugin is accepted for execution instead of during construction.
 
 ### Fixed
 - Avoided SSR hydration crashes by allowing client-only Pinia plugins to be skipped on the server or deferred on the client.
+- Prevented browser-only initialization from running during server-side store creation by moving hydration bootstrap behind the subscriber lifecycle hooks.
 
 ## [0.1.5]
 

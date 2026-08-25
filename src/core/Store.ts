@@ -51,6 +51,14 @@ export default class Store extends Debug {
 
     get store(): AnyObject { return this._store }
 
+    hydrate(): void | Promise<void> {
+        return
+    }
+
+    afterHydration(): void | Promise<void> {
+        return
+    }
+
     get storeSubscribe(): StoreMutationSubscription | undefined {
         if (!this._storeSubscribe) {
             return
