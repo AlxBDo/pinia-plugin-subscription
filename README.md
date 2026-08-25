@@ -165,6 +165,9 @@ When `storeOptions.debug` is `true`, setup-context map size transitions are logg
 An object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, plus optional properties:
 
 - `execution?: { environment?: 'both' | 'client' | 'server'; hydration?: 'immediate' | 'defer' }`
+- `hydrationScheduler?: (run: () => void) => void`
+- `hydrate?: (context, debug) => void | Promise<void>` — optional hook for SSR-safe store initialization after the subscriber is accepted for execution
+- `afterHydration?: (context, debug) => void | Promise<void>` — optional lifecycle hook for post-hydration work
 - `resetStoreCallback?: (store?: any) => void`
 - `storeOnActionSubscription?: { store, callback }` (getter)
 - `storeMutationSubscription?: { store, callback }` (getter)
@@ -186,6 +189,7 @@ The project provides an abstract `PluginSubscriber` implementation (see [src/plu
 **Example:**
 
 ```typescript
+import { nextTick } from 'vue'
 import PluginSubscriber from 'pinia-plugin-subscription'
 import StoreExtension from './src/extending-pinia-store/core/StoreExtension'
 import { addStore } from './src/extending-pinia-store/plugins/stores'
@@ -207,6 +211,15 @@ class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
 
     this.pluginCreated = addStore
   }
+
+  override hydrate() {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    // Safe browser-only initialization. This is only called when the policy allows it.
+    return this.storeInstance?.hydrate?.()
+  }
 }
 
 export const extendingStoreSubscriber = new ExtendingStoreSubscriber()
@@ -217,6 +230,7 @@ This example shows the recommended pattern for SSR / Nuxt-safe plugins:
 - `execution.environment` restricts the subscriber to `'both'`, `'client'`, or `'server'`
 - `execution.hydration` is `'immediate'` by default and can be set to `'defer'` when the plugin must wait for client hydration
 - `hydrationScheduler` lets you override the runtime scheduling behavior, for example with Nuxt/Vue `nextTick()`
+- `hydrate()` / `afterHydration()` are optional lifecycle hooks for browser-only initialization and post-hydration work; they help keep SSR-sensitive logic out of constructors
 
 ## The `Store` Class — Summary
 

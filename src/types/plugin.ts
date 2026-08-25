@@ -26,6 +26,7 @@ export interface PluginSubscriptionOptions {
 export interface PluginSubscriber {
     console?: Console
     execution?: PluginExecutionOptions
+    hydrate?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
     hydrationScheduler?: PluginHydrationScheduler
     invoke: (context: PiniaPluginContext, debug: boolean) => boolean
     name: string
@@ -33,6 +34,7 @@ export interface PluginSubscriber {
     storeOnActionSubscription?: StoreOnActionSubscription
     storeMutationSubscription?: StoreMutationSubscription
     subscriptions?: PluginSubscriptions
+    afterHydration?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
 }
 
 export interface NativePiniaSubscriptionReturn<Callback> {
