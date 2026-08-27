@@ -500,6 +500,69 @@ describe('PluginSubscription', () => {
                 false
             )
         })
+
+        it('should call afterHydration only after hydrate resolves', async () => {
+            const order: string[] = []
+            const subscriber: PluginSubscriber = {
+                name: 'async-hydration',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                hydrate: vi.fn().mockImplementation(async () => {
+                    order.push('hydrate')
+                }),
+                afterHydration: vi.fn().mockImplementation(() => {
+                    order.push('afterHydration')
+                }),
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'hydrate-store',
+                $state: { count: 0 },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+            await Promise.resolve()
+            await Promise.resolve()
+
+            expect(order).toEqual(['hydrate', 'afterHydration'])
+        })
+
+        it('should clear delivered tracking when a store is disposed', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'dispose-tracker',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'tracked-store',
+                $state: { count: 0 },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            const subscriberKey = 'dispose-tracker-tracked-store'
+            expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(true)
+
+            mockStore.$dispose = vi.fn(() => {
+                ;(pluginSub as any).clearStoreTracking(mockStore)
+            })
+            mockStore.$dispose()
+
+            expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(false)
+        })
     })
 
     describe('$reset rewritten method', () => {
@@ -622,6 +685,38 @@ describe('PluginSubscription', () => {
             expect(mockStore.$patch).toHaveBeenCalledWith(
                 expect.objectContaining({ count: 10, name: 'test' })
             )
+        })
+
+        it('should preserve structured values when restoring the initial state', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'structured-reset',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+
+            const initialDate = new Date('2024-01-01T00:00:00.000Z')
+            const snapshot = { count: 1, meta: { createdAt: initialDate, tags: ['a', 'b'] } }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $state: snapshot,
+                $reset: vi.fn(),
+                $patch: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin(createContext(mockStore))
+
+            ; (mockStore.$state as any).meta.createdAt = new Date('2024-02-02T00:00:00.000Z')
+            ; (mockStore.$state as any).meta.tags = ['x']
+
+            mockStore.$reset!()
+
+            const resetState = (mockStore.$patch as any).mock.calls[0][0]
+            expect(resetState.meta.createdAt instanceof Date).toBe(true)
+            expect(resetState.meta.createdAt.getTime()).toBe(initialDate.getTime())
+            expect(resetState.meta.tags).toEqual(['a', 'b'])
         })
     })
 

@@ -31,6 +31,28 @@ function defaultHydrationScheduler(callback: () => void): void {
     globalThis.setTimeout(callback, 0)
 }
 
+function cloneState<T>(value: T): T {
+    if (typeof structuredClone === 'function') {
+        try {
+            return structuredClone(value)
+        } catch {
+            // fall through to the safe manual clone below
+        }
+    }
+
+    if (value === null || typeof value !== 'object') {
+        return value
+    }
+
+    if (Array.isArray(value)) {
+        return value.map(item => cloneState(item)) as T
+    }
+
+    return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cloneState(item)])
+    ) as T
+}
+
 function isPluginSubscriptionOptions(
     value: PluginSubscriptionOptions | string[] | undefined
 ): value is PluginSubscriptionOptions {
@@ -133,14 +155,32 @@ export default class PluginSubscription extends Debug {
 
         this._subscribersDelivered.add(subscriberKey)
 
-        const hydrate = subscriber.hydrate?.(context, debug)
-        if (hydrate && typeof (hydrate as Promise<void>).then === 'function') {
-            ;(hydrate as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+        let hydrateResult: void | Promise<void>
+
+        try {
+            hydrateResult = subscriber.hydrate?.(context, debug)
+        } catch (error) {
+            this.logError(error, context.store, context.options)
+            return
         }
 
-        const afterHydration = subscriber.afterHydration?.(context, debug)
-        if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
-            ;(afterHydration as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+        const runAfterHydration = () => {
+            try {
+                const afterHydration = subscriber.afterHydration?.(context, debug)
+                if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
+                    ;(afterHydration as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+                }
+            } catch (error) {
+                this.logError(error, context.store, context.options)
+            }
+        }
+
+        if (hydrateResult && typeof (hydrateResult as Promise<void>).then === 'function') {
+            ;(hydrateResult as Promise<void>)
+                .then(() => runAfterHydration())
+                .catch(error => this.logError(error, context.store, context.options))
+        } else {
+            runAfterHydration()
         }
 
         if (subscriber.subscriptions) {
@@ -229,19 +269,69 @@ export default class PluginSubscription extends Debug {
                 }
             )
 
-            this.rewriteResetStore({ store } as PiniaPluginContext, JSON.stringify(store.$state), Object.assign({}, store))
+            this.rewriteResetStore({ store } as PiniaPluginContext, cloneState(store.$state), Object.assign({}, store))
+            this.registerStoreCleanup(store)
         } catch (e) {
             this.logError(e, store, options)
         }
     }
 
-    private rewriteResetStore({ store }: PiniaPluginContext, initState: string, customStore: AnyObject): void {
+    private rewriteResetStore({ store }: PiniaPluginContext, initState: StateTree, customStore: AnyObject): void {
+        const safeState = cloneState(initState)
+
         store.$reset = () => {
-            this.debugLog('rewriteResetStore()', { initState, store, customStore })
+            this.debugLog('rewriteResetStore()', { initState: safeState, store, customStore })
 
             this.executeResetStoreCallbacks(store)
 
-            store.$patch(JSON.parse(initState))
+            store.$patch(cloneState(safeState))
+        }
+    }
+
+    private registerStoreCleanup(store: Store): void {
+        if (typeof store.$dispose !== 'function') {
+            return
+        }
+
+        const dispose = store.$dispose.bind(store)
+        const scopedStore = store as AnyObject
+
+        if (scopedStore.__piniaPluginSubscriptionDisposed) {
+            return
+        }
+
+        scopedStore.__piniaPluginSubscriptionDisposed = true
+        store.$dispose = () => {
+            this.clearStoreTracking(store)
+            return dispose()
+        }
+    }
+
+    private clearStoreTracking(store: Store): void {
+        const suffix = `-${store.$id}`
+
+        for (const key of Array.from(this._subscribersDelivered)) {
+            if (key.endsWith(suffix)) {
+                this._subscribersDelivered.delete(key)
+            }
+        }
+
+        for (const key of Array.from(this._subscribersScheduled)) {
+            if (key.endsWith(suffix)) {
+                this._subscribersScheduled.delete(key)
+            }
+        }
+
+        for (const key of Array.from(this._subscriptionsDelivered)) {
+            if (key.endsWith(suffix)) {
+                this._subscriptionsDelivered.delete(key)
+            }
+        }
+
+        for (const key of Array.from(this._subscriptionsScheduled)) {
+            if (key.endsWith(suffix)) {
+                this._subscriptionsScheduled.delete(key)
+            }
         }
     }
 

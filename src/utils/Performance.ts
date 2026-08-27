@@ -1,4 +1,4 @@
-import { log } from "./log"
+import { log } from "../system/log"
 
 export default class Performance {
     public duration: number = 0
@@ -29,6 +29,6 @@ export default class Performance {
     stop() {
         this.endTime = performance.now()
         this.duration = this.endTime - this.startTime
-        this.duration && log(`Performance measurement:`, this.getStyle(), [this.name, `${this.duration}ms`])
+        this.duration && log(this.getStyle(), [`Performance measurement:`, this.name, `${this.duration}ms`])
     }
 }

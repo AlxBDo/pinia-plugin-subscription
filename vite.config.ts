@@ -16,10 +16,11 @@ export default defineConfig({
       fileName: pluginName,
     },
     rollupOptions: {
-      external: ['pinia'],
+      external: ['pinia', 'vue'],
       output: {
         globals: {
-          pinia: 'Pinia'
+          pinia: 'Pinia',
+          vue: 'Vue'
         },
       },
     },

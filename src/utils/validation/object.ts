@@ -1,11 +1,5 @@
 import { isEmpty } from "."
 import type { AnyObject } from "../../types"
-import { log } from "../log"
-
-const logStyleOptions = {
-    bgColor: '#d8b32b',
-    icon: '☢️'
-}
 
 /**
  * Compares objects to determine if they are identical
