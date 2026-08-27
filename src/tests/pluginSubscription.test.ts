@@ -96,6 +96,107 @@ describe('PluginSubscription', () => {
 
 
 
+    describe('edge cases', () => {
+        it('should clone Map and Set values when $reset is executed', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'map-set-reset',
+                console: console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const initialMap = new Map<string, { nested: number }>([['first', { nested: 1 }]])
+            const initialSet = new Set([{ nested: 2 }, 'ready'])
+            const mockStore = {
+                $id: 'reset-maps',
+                $state: {
+                    records: initialMap,
+                    tags: initialSet,
+                },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin(createContext(mockStore))
+            mockStore.$reset!()
+
+            expect(mockStore.$patch).toHaveBeenCalledWith(expect.objectContaining({
+                records: expect.any(Map),
+                tags: expect.any(Set),
+            }))
+
+            const resetState = (mockStore.$patch as any).mock.calls[0][0]
+            expect(resetState.records).not.toBe(initialMap)
+            expect(resetState.tags).not.toBe(initialSet)
+            expect(resetState.records.get('first')).toEqual({ nested: 1 })
+            expect(resetState.tags.has('ready')).toBe(true)
+        })
+
+        it('should allow a new store instance with the same $id after dispose', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'recreated-store',
+                console: console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const firstStore = {
+                $id: 'same-id',
+                $state: { count: 1 },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin(createContext(firstStore))
+            firstStore.$dispose!()
+
+            const secondStore = {
+                $id: 'same-id',
+                $state: { count: 2 },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin(createContext(secondStore))
+
+            expect(subscriber.invoke).toHaveBeenCalledTimes(2)
+        })
+
+        it('should ignore hydrate and afterHydration errors without breaking store registration', async () => {
+            const subscriber: PluginSubscriber = {
+                name: 'hydration-errors',
+                console: console,
+                invoke: vi.fn().mockReturnValue(true),
+                hydrate: vi.fn(() => {
+                    throw new Error('hydrate failure')
+                }),
+                afterHydration: vi.fn(() => {
+                    throw new Error('afterHydration failure')
+                }),
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockContext = createContext({
+                $id: 'hydrate-errors',
+                $state: { count: 0 },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store)
+
+            expect(() => pluginSub.plugin(mockContext)).not.toThrow()
+            await Promise.resolve()
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, false)
+        })
+    })
+
     describe('executeResetStoreCallbacks', () => {
         it('should execute all reset store callbacks', () => {
             const callback1 = vi.fn()

@@ -44,13 +44,32 @@ function cloneState<T>(value: T): T {
         return value
     }
 
+    if (value instanceof Map) {
+        return new Map(
+            Array.from(value.entries(), ([key, entryValue]) => [cloneState(key), cloneState(entryValue)])
+        ) as T
+    }
+
+    if (value instanceof Set) {
+        return new Set(Array.from(value.values(), entryValue => cloneState(entryValue))) as T
+    }
+
     if (Array.isArray(value)) {
         return value.map(item => cloneState(item)) as T
     }
 
-    return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cloneState(item)])
-    ) as T
+    if (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cloneState(item)])
+        ) as T
+    }
+
+    const clonedObject = Object.create(Object.getPrototypeOf(value)) as Record<string, unknown>
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        clonedObject[key] = cloneState(item)
+    }
+
+    return clonedObject as T
 }
 
 function isPluginSubscriptionOptions(
