@@ -30,6 +30,8 @@ export type StyleDefinition = Record<StyleDefinitionKeys, string>
 
 export type StyleDefinitions = Record<LogType, Record<StyleDefinitionKeys, string>>
 
+export type { List, ListTypes, ListTypesMap, PartialList } from './list'
+
 export type ConsoleStyleDefinition = StyleDefinition
 
 export type ConsoleStyleDefinitionKeys = StyleDefinitionKeys
@@ -90,6 +92,7 @@ export interface PluginExecutionOptions {
 }
 
 export interface PluginSubscriptionOptions {
+    debug?: string[]
     execution?: PluginExecutionOptions
     hydrationScheduler?: PluginHydrationScheduler
     runtimeEnvironment?: PluginRuntimeEnvironment

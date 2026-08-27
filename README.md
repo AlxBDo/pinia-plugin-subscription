@@ -14,6 +14,8 @@
 
 Ensure Pinia is installed, then register the plugin in your `main.ts`:
 
+For local development and runtime demos, use the dedicated demo app with `npm run dev`. The library build remains `npm run build` and is intentionally kept separate from the demo entry.
+
 ```typescript
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
@@ -135,6 +137,61 @@ Available execution options:
 - `environment: 'both' | 'client' | 'server'` — controls where the subscriber is allowed to run.
 - `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules execution after hydration.
 - `hydrationScheduler` can be provided either on a subscriber or via `createHydrationPlugin()` to override the execution timing when needed.
+
+### SSR / Nuxt best practices
+
+`pinia-plugin-subscription` is SSR-safe by design, but the runtime policy still needs to match the actual app lifecycle.
+
+Use `hydration: 'defer'` when the subscriber depends on browser-only APIs, client-side cookies, localStorage, DOM access, or a hydrated app state that must exist only after the app is mounted.
+
+```ts
+const persistedStateSubscriber: PluginSubscriberInterface = {
+  name: 'persisted-state',
+  execution: {
+    environment: 'client',
+    hydration: 'defer',
+  },
+  hydrationScheduler: (run) => nextTick(() => run()),
+  invoke: () => true,
+}
+```
+
+Use `runtimeEnvironment: 'server'` or `execution.environment: 'server'` when a subscriber is only valid during server-side rendering or when it should not touch browser-only objects.
+
+```ts
+pinia.use(createHydrationPlugin([serverOnlySubscriber], {
+  runtimeEnvironment: 'server'
+}))
+```
+
+Avoid browser-only code in stores during build-time SSR. In practice, that means:
+
+- do not access `window`, `document`, `localStorage`, or `matchMedia` at module scope or during store setup when the code may run on the server,
+- keep browser-specific bootstrap in `hydrate()` or `afterHydration()`,
+- prefer environment-aware guards such as `typeof window !== 'undefined'`,
+- avoid doing network access or hydration reads before the client is ready unless the code is explicitly intended to run on both environments.
+
+A safe pattern is:
+
+```ts
+const mySubscriber: PluginSubscriberInterface = {
+  name: 'safe-browser-access',
+  execution: {
+    environment: 'client',
+    hydration: 'defer',
+  },
+  hydrate: (context) => {
+    // safe browser access here after hydration is allowed
+    const saved = localStorage.getItem('demo')
+    if (saved) {
+      context.store.$patch({ value: JSON.parse(saved) })
+    }
+  },
+  invoke: () => true,
+}
+```
+
+This keeps the server render deterministic and prevents browser-only initialization from crashing Nuxt or SSR builds.
 
 ### `defineAStoreCtx(id, setup, options?)`
 

@@ -5,13 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.7]
 
 ### Changed
 - Hardened SSR hydration sequencing so `hydrate()` always runs before `afterHydration()` and lifecycle errors are caught without breaking store registration.
-- Improved reset-state cloning to avoid JSON-only pitfalls during `$reset`.
+- Improved reset-state cloning to avoid JSON-only pitfalls during `$reset`, including structured values such as `Map` and `Set`.
 - Ensured tracking metadata is cleared when a store is disposed to prevent stale subscriber state.
 - Tightened internal store checks to avoid `hasOwnProperty` collisions.
+- Reduced library bundle overhead by stripping the Vue plugin from the library build and treeshaking the published bundle more aggressively.
+- Documented Nuxt / SSR best practices for `hydration: 'defer'`, `runtimeEnvironment`, and browser-only access in hydrated stores.
 
 ## [0.1.6]
 
