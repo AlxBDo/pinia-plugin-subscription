@@ -16,6 +16,24 @@ Ensure Pinia is installed, then register the plugin in your `main.ts`:
 
 For local development and runtime demos, use the dedicated demo app with `npm run dev`. The library build remains `npm run build` and is intentionally kept separate from the demo entry.
 
+For helper-only imports, the package also exposes an additive subpath that is kept separate from the default library API:
+
+```typescript
+import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
+```
+
+For type-only imports, prefer the dedicated public types entry:
+
+```typescript
+import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
+```
+
+The project also includes a bundle check command to measure the real output size before introducing a heavier split strategy:
+
+```bash
+npm run bundle:check
+```
+
 ```typescript
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensured tracking metadata is cleared when a store is disposed to prevent stale subscriber state.
 - Tightened internal store checks to avoid `hasOwnProperty` collisions.
 - Reduced library bundle overhead by stripping the Vue plugin from the library build and treeshaking the published bundle more aggressively.
+- Added additive sub-exports for helper-only imports and a strict type-only public surface to keep the core API stable while improving bundle clarity.
+- Added a real bundle-size check command to measure the emitted output before deciding whether a heavier split is justified.
 - Documented Nuxt / SSR best practices for `hydration: 'defer'`, `runtimeEnvironment`, and browser-only access in hydrated stores.
 
 ## [0.1.6]
