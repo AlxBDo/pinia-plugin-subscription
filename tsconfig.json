@@ -12,5 +12,17 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/types/index.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.performance.test.ts",
+    "src/main.ts",
+    "src/**/*.vue",
+    "src/assets/**",
+    "src/components/**",
+    "src/extending-pinia-store/**",
+    "src/models/**",
+    "src/stores/**"
+  ]
 }

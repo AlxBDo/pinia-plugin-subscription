@@ -161,7 +161,7 @@ export default class Store extends Debug {
 
     isOptionApi(): boolean { return this.store._isOptionsAPI }
 
-    stateHas(property: string): boolean { return this.state.hasOwnProperty(property) }
+    stateHas(property: string): boolean { return Object.prototype.hasOwnProperty.call(this.state, property) }
 
-    storeHas(property: string): boolean { return this.store.hasOwnProperty(property) }
+    storeHas(property: string): boolean { return Object.prototype.hasOwnProperty.call(this.store, property) }
 }

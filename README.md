@@ -84,6 +84,7 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
 - **Debug mode:** Specifies the name of the plugin(s) to debug as the second argument to `createPlugin` to enable detailed logging.
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
+- **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 
 ## API Reference
 

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Hardened SSR hydration sequencing so `hydrate()` always runs before `afterHydration()` and lifecycle errors are caught without breaking store registration.
+- Improved reset-state cloning to avoid JSON-only pitfalls during `$reset`.
+- Ensured tracking metadata is cleared when a store is disposed to prevent stale subscriber state.
+- Tightened internal store checks to avoid `hasOwnProperty` collisions.
+
 ## [0.1.6]
 
 ### Added
