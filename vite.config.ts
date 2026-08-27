@@ -12,9 +12,12 @@ export default defineConfig({
     reportCompressedSize: false,
     sourcemap: false,
     lib: {
-      entry: resolve(__dirname, 'src/lib/main.ts'),
+      entry: {
+        index: resolve(__dirname, 'src/lib/main.ts'),
+        helpers: resolve(__dirname, 'src/helpers/index.ts'),
+      },
       name: pluginName,
-      fileName: pluginName,
+      formats: ['es'],
     },
     rollupOptions: {
       external: ['pinia', 'vue'],
@@ -24,10 +27,15 @@ export default defineConfig({
       },
       output: {
         exports: 'named',
-        globals: {
-          pinia: 'Pinia',
-          vue: 'Vue'
+        entryFileNames: (chunkInfo) => {
+          const entryName = chunkInfo.name
+          if (entryName === 'index') {
+            return `${pluginName}.js`
+          }
+
+          return `${entryName}.js`
         },
+        chunkFileNames: 'chunks/[name]-[hash].js',
         generatedCode: 'es2015',
       },
     },

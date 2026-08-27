@@ -27,12 +27,28 @@
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/pinia-plugin-subscription.js",
-      "require": "./dist/pinia-plugin-subscription.umd.cjs"
+      "import": "./dist/pinia-plugin-subscription.js"
+    },
+    "./helpers": {
+      "types": "./dist/helpers/index.d.ts",
+      "import": "./dist/helpers.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts"
     }
   },
-  "main": "./dist/pinia-plugin-subscription.umd.cjs",
+  "main": "./dist/pinia-plugin-subscription.js",
   "types": "./dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "helpers": [
+        "./dist/helpers/index.d.ts"
+      ],
+      "types": [
+        "./dist/types/index.d.ts"
+      ]
+    }
+  },
   "files": [
     "dist",
     "CHANGELOG.md",
@@ -52,13 +68,22 @@
     "dev:library": "vite",
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "build": "vitest && vite build && tsc --emitDeclarationOnly --outDir dist",
+    "build": "vitest && vite build && tsc --emitDeclarationOnly --outDir dist && node scripts/measure-bundle.mjs",
+    "bundle:check": "vite build --config vite.config.ts && node scripts/measure-bundle.mjs",
     "build:demo": "vite --config vite.demo.config.ts build",
     "preview": "vite preview --config vite.demo.config.ts"
   },
   "peerDependencies": {
     "pinia": "^2.0.0 || ^3.0.0",
     "vue": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pinia": {
+      "optional": false
+    },
+    "vue": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
