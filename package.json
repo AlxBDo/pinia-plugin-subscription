@@ -1,6 +1,6 @@
 {
   "name": "pinia-plugin-subscription",
-  "version": "0.1.7-beta.0",
+  "version": "0.1.7-beta.1",
   "description": "Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a Store base class for store helpers.",
   "type": "module",
   "sideEffects": false,
@@ -26,7 +26,7 @@
   ],
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
+      "types": "./dist/lib/main.d.ts",
       "import": "./dist/pinia-plugin-subscription.js"
     },
     "./helpers": {
@@ -38,7 +38,7 @@
     }
   },
   "main": "./dist/pinia-plugin-subscription.js",
-  "types": "./dist/types/index.d.ts",
+  "types": "./dist/lib/main.d.ts",
   "typesVersions": {
     "*": {
       "helpers": [
