@@ -28,12 +28,6 @@ For type-only imports, prefer the dedicated public types entry:
 import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
 ```
 
-The project also includes a bundle check command to measure the real output size before introducing a heavier split strategy:
-
-```bash
-npm run bundle:check
-```
-
 ```typescript
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
