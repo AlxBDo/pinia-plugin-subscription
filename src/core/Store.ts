@@ -132,7 +132,7 @@ export default class Store extends Debug {
     }
 
     hasDeniedFirstChar(property: string): boolean {
-        return hasDeniedFirstChar(property[0] as string)
+        return hasDeniedFirstChar(property)
     }
 
     protected static hasRequiredKeys(options: AnyObject): boolean {

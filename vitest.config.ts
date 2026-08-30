@@ -17,6 +17,12 @@ export default defineConfig({
                 '**/utils/Performance.ts',
                 '**/utils/defineStoreId.ts'
             ],
+            thresholds: {
+                lines: 80,
+                functions: 80,
+                branches: 75,
+                statements: 80,
+            },
             reporter: ['text', 'html'],
             provider: 'v8'
         },
