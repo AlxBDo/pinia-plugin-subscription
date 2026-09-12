@@ -25,9 +25,4 @@ dist-ssr
 *.sw?
 
 # Not lib
-src/assets
-src/components
-src/extending-pinia-store
-src/models
-src/stores
-src/App.vue
+src/demo

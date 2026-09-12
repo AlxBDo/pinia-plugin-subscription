@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPlugin } from '../plugins/createPlugin'
 import { createHydrationPlugin } from '../plugins/createHydrationPlugin'
-import pluginSubscription from '../plugins/pluginSubscription'
+import pluginSubscription from '../core/PluginSubscription'
 import type { PluginSubscriber } from '../types/plugin'
 
-vi.mock('../plugins/pluginSubscription', () => ({
+vi.mock('../core/PluginSubscription', () => ({
     default: vi.fn().mockImplementation(function (
         this: {
             debug?: unknown

@@ -1,4 +1,4 @@
-import Store from "../core/Store";
+import Store from "./Store";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type { AnyObject } from "../types";
 import type {

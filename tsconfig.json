@@ -18,12 +18,12 @@
     "src/**/*.spec.ts",
     "src/**/*.performance.test.ts",
     "src/demo/**",
-    "src/main.ts",
+    "src/demo/main.ts",
     "src/**/*.vue",
     "src/assets/**",
-    "src/components/**",
-    "src/extending-pinia-store/**",
-    "src/models/**",
-    "src/stores/**"
+    "src/demo/components/**",
+    "src/demo/extending-pinia-store/**",
+    "src/demo/models/**",
+    "src/demo/stores/**"
   ]
 }

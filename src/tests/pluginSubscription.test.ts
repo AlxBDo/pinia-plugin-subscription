@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
-import PluginSubscription from '../plugins/pluginSubscription'
+import PluginSubscription from '../core/PluginSubscription'
 
 function createContext(store: Store): PiniaPluginContext {
     return {
@@ -658,7 +658,7 @@ describe('PluginSubscription', () => {
             expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(true)
 
             mockStore.$dispose = vi.fn(() => {
-                ;(pluginSub as any).clearStoreTracking(mockStore)
+                ; (pluginSub as any).clearStoreTracking(mockStore)
             })
             mockStore.$dispose()
 
@@ -809,8 +809,8 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin(createContext(mockStore))
 
-            ; (mockStore.$state as any).meta.createdAt = new Date('2024-02-02T00:00:00.000Z')
-            ; (mockStore.$state as any).meta.tags = ['x']
+                ; (mockStore.$state as any).meta.createdAt = new Date('2024-02-02T00:00:00.000Z')
+                ; (mockStore.$state as any).meta.tags = ['x']
 
             mockStore.$reset!()
 

@@ -1,18 +1,18 @@
+<script setup>
+import Header from './components/header/Header.vue'
+import List from './components/examples/list/List.vue';
+import Lists from './components/examples/lists/Lists.vue';
+import User from './components/examples/user/User.vue';
+
+</script>
+
 <template>
-  <main class="demo-shell">
-    <h1>pinia-plugin-subscription</h1>
-    <p>Demo app for library validation and runtime checks.</p>
+  <Header />
+  <main>
+    <User />
+    <List />
+    <Lists />
   </main>
 </template>
 
-<style scoped>
-  .demo-shell {
-    min-height: 100vh;
-    display: grid;
-    place-items: center;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    background: #f7f7fb;
-    color: #1f2937;
-  }
-</style>
+<style scoped></style>
