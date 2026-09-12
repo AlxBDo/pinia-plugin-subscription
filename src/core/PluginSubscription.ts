@@ -187,7 +187,7 @@ export default class PluginSubscription extends Debug {
             try {
                 const afterHydration = subscriber.afterHydration?.(context, debug)
                 if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
-                    ;(afterHydration as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+                    ; (afterHydration as Promise<void>).catch(error => this.logError(error, context.store, context.options))
                 }
             } catch (error) {
                 this.logError(error, context.store, context.options)
@@ -195,7 +195,7 @@ export default class PluginSubscription extends Debug {
         }
 
         if (hydrateResult && typeof (hydrateResult as Promise<void>).then === 'function') {
-            ;(hydrateResult as Promise<void>)
+            ; (hydrateResult as Promise<void>)
                 .then(() => runAfterHydration())
                 .catch(error => this.logError(error, context.store, context.options))
         } else {
@@ -357,9 +357,9 @@ export default class PluginSubscription extends Debug {
     private storeOnActionSubscription(subscription: StoreOnActionSubscription): void {
         const { store, callback } = subscription()
 
-        store.$onAction(({ after, args, name }) => {
+        store.$onAction(({ after, args, name, onError }) => {
             this.debugLog(`storeOnActionSubscription ${store.$id}`, { after, args, name, store })
-            callback({ after, args, name })
+            callback({ after, args, name, onError })
         })
     }
 

@@ -245,7 +245,7 @@ An object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)
 
 ## The `PluginSubscriber` Abstract Class
 
-The project provides an abstract `PluginSubscriber` implementation (see [src/plugins/pluginSubscriber.ts](src/plugins/pluginSubscriber.ts)) to simplify creating reusable subscribers.
+The project provides an abstract `PluginSubscriber` implementation (see [src/core/PluginSubscriber.ts](src/core/PluginSubscriber.ts)) to simplify creating reusable subscribers.
 
 **Typical usage:**
 

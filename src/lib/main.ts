@@ -1,5 +1,5 @@
-import PluginSubscriber from '../plugins/pluginSubscriber'
-import PluginSubscription from '../plugins/pluginSubscription'
+import PluginSubscriber from '../core/PluginSubscriber'
+import PluginSubscription from '../core/PluginSubscription'
 import Store from '../core/Store'
 
 export { createPlugin } from "../plugins/createPlugin"

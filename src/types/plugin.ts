@@ -46,6 +46,7 @@ export interface StoreOnActionCallbackParameters {
     after: Function
     args: any[] | object
     name: string
+    onError?: Error | unknown
 }
 
 

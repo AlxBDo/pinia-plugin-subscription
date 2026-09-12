@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { PiniaPluginContext } from 'pinia'
-import PluginSubscriber from '../plugins/pluginSubscriber'
+import PluginSubscriber from '../core/PluginSubscriber'
 
 function createContext(store: any): PiniaPluginContext {
     return {
