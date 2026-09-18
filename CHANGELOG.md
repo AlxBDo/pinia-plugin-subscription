@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added automatic state rollback on action failure via the `rollbackAfterFailure` store option: the declared state keys are snapshotted before the action runs and restored through `$patch` when the action throws (sync or async).
+- Added `$rollbackAfterFailure(params, ...args)` to `PiniaCustomProperties`, available on every store registered by the plugin, to run an action with an explicit snapshot/rollback wrapper.
+- Added `RollbackActionParams` and `RollbackAfterFailureParams` types to the public API.
+
+### Changed
+- Action names starting with `_` or `$` are rejected by the rollback wrapper to protect internal store methods.
+- Rollback tracking data (`rollbackAfterFailure` params and pending snapshots) is now cleaned up when a store is disposed, preventing memory leaks with dynamically created stores.
+
 ## [0.1.8]
 
 ### Added 

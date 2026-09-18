@@ -2,6 +2,9 @@ import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation
 import type { StoreOptions } from "./store"
 import type { Console, PluginSubscriberInterface } from "."
 
+
+export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
+
 export type PluginHydrationScheduler = (callback: () => void) => void
 
 export type PluginHydrationTiming = 'defer' | 'immediate'
@@ -42,11 +45,14 @@ export interface NativePiniaSubscriptionReturn<Callback> {
     callback: Callback
 }
 
+export type StoreOnActionAfterCallbackParameter = (callback: (result?: unknown) => void) => void
+export type StoreOnActionOnErrorCallbackParameter = (callback: (error: unknown) => void) => void
+
 export interface StoreOnActionCallbackParameters {
-    after: Function
+    after: StoreOnActionAfterCallbackParameter
     args: any[] | object
     name: string
-    onError?: Error | unknown
+    onError?: StoreOnActionOnErrorCallbackParameter
 }
 
 

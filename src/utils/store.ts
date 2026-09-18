@@ -1,5 +1,5 @@
 import { defineStore } from "pinia"
-import type { DefineStoreOptions, StateTree, StoreDefinition } from "pinia"
+import type { DefineStoreOptions, StateTree, Store, StoreDefinition } from "pinia"
 import type { AnyObject } from "../types"
 import type {
     DefineAStoreSetupContext,
@@ -191,4 +191,14 @@ export function getExtendingStore<TEnhancedStore>(
     ctx: DefineAStoreSetupContext<TEnhancedStore>
 ): TEnhancedStore {
     return getEnhancedStore<TEnhancedStore>(ctx)
+}
+
+/**
+ * Get the storage key for a given action and store combination.
+ * @param actionName The name of the action.
+ * @param store The Pinia store instance.
+ * @returns The storage key for the action and store combination.
+ */
+export function getActionStoreKey(actionName: string, store: Store): string {
+    return `${actionName}-${store.$id}`
 }

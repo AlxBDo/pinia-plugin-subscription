@@ -451,14 +451,19 @@ describe('PluginSubscription', () => {
                 $subscribe: (cb: Function) => cb({ type: 'mut' })
             }
 
-            const fakeStoreForAction: any = {
-                $id: 'act-store',
-                $onAction: (cb: Function) => cb({ after: true, args: [], name: 'test' })
+            // onAction subscriptions are wired on the plugin-context store
+            // (in real usage, the store returned by storeOnActionSubscription is the context store)
+            const baseStore: any = {
+                $state: {},
+                $id: 'base',
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $onAction: (cb: Function) => cb({ after: vi.fn(), args: [], name: 'test', onError: vi.fn() })
             }
 
             // Provide native subscriptions on the subscriber
             subscriber.storeMutationSubscription = () => ({ store: fakeStoreForMutation, callback: mutationCb })
-            subscriber.storeOnActionSubscription = () => ({ store: fakeStoreForAction, callback: onActionCb })
+            subscriber.storeOnActionSubscription = () => ({ store: baseStore, callback: onActionCb })
 
             // Also provide plugin-level subscriptions to invoke
             const pluginSubs = {
@@ -468,8 +473,6 @@ describe('PluginSubscription', () => {
             subscriber.subscriptions = pluginSubs
 
             pluginSub.subscribers = [subscriber]
-
-            const baseStore: any = { $state: {}, $id: 'base', $patch: vi.fn(), $reset: vi.fn() }
 
             // run plugin which will call subscriptionDelivery and wire native subs
             pluginSub.plugin({ store: baseStore, options: {} } as any)

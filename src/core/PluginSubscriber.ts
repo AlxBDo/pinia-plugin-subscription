@@ -81,11 +81,11 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     }
 
 
-    public hydrate(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+    public afterHydration(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
         return
     }
 
-    public afterHydration(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+    public hydrate(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
         return
     }
 

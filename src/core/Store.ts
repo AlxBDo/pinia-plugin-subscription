@@ -51,14 +51,6 @@ export default class Store extends Debug {
 
     get store(): AnyObject { return this._store }
 
-    hydrate(): void | Promise<void> {
-        return
-    }
-
-    afterHydration(): void | Promise<void> {
-        return
-    }
-
     get storeSubscribe(): StoreMutationSubscription | undefined {
         if (!this._storeSubscribe) {
             return
@@ -113,6 +105,10 @@ export default class Store extends Debug {
         this._subscriptions[pluginName] = { subscription, ...(options ?? {}) }
     }
 
+    afterHydration(): void | Promise<void> {
+        return
+    }
+
     /**
      * Create and return a class instance
      * @param store 
@@ -129,14 +125,6 @@ export default class Store extends Debug {
         if (options.storeOptions && this.hasRequiredKeys(options.storeOptions)) {
             return new this(store, options, debug, customConsole) as Instance
         }
-    }
-
-    hasDeniedFirstChar(property: string): boolean {
-        return hasDeniedFirstChar(property)
-    }
-
-    protected static hasRequiredKeys(options: AnyObject): boolean {
-        return this._requiredKeys !== undefined && this._requiredKeys?.every(requiredKey => !!options[requiredKey])
     }
 
     getOption(optionName: keyof StoreOptions) {
@@ -157,6 +145,18 @@ export default class Store extends Debug {
 
     getValue(value: any) {
         return value?.__v_isRef ? value.value : value
+    }
+
+    protected hasDeniedFirstChar(property: string): boolean {
+        return hasDeniedFirstChar(property)
+    }
+
+    protected static hasRequiredKeys(options: AnyObject): boolean {
+        return this._requiredKeys !== undefined && this._requiredKeys?.every(requiredKey => !!options[requiredKey])
+    }
+
+    hydrate(): void | Promise<void> {
+        return
     }
 
     isOptionApi(): boolean { return this.store._isOptionsAPI }
