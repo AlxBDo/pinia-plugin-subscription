@@ -1,3 +1,9 @@
+/**
+ * Deeply clones the provided value, handling objects, arrays, maps, and sets. Uses `structuredClone` if available, otherwise falls back to a manual deep clone.
+ * @template T The type of the value to deep clone.
+ * @param value The value to deep clone.
+ * @returns A deep clone of the provided value.
+ */
 export function deepClone<T>(value: T): T {
     if (typeof structuredClone === 'function') {
         try {

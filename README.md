@@ -257,6 +257,35 @@ try {
 - `params.stateKeys` — optional; the state keys to snapshot, or `'all'` (default when omitted or empty).
 - The original error is rethrown after the state is restored.
 
+### Extending store options from a subscriber plugin
+
+This package is the only one allowed to augment pinia's `DefineStoreOptionsBase`. A subscriber plugin must **not** redeclare it: merging `storeOptions` with a different (even compatible) type raises `TS2717` in consumer code.
+
+Instead, per-store plugin options are centralized behind the `StoreOptionsExtensions` interface. Augment it through interface merging to add your own typed keys:
+
+```typescript
+// my-subscriber-plugin/types.d.ts (shipped with your plugin)
+declare module 'pinia-plugin-subscription/types' {
+  interface StoreOptionsExtensions {
+    myPluginOption?: string
+  }
+}
+```
+
+The keys merge into `StoreOptions`, so store authors get type-checking directly in the store definition:
+
+```typescript
+export const useMyStore = defineAStore('myStore', () => { /* ... */ }, {
+  rollbackAfterFailure: { save: 'all' },  // built-in option
+  myPluginOption: 'value',                // typed via the augmentation
+})
+```
+
+Guidelines for subscriber authors:
+- Always declare **optional** keys with names specific enough to avoid collisions (e.g. prefer `myPluginOption` over `options`).
+- At runtime, merged options are delivered to your subscriber's `invoke(context, debug)` through `context.options.storeOptions` — no extra wiring needed.
+- Never redeclare `DefineStoreOptionsBase` or `PiniaCustomProperties`; only this package owns those augmentations.
+
 ### `defineAStoreCtx(id, setup, options?)`
 
 Use actions or access the state, added by one or more plugins, when defining the store.
@@ -372,6 +401,8 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
 ## Testing
 
 This plugin is tested with Vitest. Coverage reports are available in the `coverage/` directory.
+
+Type-level contracts (such as `StoreOptionsExtensions` merging) are validated through Vitest typecheck tests (`*.test-d.ts`), which run alongside the runtime suite via `npm test`.
 
 ## License
 

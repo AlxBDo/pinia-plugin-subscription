@@ -58,6 +58,15 @@ function registerSetupContextCleanupOnDispose(
     setupContextDisposeWrappedStores.add(store)
 }
 
+/**
+ * Define a store with either the option API or the setup API.
+ * @template Sto The type of the store.
+ * @template Sta The type of the store's state.
+ * @param id The unique identifier for the store.
+ * @param storeDefinition The store definition, either as an options object or a setup function.
+ * @param options Optional store options.
+ * @returns The defined store.
+ */
 export function defineAStore<Sto, Sta>(
     id: string,
     storeDefinition:
@@ -80,6 +89,16 @@ export function defineAStore<Sto, Sta>(
         )) as StoreDefinition & Sta & Sto
 }
 
+/**
+ * Define a store with a setup context.
+ * @template Sto The type of the store.
+ * @template Sta The type of the store's state.
+ * @template TExtraExtensions The type of the store's extra extensions.
+ * @param id The unique identifier for the store.
+ * @param storeDefinition The setup function defining the store.
+ * @param options Optional store options.
+ * @returns The defined store with setup context.
+ */
 export function defineAStoreCtx<Sto, Sta, TExtraExtensions extends Record<string, unknown> = EmptyExtensions>(
     id: string,
     storeDefinition: DefineAStoreSetup<Sto & Sta, TExtraExtensions>,
@@ -143,6 +162,11 @@ export function defineAStoreOptionApi(
 
 const deniedFirstChar = new Set<string>(['_', '$'])
 
+/**
+ * Check if a property has a denied first character : ['_', '$'].
+ * @param property The property name to check.
+ * @returns True if the property has a denied first character, false otherwise.
+ */
 export function hasDeniedFirstChar(property: string): boolean {
     return deniedFirstChar.has(property[0] as string)
 }
@@ -156,6 +180,7 @@ export function getDefineAStoreSetupContext(store: AnyObject): DefineAStoreSetup
 
 /**
  * Get the enhanced store from the context.
+ * @template TEnhancedStore The type of the enhanced store.
  * @param ctx The context containing the extensions.
  * @returns The enhanced store casted to the specified types.
  */
@@ -173,6 +198,7 @@ export function getEnhancedStore<TEnhancedStore>(
 
 /**
  * Set the enhanced store in context with deprecated alias support.
+ * @template TEnhancedStore The type of the enhanced store.
  * @param ctx The context containing the extensions.
  * @param store The store to expose as enhancement.
  */
@@ -190,6 +216,7 @@ export function setEnhancedStore<TEnhancedStore>(
 export function getExtendingStore<TEnhancedStore>(
     ctx: DefineAStoreSetupContext<TEnhancedStore>
 ): TEnhancedStore {
+    console.warn(`${ctx.id}Store - getExtendingStore is deprecated. Use getEnhancedStore instead.`)
     return getEnhancedStore<TEnhancedStore>(ctx)
 }
 

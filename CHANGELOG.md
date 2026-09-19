@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `StoreOptionsExtensions`, a centralized extension point for per-store plugin options: subscriber plugins can now type their own `storeOptions` keys through interface merging (`declare module 'pinia-plugin-subscription/types'`) instead of redeclaring pinia's `DefineStoreOptionsBase`, which would raise TS2717 type-conflict errors in consumer projects.
+- Enabled Vitest typecheck tests (`*.test-d.ts`) so the `StoreOptionsExtensions` merging contract is validated at compile time alongside the runtime test suite.
+
+## [0.2.0-beta.0]
+
+### Added
 - Added automatic state rollback on action failure via the `rollbackAfterFailure` store option: the declared state keys are snapshotted before the action runs and restored through `$patch` when the action throws (sync or async).
 - Added `$rollbackAfterFailure(params, ...args)` to `PiniaCustomProperties`, available on every store registered by the plugin, to run an action with an explicit snapshot/rollback wrapper.
 - Added `RollbackActionParams` and `RollbackAfterFailureParams` types to the public API.
