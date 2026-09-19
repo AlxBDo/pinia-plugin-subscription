@@ -900,4 +900,364 @@ describe('PluginSubscription', () => {
             expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, false)
         })
     })
+
+    describe('subscriptionDelivery coverage', () => {
+        it('should skip nested subscriptions restricted to another environment', () => {
+            const nestedInvoke = vi.fn()
+            const subscriber: PluginSubscriber = {
+                name: 'root',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: {
+                    child: {
+                        subscription: {
+                            name: 'child',
+                            console,
+                            execution: { environment: 'server' },
+                            invoke: nestedInvoke
+                        }
+                    }
+                }
+            }
+
+            pluginSub = getPluginSubscription([subscriber], { runtimeEnvironment: 'client' })
+
+            const mockStore = {
+                $id: 'env-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            expect(subscriber.invoke).toHaveBeenCalledOnce()
+            expect(nestedInvoke).not.toHaveBeenCalled()
+        })
+
+        it('should deliver a nested subscription only once for the same store', () => {
+            const nestedInvoke = vi.fn()
+            const subscriber: PluginSubscriber = {
+                name: 'root',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: {
+                    child: {
+                        subscription: { name: 'child', console, invoke: nestedInvoke }
+                    }
+                }
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'dedup-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            expect(nestedInvoke).toHaveBeenCalledTimes(1)
+                ; (pluginSub as any).subscriptionDelivery(
+                    { store: mockStore, options: {} },
+                    subscriber.subscriptions
+                )
+
+            expect(nestedInvoke).toHaveBeenCalledTimes(1)
+        })
+
+        it('should catch nested subscription errors without breaking delivery', () => {
+            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
+            const subscriber: PluginSubscriber = {
+                name: 'root',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: {
+                    child: {
+                        subscription: {
+                            name: 'child',
+                            console,
+                            invoke: vi.fn(() => { throw new Error('subscription failure') })
+                        }
+                    }
+                }
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'failing-sub-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            expect(() => pluginSub.plugin({ store: mockStore, options: {} } as any)).not.toThrow()
+            expect(consoleLogSpy).toHaveBeenCalled()
+            consoleLogSpy.mockRestore()
+        })
+
+        it('should invoke a nested subscription for each store when stores is a single-item array', () => {
+            const nestedInvoke = vi.fn()
+            const extraStore = { $id: 'extra', storeOptions: { scoped: true } } as unknown as Store
+            const subscriber: PluginSubscriber = {
+                name: 'root',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: {
+                    child: {
+                        subscription: { name: 'child', console, invoke: nestedInvoke },
+                        stores: [extraStore]
+                    }
+                }
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'multi-target-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            expect(nestedInvoke).toHaveBeenCalledTimes(2)
+            expect(nestedInvoke.mock.calls[1]![0].store).toBe(extraStore)
+        })
+
+        it('should deliver a deferred nested subscription through a subscriber-level hydration scheduler', () => {
+            const nestedInvoke = vi.fn()
+            const scheduledCallbacks: Array<() => void> = []
+            const subscriberScheduler = vi.fn((callback: () => void) => { scheduledCallbacks.push(callback) })
+            const subscriber: PluginSubscriber = {
+                name: 'root',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: {
+                    child: {
+                        subscription: {
+                            name: 'child',
+                            console,
+                            hydrationScheduler: subscriberScheduler,
+                            execution: { hydration: 'defer' },
+                            invoke: nestedInvoke
+                        }
+                    }
+                }
+            }
+
+            pluginSub = getPluginSubscription([subscriber], { runtimeEnvironment: 'client' })
+
+            const mockStore = {
+                $id: 'subscriber-scheduler-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            expect(nestedInvoke).not.toHaveBeenCalled()
+            expect(subscriberScheduler).toHaveBeenCalledTimes(1)
+            expect((pluginSub as any)._subscriptionsScheduled.has('child-subscriber-scheduler-store')).toBe(true)
+
+            scheduledCallbacks[0]!()
+
+            expect(nestedInvoke).toHaveBeenCalledTimes(1)
+            expect((pluginSub as any)._subscriptionsScheduled.has('child-subscriber-scheduler-store')).toBe(false)
+        })
+    })
+
+    describe('executeStoreOnActionSubscription coverage', () => {
+        it('should register rollback callbacks on $onAction when the store has rollback snapshots', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'rollback-trigger',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+            let onActionCallback: ((params: any) => void) | undefined
+            const mockStore = {
+                $id: 'rollback-store',
+                $state: { count: 0 },
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $onAction: vi.fn((cb: (params: any) => void) => { onActionCallback = cb })
+            } as unknown as Store
+
+            pluginSub.subscribers = [subscriber]
+            pluginSub.plugin({
+                store: mockStore,
+                options: { storeOptions: { rollbackAfterFailure: { update: ['count'] } } }
+            } as any)
+
+            expect(mockStore.$onAction).toHaveBeenCalledTimes(1)
+
+            const after = vi.fn()
+            const onError = vi.fn()
+            onActionCallback!({ after, args: [], name: 'update', onError })
+
+            expect(after).toHaveBeenCalledTimes(1)
+            expect(onError).toHaveBeenCalledTimes(1)
+                ; (pluginSub as any)._onActionSubscriptions.forEach((cb: any) => {
+                    expect(typeof cb === 'function' ? true : false).toBe(true)
+                })
+        })
+
+        it('should skip $onAction wiring when there are no subscriptions and no rollback snapshots', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'no-action-subs',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+            const mockStore = {
+                $id: 'no-action-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $onAction: vi.fn()
+            } as unknown as Store
+
+            pluginSub.subscribers = [subscriber]
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            expect(mockStore.$onAction).not.toHaveBeenCalled()
+        })
+    })
+
+    describe('async hydration error handling', () => {
+        const flushMicrotasks = () => new Promise(resolve => setTimeout(resolve, 0))
+
+        it('should log hydrate promise rejections without breaking registration', async () => {
+            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
+            const afterHydration = vi.fn()
+            const subscriber: PluginSubscriber = {
+                name: 'async-hydrate-failure',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                hydrate: vi.fn(() => Promise.reject(new Error('async hydrate failure'))),
+                afterHydration,
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'async-hydrate-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+            await flushMicrotasks()
+
+            expect(afterHydration).not.toHaveBeenCalled()
+            expect(consoleLogSpy).toHaveBeenCalled()
+            consoleLogSpy.mockRestore()
+        })
+
+        it('should log afterHydration promise rejections without breaking registration', async () => {
+            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
+            const subscriber: PluginSubscriber = {
+                name: 'async-after-hydration-failure',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                afterHydration: vi.fn(() => Promise.reject(new Error('async afterHydration failure'))),
+                subscriptions: undefined,
+            }
+
+            pluginSub.subscribers = [subscriber]
+
+            const mockStore = {
+                $id: 'async-after-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+            await flushMicrotasks()
+
+            expect(consoleLogSpy).toHaveBeenCalled()
+            consoleLogSpy.mockRestore()
+        })
+    })
+
+    describe('registerStoreCleanup coverage', () => {
+        it('should not wrap $dispose twice when plugin is called again for the same store', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'rewire',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+            const originalDispose = vi.fn()
+            const mockStore = {
+                $id: 'rewire-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: originalDispose
+            } as unknown as Store
+
+            pluginSub.subscribers = [subscriber]
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            const firstWrappedDispose = mockStore.$dispose
+
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            expect(mockStore.$dispose).toBe(firstWrappedDispose)
+
+            mockStore.$dispose!()
+
+            expect(originalDispose).toHaveBeenCalledTimes(1)
+        })
+
+        it('should leave stores without $dispose untouched', () => {
+            const subscriber: PluginSubscriber = {
+                name: 'no-dispose',
+                console,
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+            }
+            const mockStore = {
+                $id: 'no-dispose-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn()
+            } as unknown as Store
+
+            pluginSub.subscribers = [subscriber]
+
+            expect(() => pluginSub.plugin({ store: mockStore, options: {} } as any)).not.toThrow()
+            expect(mockStore.$dispose).toBeUndefined()
+            expect((mockStore as any).__piniaPluginSubscriptionDisposed).toBeUndefined()
+        })
+    })
+
+    describe('defaultHydrationScheduler', () => {
+        it('should run the callback through setTimeout', async () => {
+            vi.useFakeTimers()
+            try {
+                const callback = vi.fn()
+
+                    ; (pluginSub as any)._hydrationScheduler(callback)
+
+                expect(callback).not.toHaveBeenCalled()
+
+                await vi.advanceTimersByTimeAsync(0)
+
+                expect(callback).toHaveBeenCalledTimes(1)
+            } finally {
+                vi.useRealTimers()
+            }
+        })
+    })
 })
