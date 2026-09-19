@@ -1,4 +1,5 @@
 import type { AnyObject } from ".";
+import type { CreateStateSnapshotKeys } from "./plugin";
 import type { _StoreWithGetters, PiniaCustomProperties, Store, StoreDefinition } from "pinia";
 import type { Ref } from "vue";
 
@@ -32,6 +33,13 @@ export interface PluginStoreOptions {
     storeOptions: StoreOptions
 }
 
+export interface RollbackActionParams {
+    action: string
+    stateKeys?: CreateStateSnapshotKeys
+}
+
+export type RollbackAfterFailureParams = { [key: string]: CreateStateSnapshotKeys }
+
 export type StatePropertyValue = StdStatePropertyValue
     | Ref<StdStatePropertyValue>
     | StdStatePropertyValue[]
@@ -40,6 +48,9 @@ export type StatePropertyValue = StdStatePropertyValue
 
 type StdStatePropertyValue = AnyObject | boolean | null | number | string | undefined
 
-export type StoreOptions = Record<string, StoreOptionsPropertyValue>
+export interface StoreOptions {
+    [key: string]: StoreOptionsPropertyValue
+    rollbackAfterFailure?: RollbackAfterFailureParams
+}
 
 export type StoreOptionsPropertyValue = OptionBaseProperty | OptionBaseProperty[] | ObjectBaseProperty | ObjectBaseProperty[]

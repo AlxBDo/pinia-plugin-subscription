@@ -6,7 +6,8 @@
  - a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia;
  - a `Store` base class (helper wrapper) to ease interacting with Pinia stores from subscribers or other plugin code;
  - an API to create a Pinia plugin from a list of subscribers;
- - the $reset method to all stores modified by the plugin.
+ - the $reset method to all stores modified by the plugin;
+ - automatic state rollback on action failure via the `rollbackAfterFailure` store option and the `$rollbackAfterFailure` method.
 
  The main goal is to offer a clear API for writing reusable Pinia plugins and to make it easy to extend stores from plugin code.
 
@@ -204,6 +205,57 @@ const mySubscriber: PluginSubscriberInterface = {
 ```
 
 This keeps the server render deterministic and prevents browser-only initialization from crashing Nuxt or SSR builds.
+
+### State rollback on action failure
+
+The plugin can automatically restore the previous state when an action throws. Declare the state keys to snapshot per action via the `rollbackAfterFailure` store option:
+
+```typescript
+import { defineAStore } from 'pinia-plugin-subscription'
+
+export const useMyStore = defineAStore('myStore', () => {
+  const count = ref(0)
+
+  function riskyAction() {
+    count.value += 1
+    throw new Error('Something went wrong')
+  }
+
+  return { count, riskyAction }
+}, {
+  rollbackAfterFailure: {
+    // only the listed keys are snapshotted / restored (deep-cloned)
+    riskyAction: ['count']
+  }
+})
+```
+
+Before a configured action runs, the declared state keys are snapshotted. If the action throws (synchronously or by rejecting its returned promise), the snapshot is restored through `$patch`, so partial mutations are rolled back. The snapshot is always discarded once the action completes or fails.
+
+Only the actions listed in `rollbackAfterFailure` are snapshotted, so unrelated actions pay no cloning cost. Use `'all'` instead of a key list to snapshot the full state — prefer explicit keys for large states.
+
+Action names starting with `_` or `$` are rejected to protect internal store methods.
+
+#### Manual rollback with `$rollbackAfterFailure`
+
+Every store registered by the plugin also exposes a `$rollbackAfterFailure` method to run any action with an explicit snapshot/rollback wrapper, without declaring it in the store options:
+
+```typescript
+const store = useMyStore()
+
+try {
+  await store.$rollbackAfterFailure(
+    { action: 'riskyAction', stateKeys: ['count'] },
+    // ...args forwarded to the action
+  )
+} catch (error) {
+  // the action failed and the state was restored
+}
+```
+
+- `params.action` — the name of the action to execute.
+- `params.stateKeys` — optional; the state keys to snapshot, or `'all'` (default when omitted or empty).
+- The original error is rethrown after the state is restored.
 
 ### `defineAStoreCtx(id, setup, options?)`
 

@@ -48,6 +48,10 @@ export type {
     StoreMutationSubscriptionReturn,
     StoreOnActionSubscriptionReturn
 } from "../types/plugin"
+export type {
+    RollbackActionParams,
+    RollbackAfterFailureParams
+} from "../types/store"
 export {
     defineAStore,
     defineAStoreCtx,

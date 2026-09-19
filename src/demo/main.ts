@@ -12,7 +12,7 @@ const pinia = createPinia()
 pinia.use(
     createPlugin(
         [extendingStoreSubscriber],
-        [pluginName, 'pinia-plugin-extending-store', 'PluginSubscription']
+        //[pluginName, 'pinia-plugin-extending-store', 'PluginSubscription']
     ))
 
 app.use(pinia)
