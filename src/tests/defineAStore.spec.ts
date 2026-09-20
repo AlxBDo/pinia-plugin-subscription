@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { ref, type Ref } from 'vue'
 
 const { defineStoreMock, beforeReturnStoreMock } = vi.hoisted(() => ({
     beforeReturnStoreMock: vi.fn(),
@@ -47,7 +47,9 @@ describe('defineAStore setup context', () => {
             count: ref(0)
         }))
 
-        const store = useStore()
+        // The mocked defineStore returns the raw setup result (refs are not
+        // unwrapped), hence the cast to the raw setup return shape.
+        const store = useStore() as unknown as { $id: string; count: Ref<number> }
 
         expect(store.$id).toBe('legacyStore')
         expect(store.count.value).toBe(0)

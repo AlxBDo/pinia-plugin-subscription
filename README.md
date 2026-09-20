@@ -1,377 +1,83 @@
- # pinia-plugin-subscription
+# pinia-plugin-subscription
 
- Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a `Store` base class for store helpers.
+Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a `Store` base class for store helpers.
 
- This project provides:
- - a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia;
- - a `Store` base class (helper wrapper) to ease interacting with Pinia stores from subscribers or other plugin code;
- - an API to create a Pinia plugin from a list of subscribers;
- - the $reset method to all stores modified by the plugin;
- - automatic state rollback on action failure via the `rollbackAfterFailure` store option and the `$rollbackAfterFailure` method.
+This project provides:
+- a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia;
+- a `Store` base class (helper wrapper) to ease interacting with Pinia stores from subscribers or other plugin code;
+- an API to create a Pinia plugin from a list of subscribers;
+- the `$reset` method on all stores modified by the plugin;
+- automatic state rollback on action failure via the `rollbackAfterFailure` store option and the `$rollbackAfterFailure` method.
 
- The main goal is to offer a clear API for writing reusable Pinia plugins and to make it easy to extend stores from plugin code.
+## Tested & maintained
+
+The package is fully tested with [Vitest](https://vitest.dev/): runtime behavior, type-level contracts (`*.test-d.ts`) and performance regressions are covered, and coverage reports are available in `coverage/`. The full test suite and the build run on every push and pull request through [GitHub Actions](.github/workflows/ci.yml).
+
+## Trust & supply chain
+
+This package is **open source (MIT)** and developed in a [public repository](https://github.com/AlxBDo/pinia-plugin-subscription). You can read, audit, fork and self-host the code at any time — no vendor lock-in, no service-continuity risk.
+
+Development follows these practices:
+
+- **No direct pushes to `main`** — every change lands through a reviewed pull request (branch protection enforced).
+- **Commits are GPG-signed** and verified on GitHub.
+- **Tests and build gate every merge** — a pull request cannot merge with a failing CI run.
+- **npm releases ship with provenance** — each published package is built and signed on GitHub Actions and cryptographically linked to the exact commit and CI run that built it ([example transparency log entry](https://search.sigstore.dev/?logIndex=2811656622)), so you can verify what you install.
+- **Security issues are handled privately** — see [SECURITY.md](SECURITY.md) for the reporting process.
+
+## Documentation
+
+The package serves two audiences:
+
+| You want to… | Guide |
+| --- | --- |
+| Use a compatible plugin (e.g. `pinia-plugin-extending-store`, `pinia-plugin-persist-state`) or this package's built-in store features (`defineAStore`, `$reset`, state rollback) in your app | [Using compatible plugins](docs/using-plugins.md) |
+| Build your own pinia plugin on top of `pinia-plugin-subscription` | [Plugin authoring guide](docs/authoring-plugins.md) |
 
 ## Installation
 
-Ensure Pinia is installed, then register the plugin in your `main.ts`:
-
-For local development and runtime demos, use the dedicated demo app with `npm run dev`. The library build remains `npm run build` and is intentionally kept separate from the demo entry.
-
-For helper-only imports, the package also exposes an additive subpath that is kept separate from the default library API:
-
-```typescript
-import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
+```bash
+npm install pinia pinia-plugin-subscription
 ```
 
-For type-only imports, prefer the dedicated public types entry:
+Register the plugin in your `main.ts`:
 
-```typescript
-import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
-```
-
-```typescript
+```js
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createPlugin, PLUGIN_NAME as PPS } from 'pinia-plugin-subscription'
-import { myStoreSubscriber } from './src/core/my-store'
+import { createPlugin, PLUGIN_NAME } from 'pinia-plugin-subscription'
+import { myStoreSubscriber } from './plugins/my-store'
 import App from './App.vue'
 
 const app = createApp(App)
 const pinia = createPinia()
 
-// Register plugin (subscribers array, debug mode)
-pinia.use(createPlugin([myStoreSubscriber], [PPS]))
+// Register plugin (subscribers array, plugins to debug)
+pinia.use(createPlugin([myStoreSubscriber], [PLUGIN_NAME]))
 
 app.use(pinia)
 app.mount('#app')
 ```
 
-## Usage — Examples
+### Import subpaths
 
-**1) Subscriber using a `Store` subclass:**
-
-```typescript
-import PluginSubscriber from 'pinia-plugin-subscription'
-import { Store } from 'pinia-plugin-subscription'
-
-class MyPlugin extends Store {
-  protected override _className: string = 'MyPlugin'
-  protected static override _requiredKeys?: string[] | undefined = ['my-plugin-option']
-
-  constructor(store, options, debug = false) {
-    super(store, options, debug)
-    this.doSomething()
-  }
-}
-
-class MyPluginSubscriber extends PluginSubscriber<MyPlugin> {
-  constructor() {
-    super('my-plugin', MyPlugin.customizeStore.bind(MyPlugin))
-  }
-}
-
-export const myStoreSubscriber = new MyPluginSubscriber()
-```
-
-**2) Simple subscriber implementing `PluginSubscriberInterface`:**
-
-```typescript
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
-
-export const myStoreSubscriber: PluginSubscriberInterface = {
-  name: 'my-plugin',
-
-  invoke: (context, debug) => {
-    // context contains `store`, `options`, `pinia`
-    console.log('store registered', context.store.$id)
-
-    return true
-  },
-  
-  resetStoreCallback: (store) => {
-    console.log('store reset:', store.$id)
-  }
-}
-```
-
-## Advanced Features
-
-- **Debug mode:** Specifies the name of the plugin(s) to debug as the second argument to `createPlugin` to enable detailed logging.
-- **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
-- **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
-- **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
-
-## API Reference
-
-### `createPlugin(subscribers: PluginSubscriber[], debug?: string[]): PiniaPlugin`
-
-Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered.
-
-### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
-
-Creates a Pinia plugin dedicated to SSR / Nuxt hydration orchestration. This helper is useful when a store plugin needs a runtime-specific scheduler or environment override without forcing every app to re-declare the plugin’s execution policy.
-
-```typescript
-import { createHydrationPlugin, PLUGIN_NAME as PPS } from 'pinia-plugin-subscription'
-
-pinia.use(createHydrationPlugin([
-  persistedStateSubscriber
-], {
-  debug: [PPS],
-  hydrationScheduler: (run) => {
-    nextTick(() => run())
-  }
-}))
-```
-
-### SSR / Nuxt hydration control
-
-The source of truth for hydration policy stays on the subscriber itself. For example, a client-only plugin should declare its execution directly:
-
-```typescript
-export const persistedStateSubscriber: PluginSubscriberInterface = {
-  name: 'persisted-state',
-  execution: {
-    environment: 'client',
-    hydration: 'defer',
-  },
-  hydrationScheduler: (run) => {
-    nextTick(() => run())
-  },
-  invoke: (context, debug) => {
-    // ...
-    return true
-  }
-}
-```
-
-Available execution options:
-
-- `environment: 'both' | 'client' | 'server'` — controls where the subscriber is allowed to run.
-- `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules execution after hydration.
-- `hydrationScheduler` can be provided either on a subscriber or via `createHydrationPlugin()` to override the execution timing when needed.
-
-### SSR / Nuxt best practices
-
-`pinia-plugin-subscription` is SSR-safe by design, but the runtime policy still needs to match the actual app lifecycle.
-
-Use `hydration: 'defer'` when the subscriber depends on browser-only APIs, client-side cookies, localStorage, DOM access, or a hydrated app state that must exist only after the app is mounted.
+For helper-only imports, the package exposes an additive subpath kept separate from the default library API:
 
 ```ts
-const persistedStateSubscriber: PluginSubscriberInterface = {
-  name: 'persisted-state',
-  execution: {
-    environment: 'client',
-    hydration: 'defer',
-  },
-  hydrationScheduler: (run) => nextTick(() => run()),
-  invoke: () => true,
-}
+import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
 ```
 
-Use `runtimeEnvironment: 'server'` or `execution.environment: 'server'` when a subscriber is only valid during server-side rendering or when it should not touch browser-only objects.
+For type-only imports, prefer the dedicated public types entry:
 
 ```ts
-pinia.use(createHydrationPlugin([serverOnlySubscriber], {
-  runtimeEnvironment: 'server'
-}))
+import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
 ```
 
-Avoid browser-only code in stores during build-time SSR. In practice, that means:
+## Development
 
-- do not access `window`, `document`, `localStorage`, or `matchMedia` at module scope or during store setup when the code may run on the server,
-- keep browser-specific bootstrap in `hydrate()` or `afterHydration()`,
-- prefer environment-aware guards such as `typeof window !== 'undefined'`,
-- avoid doing network access or hydration reads before the client is ready unless the code is explicitly intended to run on both environments.
-
-A safe pattern is:
-
-```ts
-const mySubscriber: PluginSubscriberInterface = {
-  name: 'safe-browser-access',
-  execution: {
-    environment: 'client',
-    hydration: 'defer',
-  },
-  hydrate: (context) => {
-    // safe browser access here after hydration is allowed
-    const saved = localStorage.getItem('demo')
-    if (saved) {
-      context.store.$patch({ value: JSON.parse(saved) })
-    }
-  },
-  invoke: () => true,
-}
-```
-
-This keeps the server render deterministic and prevents browser-only initialization from crashing Nuxt or SSR builds.
-
-### State rollback on action failure
-
-The plugin can automatically restore the previous state when an action throws. Declare the state keys to snapshot per action via the `rollbackAfterFailure` store option:
-
-```typescript
-import { defineAStore } from 'pinia-plugin-subscription'
-
-export const useMyStore = defineAStore('myStore', () => {
-  const count = ref(0)
-
-  function riskyAction() {
-    count.value += 1
-    throw new Error('Something went wrong')
-  }
-
-  return { count, riskyAction }
-}, {
-  rollbackAfterFailure: {
-    // only the listed keys are snapshotted / restored (deep-cloned)
-    riskyAction: ['count']
-  }
-})
-```
-
-Before a configured action runs, the declared state keys are snapshotted. If the action throws (synchronously or by rejecting its returned promise), the snapshot is restored through `$patch`, so partial mutations are rolled back. The snapshot is always discarded once the action completes or fails.
-
-Only the actions listed in `rollbackAfterFailure` are snapshotted, so unrelated actions pay no cloning cost. Use `'all'` instead of a key list to snapshot the full state — prefer explicit keys for large states.
-
-Action names starting with `_` or `$` are rejected to protect internal store methods.
-
-#### Manual rollback with `$rollbackAfterFailure`
-
-Every store registered by the plugin also exposes a `$rollbackAfterFailure` method to run any action with an explicit snapshot/rollback wrapper, without declaring it in the store options:
-
-```typescript
-const store = useMyStore()
-
-try {
-  await store.$rollbackAfterFailure(
-    { action: 'riskyAction', stateKeys: ['count'] },
-    // ...args forwarded to the action
-  )
-} catch (error) {
-  // the action failed and the state was restored
-}
-```
-
-- `params.action` — the name of the action to execute.
-- `params.stateKeys` — optional; the state keys to snapshot, or `'all'` (default when omitted or empty).
-- The original error is rethrown after the state is restored.
-
-### `defineAStoreCtx(id, setup, options?)`
-
-Use actions or access the state, added by one or more plugins, when defining the store.
-
-```typescript
-import { defineAStoreCtx, getEnhancedStore } from 'pinia-plugin-subscription'
-
-type EnhancedStore = { addItem: (value: unknown) => void }
-
-export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
-  const enhanced = getEnhancedStore<EnhancedStore>(ctx)
-
-  return {
-    addViaEnhanced: (value: unknown) => enhanced.addItem(value)
-  }
-})
-```
-
-`ctx.extensions` now supports:
-- `enhancedStore`
-
-The setup context is indexed internally only when `storeOptions.enhancedStore` is set to `true` (this is enabled automatically by `defineAStoreCtx`).
-The temporary lookup by store id is now cleaned as soon as the weak-map association is established (and on store dispose), which limits map growth over time.
-When `storeOptions.debug` is `true`, setup-context map size transitions are logged for observability.
-
-### `PluginSubscriberInterface`
-
-An object with at least an `invoke(context: PiniaPluginContext, debug?: boolean)` method, plus optional properties:
-
-- `execution?: { environment?: 'both' | 'client' | 'server'; hydration?: 'immediate' | 'defer' }`
-- `hydrationScheduler?: (run: () => void) => void`
-- `hydrate?: (context, debug) => void | Promise<void>` — optional hook for SSR-safe store initialization after the subscriber is accepted for execution
-- `afterHydration?: (context, debug) => void | Promise<void>` — optional lifecycle hook for post-hydration work
-- `resetStoreCallback?: (store?: any) => void`
-- `storeOnActionSubscription?: { store, callback }` (getter)
-- `storeMutationSubscription?: { store, callback }` (getter)
-- `subscriptions?: Record<string, Function>` (plugin-specific subscription functions)
-
-## The `PluginSubscriber` Abstract Class
-
-The project provides an abstract `PluginSubscriber` implementation (see [src/core/PluginSubscriber.ts](src/core/PluginSubscriber.ts)) to simplify creating reusable subscribers.
-
-**Typical usage:**
-
-- The subscriber instantiates a `Store` (or subclass) via a factory (`MyStore.customizeStore`).
-- The instance exposes:
-  - `subscriptions` (from `getSubscriptions()`)
-  - `storeMutationSubscription` (from `storeSubscribe`)
-  - `storeOnActionSubscription` (from `onAction`)
-  - optional `pluginCreated(store)` hook called after initialization
-
-**Example:**
-
-```typescript
-import { nextTick } from 'vue'
-import PluginSubscriber from 'pinia-plugin-subscription'
-import StoreExtension from './src/extending-pinia-store/core/StoreExtension'
-import { addStore } from './src/extending-pinia-store/plugins/stores'
-
-class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
-  constructor() {
-    super('extendsPiniaStore', StoreExtension.customizeStore.bind(StoreExtension))
-
-    // Controls when this subscriber may run and whether it should wait for hydration on the client.
-    this.execution = {
-      environment: 'client',
-      hydration: 'defer',
-    }
-
-    // Optional framework-specific scheduler for deferred execution.
-    this.hydrationScheduler = (run) => {
-      nextTick(() => run())
-    }
-
-    this.pluginCreated = addStore
-  }
-
-  override hydrate() {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    // Safe browser-only initialization. This is only called when the policy allows it.
-    return this.storeInstance?.hydrate?.()
-  }
-}
-
-export const extendingStoreSubscriber = new ExtendingStoreSubscriber()
-```
-
-This example shows the recommended pattern for SSR / Nuxt-safe plugins:
-
-- `execution.environment` restricts the subscriber to `'both'`, `'client'`, or `'server'`
-- `execution.hydration` is `'immediate'` by default and can be set to `'defer'` when the plugin must wait for client hydration
-- `hydrationScheduler` lets you override the runtime scheduling behavior, for example with Nuxt/Vue `nextTick()`
-- `hydrate()` / `afterHydration()` are optional lifecycle hooks for browser-only initialization and post-hydration work; they help keep SSR-sensitive logic out of constructors
-
-## The `Store` Class — Summary
-
-The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper around a `PiniaStore` providing:
-
-- **Properties:** `debug`, `options`, `state`, `store`.
-- **Useful methods:**
-  - `addToState(name, value?)` — adds a property to store state and exposes it as a `Ref` when appropriate.
-  - `addSubscription(pluginName, subscription)` — registers a plugin-specific subscription function.
-  - `getSubscriptions()` — returns registered subscriptions.
-  - `storeSubscribe` (getter/setter) — factory for `store.$subscribe` ({ store, callback }).
-  - `onAction` (getter/setter) — factory for `onAction` ({ store, callback }).
-  - `static customizeStore(store, options, debug?)` — recommended factory for class instantiation.
-  - `debugLog(message, args)` — conditional logging.
-  - Helpers: `stateHas()`, `storeHas()`, `getValue()`.
-
-## Testing
-
-This plugin is tested with Vitest. Coverage reports are available in the `coverage/` directory.
+- `npm run dev` — runs the dedicated demo app. The library build remains `npm run build` and is intentionally kept separate from the demo entry. The demo ships a complete plugin-authoring example in [`src/demo/extending-pinia-store/`](src/demo/extending-pinia-store/).
+- `npm test` — runs the Vitest suite, including typecheck tests (`*.test-d.ts`) validating type-level contracts such as `StoreOptionsExtensions` merging. Coverage reports are available in `coverage/`.
+- `npm run bundle:check` — measures the emitted bundle size.
 
 ## License
 

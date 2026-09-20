@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0]
+
+### Added
+- Added `StoreOptionsExtensions`, a centralized extension point for per-store plugin options: subscriber plugins can now type their own `storeOptions` keys through interface merging (`declare module 'pinia-plugin-subscription/types'`) instead of redeclaring pinia's `DefineStoreOptionsBase`, which would raise TS2717 type-conflict errors in consumer projects.
+- Enabled Vitest typecheck tests (`*.test-d.ts`) so the `StoreOptionsExtensions` merging contract is validated at compile time alongside the runtime test suite.
+- Added `docs/using-plugins.md`, a consumer-oriented guide: plugin registration, `defineAStore` / `defineAStoreCtx` reference (including TypeScript generics with JavaScript-first examples), `$reset`, state rollback, and SSR / Nuxt registration through `createHydrationPlugin`.
+- Added `docs/authoring-plugins.md`, a plugin-author guide: `PluginSubscriberInterface` reference, the `PluginSubscriber` abstract class (including its `Instance` type parameter), the `Store` base class, execution policy & SSR best practices, and `StoreOptionsExtensions` augmentation.
+- Documented the testing setup and the trust & supply-chain practices (GPG-signed commits, review-gated merges, npm provenance) in the README.
+
+### Changed
+- Restructured the documentation around the package's two audiences: the README is now a lightweight entry point that routes readers to the dedicated consumer and plugin-author guides.
+- Added the `docs/` directory to the published package files so both guides ship with the npm tarball.
+
+### Fixed
+- Aligned the `$rollbackAfterFailure` public type with its implementation: action arguments are now passed as a single array (`$rollbackAfterFailure(params, [arg1, arg2])`, forwarded via `apply()`), instead of the documented variadic form that threw `TypeError: CreateListFromArrayLike called on non-object` at runtime.
+- Fixed store typings lost when defining stores with `defineAStore`, `defineAStoreCtx`, `defineAStoreSetup` or `defineAStoreOptionApi`: state, getters and actions are now inferred from the store definition (setup function return or options object), exactly like pinia's `defineStore`, so IDEs list store members and display action prototypes. Explicit store/state generics (e.g. `defineAStore<Sto, Sta>`) remain supported for plugin-augmented stores and now type the store returned by `useStore()` — they were previously intersected onto the store definition itself, which left the returned store loosely typed.
+- Added the public `DefineAStoreDefinition<Sto, Sta>` type: the store definition returned when explicit store/state generics are provided. It extends pinia's `StoreDefinition` so it stays assignable wherever a standard store definition is expected.
+- Widened the `getDefineAStoreSetupContext` parameter to accept any store object, so fully inferred stores (without index signatures) can be passed without a cast.
+
+## [0.2.0-beta.0]
 
 ### Added
 - Added automatic state rollback on action failure via the `rollbackAfterFailure` store option: the declared state keys are snapshotted before the action runs and restored through `$patch` when the action throws (sync or async).

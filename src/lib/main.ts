@@ -23,6 +23,7 @@ export type {
     PluginSubscriptions,
     StatePropertyValue,
     StoreOptions,
+    StoreOptionsExtensions,
     StoreOptionsPropertyValue,
     StoreMutationSubscription,
     StoreMutationSubscriptionCallback,

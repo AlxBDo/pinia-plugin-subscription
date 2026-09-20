@@ -26,5 +26,10 @@ export default defineConfig({
             reporter: ['text', 'html'],
             provider: 'v8'
         },
+        typecheck: {
+            enabled: true,
+            include: ['src/**/*.test-d.ts'],
+            tsconfig: './tsconfig.test.json',
+        },
     },
 })

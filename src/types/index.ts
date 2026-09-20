@@ -33,6 +33,7 @@ import type {
     PluginStoreOptions,
     StatePropertyValue,
     StoreOptions,
+    StoreOptionsExtensions,
     StoreOptionsPropertyValue,
 } from './store'
 
@@ -58,7 +59,7 @@ export type ConsoleStyleDefinitionKeys = StyleDefinitionKeys
 export type ConsoleStyleDefinitions = StyleDefinitions
 
 export type { List, ListTypes, ListTypesMap, PartialList } from './list'
-export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, PluginStoreOptions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
+export type { CustomStore, DefineAStoreDefinition, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, PluginStoreOptions, StatePropertyValue, StoreOptions, StoreOptionsExtensions, StoreOptionsPropertyValue } from './store'
 export type {
     NativePiniaSubscription,
     NativePiniaSubscriptionReturn,

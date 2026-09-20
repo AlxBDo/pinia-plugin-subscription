@@ -15,8 +15,11 @@ declare module 'pinia' {
         /**
          * Executes an action and restores the previous state snapshot if it fails.
          * Added to every store when the plugin is active.
+         *
+         * @param params The action name and the state keys to snapshot.
+         * @param args The action arguments, passed as a single array (forwarded via `apply`).
          */
-        $rollbackAfterFailure: (params: RollbackActionParams, ...args: any[]) => Promise<void>
+        $rollbackAfterFailure: (params: RollbackActionParams, args?: any[]) => Promise<void>
     }
 
     export interface DefineStoreOptionsBase<S, Store> {

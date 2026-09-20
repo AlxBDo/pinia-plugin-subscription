@@ -21,6 +21,7 @@ export default class RollbackStateSnapshotsHandler {
     /**
      * Adds a rollback action to the given store.
      * This method extends the store with a $rollbackAfterFailure function that handles rollback logic for actions.
+     * The action arguments are forwarded through apply(), so they must be provided as a single array.
      * @param {Store} store The store to which the rollback action will be added.
      * @returns void
      */
@@ -29,7 +30,7 @@ export default class RollbackStateSnapshotsHandler {
             return
         }
 
-        store.$rollbackAfterFailure = async ({ action, stateKeys }: RollbackActionParams, ...args: any[]) => {
+        store.$rollbackAfterFailure = async ({ action, stateKeys }: RollbackActionParams, args: any[] = []) => {
             const actionFn = (store as AnyObject)[action]
             if (typeof actionFn !== 'function' || hasDeniedFirstChar(action)) {
                 return
