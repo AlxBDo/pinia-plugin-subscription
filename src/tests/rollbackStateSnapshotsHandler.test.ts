@@ -73,7 +73,10 @@ describe('RollbackStateSnapshotsHandler', () => {
                 ; (store as AnyObject).increment = actionFn
             handler.addRollbackAction(store)
 
-            await (store as AnyObject).$rollbackAfterFailure({ action: 'increment' }, 5)
+            // The handler spreads its rest parameter into apply(): the
+            // action's own arguments must therefore be wrapped in a single
+            // array, itself passed as the only extra argument.
+            await (store as AnyObject).$rollbackAfterFailure({ action: 'increment' }, [5])
 
             expect(actionFn).toHaveBeenCalledWith(5)
             expect((store as AnyObject).$state.count).toBe(5)
