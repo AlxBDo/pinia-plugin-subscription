@@ -46,12 +46,14 @@ function isPluginSubscriptionOptions(
 export default class PluginSubscription extends Debug {
     protected _className: string = className
     private _hydrationScheduler: PluginHydrationScheduler
-    private _onActionSubscriptions: StoreOnActionSubscriptionCallback[] = []
+    private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
+    private _onActionStores: Set<Store> = new Set()
     private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
     private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
     private _options?: PluginSubscriptionOptions
     private _pluginDebug?: string[]
-    private _resetStoreCallback: Function[] = []
+    private _resetStoreCallback: Map<Store, Set<NonNullable<PluginSubscriber['resetStoreCallback']>>> = new Map()
+    private _disposedStores: WeakSet<Store> = new WeakSet()
     private _storeRollbackSnapshotsHandler: RollbackStateSnapshotsHandler = new RollbackStateSnapshotsHandler()
     private _subscribers: PluginSubscriber[] = []
     private _subscribersDelivered: Set<string> = new Set()
@@ -102,8 +104,11 @@ export default class PluginSubscription extends Debug {
         this._onActionOnErrorSubscriptions[key]?.push(callback)
     }
 
-    private addResetStoreCallback(callback: Function): void {
-        this._resetStoreCallback.push(callback)
+    private addResetStoreCallback(store: Store, callback: NonNullable<PluginSubscriber['resetStoreCallback']>): void {
+        if (!this._resetStoreCallback.has(store)) {
+            this._resetStoreCallback.set(store, new Set())
+        }
+        this._resetStoreCallback.get(store)!.add(callback)
     }
 
     private clearOnActionCallbacksSubscriptions(storageKey: string): void {
@@ -112,6 +117,9 @@ export default class PluginSubscription extends Debug {
     }
 
     private clearStoreTracking(store: Store): void {
+        this._onActionSubscriptions.delete(store)
+        this._onActionStores.delete(store)
+        this._resetStoreCallback.delete(store)
         const suffix = `-${store.$id}`
 
         for (const key of Array.from(this._subscribersDelivered)) {
@@ -232,7 +240,7 @@ export default class PluginSubscription extends Debug {
     }
 
     private executeResetStoreCallbacks(store: Store): void {
-        this._resetStoreCallback.forEach(callback => callback(store))
+        this._resetStoreCallback.get(store)?.forEach(callback => callback(store))
     }
 
     /**
@@ -242,23 +250,28 @@ export default class PluginSubscription extends Debug {
      * @returns void
      */
     private executeStoreOnActionSubscription(store: Store): void {
-        const onActionSubscriptions = this._onActionSubscriptions
+        if (this._onActionStores.has(store) || typeof store.$onAction !== 'function') {
+            return
+        }
+        const onActionSubscriptions = this._onActionSubscriptions.get(store)
         const hasRollbackSnapshots = this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)
 
-        if (!onActionSubscriptions?.length && !hasRollbackSnapshots) {
+        if (!onActionSubscriptions?.size && !hasRollbackSnapshots) {
             return
         }
 
+        this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
             const storageKey = getActionStoreKey(name, store)
             this.debugLog(`storeOnActionSubscription ${storageKey}`, { args, name, store })
 
-            if (hasRollbackSnapshots) {
+            if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
                 this.createRollbackSnapshot(name, store)
             }
 
-            if (onActionSubscriptions?.length) {
-                onActionSubscriptions.forEach(callback => callback({
+            const callbacks = this._onActionSubscriptions.get(store)
+            if (callbacks?.size) {
+                callbacks.forEach(callback => callback({
                     after: this.createOnActionAfterCallbackCollector(name, store),
                     args,
                     name,
@@ -341,7 +354,7 @@ export default class PluginSubscription extends Debug {
         this.storeOnActionSubscription(subscriber)
 
         if (subscriber.resetStoreCallback) {
-            this.addResetStoreCallback(subscriber.resetStoreCallback)
+            this.addResetStoreCallback(context.store, subscriber.resetStoreCallback)
         }
     }
 
@@ -408,13 +421,15 @@ export default class PluginSubscription extends Debug {
 
         this._subscribersScheduled.add(subscriberKey)
         scheduler(() => {
+            if (this._disposedStores.has(context.store)) {
+                return
+            }
             this._subscribersScheduled.delete(subscriberKey)
             this.executeSubscriberSafely(context, subscriber)
         })
     }
 
     private registerStoreCleanup(store: Store): void {
-        this._onActionSubscriptions = []
         if (typeof store.$dispose !== 'function') {
             return
         }
@@ -428,6 +443,7 @@ export default class PluginSubscription extends Debug {
 
         scopedStore.__piniaPluginSubscriptionDisposed = true
         store.$dispose = () => {
+            this._disposedStores.add(store)
             this.clearStoreTracking(store)
             this._storeRollbackSnapshotsHandler.clearStoreTracking(store)
             return dispose()
@@ -463,7 +479,11 @@ export default class PluginSubscription extends Debug {
             return
         }
 
-        this._onActionSubscriptions.push(callback)
+        if (!this._onActionSubscriptions.has(store)) {
+            this._onActionSubscriptions.set(store, new Set())
+        }
+        this._onActionSubscriptions.get(store)!.add(callback)
+        this.executeStoreOnActionSubscription(store)
     }
 
     private storeMutationSubscription(subscription: StoreMutationSubscription): void {
@@ -499,6 +519,9 @@ export default class PluginSubscription extends Debug {
 
                 this._subscriptionsScheduled.add(subscriptionKey)
                 scheduler(() => {
+                    if (this._disposedStores.has(context.store)) {
+                        return
+                    }
                     this._subscriptionsScheduled.delete(subscriptionKey)
                     this.subscriptionDeliverySafely(context, pluginName, pluginSubscription)
                 })

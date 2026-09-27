@@ -1,4 +1,4 @@
-import { ref, toRef, type Ref } from "vue"
+import { isRef, ref, toRef } from "vue"
 import Debug from "../system/Debug"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
@@ -88,7 +88,7 @@ export default class Store extends Debug {
      */
     addToState(name: string, value?: StatePropertyValue): void {
         if (!this.isOptionApi()) {
-            if (!(value as Ref)?.value) {
+            if (!isRef(value)) {
                 value = ref<StatePropertyValue>(value)
             }
         }

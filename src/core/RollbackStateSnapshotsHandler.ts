@@ -68,11 +68,12 @@ export default class RollbackStateSnapshotsHandler {
             getActionStoreKey(actionName, store)
         )
 
-        if (!stateKeys || stateKeys.length === 0) {
+        if (!stateKeys) {
             return
         }
 
-        const snapshotKey = this.saveStateSnapshot(store, actionName, stateKeys)
+        const keys: CreateStateSnapshotKeys = stateKeys.length === 0 ? 'all' : stateKeys
+        const snapshotKey = this.saveStateSnapshot(store, actionName, keys)
 
         return {
             after: () => { this.removeStateSnapshot(snapshotKey) },

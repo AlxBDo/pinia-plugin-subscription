@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1]
+
+### Fixed
+- Kept deferred action subscribers attached to the correct store after hydration, and scoped action/reset callbacks to each store so disposal and recreation do not leak callbacks.
+- Preserved existing refs with falsy values when adding setup-store state.
+- Made `stateKeys: []` restore the full state in both explicit and automatic rollback.
+
 ## [0.2.0]
 
 ### Added

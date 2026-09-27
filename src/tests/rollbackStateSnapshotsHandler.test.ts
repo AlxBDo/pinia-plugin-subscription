@@ -182,10 +182,17 @@ describe('RollbackStateSnapshotsHandler', () => {
             expect(handler.createOnActionCallbacks('unknownAction', store)).toBeUndefined()
         })
 
-        it('should return undefined when the registered stateKeys array is empty', () => {
+        it('should restore all state when the registered stateKeys array is empty', () => {
             handler.initFromPluginContext(createContext(store, { update: [] }))
 
-            expect(handler.createOnActionCallbacks('update', store)).toBeUndefined()
+            const callbacks = handler.createOnActionCallbacks('update', store)
+            expect(callbacks).toBeDefined()
+                ; (store as AnyObject).$state.count = 99
+                ; (store as AnyObject).$state.name = 'mutated'
+
+            callbacks!.onError()
+            expect((store as AnyObject).$state).toEqual({ count: 0, name: 'initial' })
+            expect((handler as any)._stateSnapshots.size).toBe(0)
         })
 
         it('should save a snapshot for the registered action', () => {

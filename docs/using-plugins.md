@@ -283,7 +283,7 @@ the snapshot is restored through `$patch`, so partial mutations are rolled
 back. The snapshot is always discarded once the action completes or fails.
 
 Only the actions listed in `rollbackAfterFailure` are snapshotted, so
-unrelated actions pay no cloning cost. Use `'all'` instead of a key list to
+unrelated actions pay no cloning cost. Use `'all'` or `[]` instead of a key list to
 snapshot the full state — prefer explicit keys for large states.
 
 Action names starting with `_` or `$` are rejected to protect internal store
@@ -310,7 +310,8 @@ try {
 
 - `params.action` — the name of the action to execute.
 - `params.stateKeys` — optional; the state keys to snapshot, or `'all'`
-  (default when omitted or empty).
+  (default when omitted or empty). An empty array also means the full state
+  for automatic rollback configured in store options.
 - `args` — optional; the action arguments, provided as a single array
   (forwarded to the action via `apply()`).
 - The original error is rethrown after the state is restored.
