@@ -214,6 +214,16 @@ describe('Store', () => {
 
             expect(storeInstance.state.prop).toBe(refValue)
         })
+
+        it.each([0, false, '', null, undefined])('should preserve an existing ref containing %s', (value) => {
+            const existingRef = ref(value)
+            storeInstance.state = {}
+
+            storeInstance.addToState('prop', existingRef)
+
+            expect(storeInstance.state.prop).toBe(existingRef)
+            expect(existingRef.value).toBe(value)
+        })
     })
 
     describe('customizeStore (static)', () => {

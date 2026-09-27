@@ -9,6 +9,8 @@ This project provides:
 - the `$reset` method on all stores modified by the plugin;
 - automatic state rollback on action failure via the `rollbackAfterFailure` store option and the `$rollbackAfterFailure` method.
 
+Deferred subscribers attach their action and reset callbacks to their own store after hydration; disposing a store removes its callbacks. For both rollback APIs, `stateKeys: []` restores the full state on failure.
+
 ## Tested & maintained
 
 The package is fully tested with [Vitest](https://vitest.dev/): runtime behavior, type-level contracts (`*.test-d.ts`) and performance regressions are covered, and coverage reports are available in `coverage/`. The full test suite and the build run on every push and pull request through [GitHub Actions](.github/workflows/ci.yml).

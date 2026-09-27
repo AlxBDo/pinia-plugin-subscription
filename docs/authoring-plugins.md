@@ -89,7 +89,7 @@ pinia.use(createPlugin([myStoreSubscriber]))
 | `hydrate` | `(context, debug) => void \| Promise<void>` | SSR-safe initialization hook; guaranteed to run before `afterHydration`. |
 | `afterHydration` | `(context, debug) => void \| Promise<void>` | Post-hydration lifecycle hook. |
 | `resetStoreCallback` | `(store?: Store) => void` | Custom logic executed when a registered store is reset. |
-| `storeOnActionSubscription` | `{ store, callback }` (getter) | Action subscription forwarded to pinia's `$onAction`. |
+| `storeOnActionSubscription` | `{ store, callback }` (getter) | Action subscription forwarded to the returned store's `$onAction`, including after deferred hydration; removed on store disposal. |
 | `storeMutationSubscription` | `{ store, callback }` (getter) | Mutation subscription forwarded to pinia's `$subscribe`. |
 | `subscriptions` | `Record<string, PluginSubscription>` | Plugin-specific subscription functions exposed to other plugins. |
 | `console` | `Console` | Custom console used for debug logging. |
