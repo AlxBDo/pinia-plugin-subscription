@@ -92,6 +92,8 @@
     "@vitest/coverage-v8": "^4.0.15",
     "@vue/tsconfig": "^0.8.1",
     "pinia": "^3.0.2",
+    "pinia-plugin-action-flow": "^0.1.1",
+    "pinia-plugin-extending-store": "^0.1.5-beta.0",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vitest": "^4.0.15",

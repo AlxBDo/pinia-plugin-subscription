@@ -73,6 +73,7 @@ describe('defineAStore typings', () => {
 
         expectTypeOf(store.count).toEqualTypeOf<number>()
         expectTypeOf(store.increment).toEqualTypeOf<(step?: number) => number>()
+        expectTypeOf(store).not.toHaveProperty('unknownMember')
     })
 
     it('types the setup context from explicit store/state types', () => {
@@ -119,5 +120,6 @@ describe('defineAStore typings', () => {
 
         expectTypeOf(store.count).toEqualTypeOf<number>()
         expectTypeOf(store.increment).toEqualTypeOf<(step?: number) => number>()
+        expectTypeOf(store).not.toHaveProperty('unknownMember')
     })
 })

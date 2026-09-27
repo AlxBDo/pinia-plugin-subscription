@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed store typings lost when defining stores with `defineAStore`, `defineAStoreCtx`, `defineAStoreSetup` or `defineAStoreOptionApi`: state, getters and actions are now inferred from the store definition (setup function return or options object), exactly like pinia's `defineStore`, so IDEs list store members and display action prototypes. Explicit store/state generics (e.g. `defineAStore<Sto, Sta>`) remain supported for plugin-augmented stores and now type the store returned by `useStore()` — they were previously intersected onto the store definition itself, which left the returned store loosely typed.
 - Added the public `DefineAStoreDefinition<Sto, Sta>` type: the store definition returned when explicit store/state generics are provided. It extends pinia's `StoreDefinition` so it stays assignable wherever a standard store definition is expected.
 - Widened the `getDefineAStoreSetupContext` parameter to accept any store object, so fully inferred stores (without index signatures) can be passed without a cast.
+- Fixed stores defined with explicit generics (`defineAStore<Sto, Sta>` / `defineAStoreCtx<Sto, Sta>`) exposing every non-state member as `any`: the state was intersected with pinia's `StateTree`, whose `any` index signature widened actions and broke IDE autocompletion. The state is now mapped through the new public `StrictStateTree<Sta>` type.
 
 ## [0.2.0-beta.0]
 
