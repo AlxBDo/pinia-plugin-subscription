@@ -23,15 +23,21 @@ export type CustomStore<TStore, TState> = Store & TStore & TState & PiniaCustomP
  * prototypes. It extends pinia's `StoreDefinition` to stay assignable
  * wherever a standard store definition is expected.
  */
-export interface DefineAStoreDefinition<TStore, TState, Id extends string = string> extends StoreDefinition<Id, StateTree & TState> {
+export interface DefineAStoreDefinition<TStore, TState, Id extends string = string> extends StoreDefinition<Id, StrictStateTree<TState>> {
     /**
      * Returns a store, creates it if necessary.
      *
      * @param pinia - Pinia instance to retrieve the store
      * @param hot - dev only hot module replacement
      */
-    (pinia?: Pinia | null, hot?: StoreGeneric): Store<Id, StateTree & TState> & TStore
+    (pinia?: Pinia | null, hot?: StoreGeneric): Store<Id, StrictStateTree<TState>> & TStore
 }
+
+/**
+ * Maps a state interface to a pinia `StateTree` without intersecting it with
+ * `StateTree` itself, whose `any` index signature would widen every store member to `any`.
+ */
+export type StrictStateTree<TState> = { [K in keyof TState]: TState[K] } extends infer S extends StateTree ? S : never
 
 export type EmptyExtensions = Record<never, never>
 
