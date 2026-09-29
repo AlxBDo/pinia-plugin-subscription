@@ -7,7 +7,7 @@ export function createHydrationPlugin(
     subscribers: PluginSubscriber[],
     options?: PluginSubscriptionOptions
 ): PiniaPlugin {
-    const hydrationPlugin = new PluginSubscription(subscribers, options?.debug, {
+    const hydrationPlugin = new PluginSubscription(subscribers, {
         execution: options?.execution,
         hydrationScheduler: options?.hydrationScheduler,
         runtimeEnvironment: options?.runtimeEnvironment,

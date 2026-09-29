@@ -27,3 +27,6 @@ jobs:
 
       - name: Run build and tests
         run: npm run build
+
+      - name: Check published artifacts for dependency leaks
+        run: npm run check:leaks

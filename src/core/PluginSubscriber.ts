@@ -9,14 +9,12 @@ import type {
     StoreMutationSubscription,
     StoreOnActionSubscription
 } from "../types/plugin";
-import type { Console } from "../types/log";
 
 
-type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject, debug: boolean, customConsole?: Console) => Instance | undefined
+type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject) => Instance | undefined
 
 
 export default abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
-    private _console?: Console
     private _createInstance: CreateInstance
     private _name: string
     private _pluginOptions?: AnyObject
@@ -29,10 +27,6 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     public execution?: PluginExecutionOptions
     public hydrationScheduler?: PluginHydrationScheduler
 
-
-    get console(): Console {
-        return this._console ?? console
-    }
 
     get name(): string {
         return this._name;
@@ -71,29 +65,22 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     }
 
 
-    constructor(pluginName: string, createInstanceFunction: CreateInstance, pluginConsole?: Console) {
+    constructor(pluginName: string, createInstanceFunction: CreateInstance) {
         this._name = pluginName
         this._createInstance = createInstanceFunction
-
-        if (pluginConsole) {
-            this._console = pluginConsole
-        }
     }
 
 
-    public afterHydration(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+    public afterHydration(context: PiniaPluginContext): void | Promise<void> {
         return
     }
 
-    public hydrate(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+    public hydrate(context: PiniaPluginContext): void | Promise<void> {
         return
     }
 
-    public invoke(
-        { store, options }: PiniaPluginContext,
-        debug: boolean
-    ): boolean {
-        this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions }, debug, this.console) as Instance
+    public invoke({ store, options }: PiniaPluginContext): boolean {
+        this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions }) as Instance
 
         if (!this._storeInstance) {
             return false

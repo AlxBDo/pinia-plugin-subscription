@@ -53,6 +53,24 @@ export type {
     RollbackActionParams,
     RollbackAfterFailureParams
 } from "../types/store"
+export type {
+    TraceEvent,
+    TraceEventMetadata,
+    TraceFilter,
+    TraceHandler,
+    TraceLevel,
+    TraceListener,
+    TraceListenerRemover,
+    TracePayload,
+    TracerOptions
+} from "../types/trace"
+export {
+    addTraceListener,
+    clearTraceListeners,
+    hasTraceListeners,
+    default as Tracer
+} from "../system/Tracer"
+export { createConsoleTraceListener } from "../system/createConsoleTraceListener"
 export {
     defineAStore,
     defineAStoreCtx,

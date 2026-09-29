@@ -15,7 +15,8 @@ export default defineConfig({
                 '**/stores/**',
                 '**/types/**',
                 '**/utils/Performance.ts',
-                '**/utils/defineStoreId.ts'
+                '**/utils/defineStoreId.ts',
+                'scripts/**'
             ],
             thresholds: {
                 lines: 80,

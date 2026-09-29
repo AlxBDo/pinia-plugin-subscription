@@ -1,6 +1,6 @@
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { StoreOptions } from "./store"
-import type { Console, PluginSubscriberInterface } from "."
+import type { PluginSubscriberInterface } from "."
 
 
 export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
@@ -19,7 +19,6 @@ export interface PluginExecutionOptions {
 }
 
 export interface PluginSubscriptionOptions {
-    debug?: string[]
     execution?: PluginExecutionOptions
     hydrationScheduler?: PluginHydrationScheduler
     runtimeEnvironment?: PluginRuntimeEnvironment
@@ -27,17 +26,16 @@ export interface PluginSubscriptionOptions {
 }
 
 export interface PluginSubscriber {
-    console?: Console
     execution?: PluginExecutionOptions
-    hydrate?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
+    hydrate?: (context: PiniaPluginContext) => void | Promise<void>
     hydrationScheduler?: PluginHydrationScheduler
-    invoke: (context: PiniaPluginContext, debug: boolean) => boolean
+    invoke: (context: PiniaPluginContext) => boolean
     name: string
     resetStoreCallback?: (store?: Store) => void
     storeOnActionSubscription?: StoreOnActionSubscription
     storeMutationSubscription?: StoreMutationSubscription
     subscriptions?: PluginSubscriptions
-    afterHydration?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
+    afterHydration?: (context: PiniaPluginContext) => void | Promise<void>
 }
 
 export interface NativePiniaSubscriptionReturn<Callback> {

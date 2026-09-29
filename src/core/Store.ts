@@ -1,5 +1,5 @@
-import { isRef, ref, toRef } from "vue"
-import Debug from "../system/Debug"
+import { isRef, ref, toRef, type Ref } from "vue"
+import Tracer from "../system/Tracer"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
 
@@ -13,20 +13,35 @@ import type {
     StoreOnActionSubscriptionReturn
 } from "../types/plugin"
 import type { Store as PiniaStore, StateTree } from "pinia"
-import type { Console } from "../types/log"
+import type { TracePayload } from "../types/trace"
 import type { AnyObject, PluginSubscriberInterface } from "../types"
 import type { StoreOptions, StatePropertyValue } from "../types/store"
 
 
-export default class Store extends Debug {
+export default class Store {
     protected _className = 'Store'
     private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
     private _store: PiniaStore
     private _subscriptions: PluginSubscriptions = {}
     private _storeSubscribe?: StoreMutationSubscriptionCallback
+    private _tracer?: Tracer
 
     protected static _requiredKeys?: string[]
+
+    /**
+     * Structured trace emitter of this store.
+     * Built lazily so that subclasses overriding `_className` are reflected.
+     */
+    protected get tracer(): Tracer {
+        if (!this._tracer) {
+            this._tracer = new Tracer(this._className, {
+                scope: this._store?.$id
+            })
+        }
+
+        return this._tracer
+    }
 
     get onAction(): StoreOnActionSubscription | undefined {
         if (!this._onAction) {
@@ -67,8 +82,7 @@ export default class Store extends Debug {
     }
 
 
-    constructor(store: PiniaStore, options: AnyObject, debug: boolean = false, customConsole?: Console) {
-        super(debug, customConsole)
+    constructor(store: PiniaStore, options: AnyObject) {
         this._options = options.storeOptions
         this._store = store
 
@@ -79,6 +93,21 @@ export default class Store extends Debug {
                 setEnhancedStore(ctx, this.store)
             }
         }
+    }
+
+    /**
+     * Emits a structured trace event scoped to this store.
+     * Prefer the factory form for `payload`: it is only resolved when consumed.
+     */
+    trace(namespace: string, payload?: TracePayload): void {
+        this.tracer.debug(namespace, payload)
+    }
+
+    /**
+     * Emits a structured error event, or rethrows it when no listener matches.
+     */
+    traceError(namespace: string, error: unknown, payload?: TracePayload): void {
+        this.tracer.error(namespace, error, payload)
     }
 
     /**
@@ -113,17 +142,14 @@ export default class Store extends Debug {
      * Create and return a class instance
      * @param store 
      * @param options 
-     * @param debug 
      * @returns 
      */
     static customizeStore<Instance extends Store>(
         store: PiniaStore,
-        options: AnyObject,
-        debug: boolean = false,
-        customConsole?: Console
+        options: AnyObject
     ): Instance | undefined {
         if (options.storeOptions && this.hasRequiredKeys(options.storeOptions)) {
-            return new this(store, options, debug, customConsole) as Instance
+            return new this(store, options) as Instance
         }
     }
 

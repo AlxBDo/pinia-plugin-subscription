@@ -27,12 +27,18 @@ vi.mock('pinia', async () => {
 })
 
 import Store from '../core/Store'
+import { addTraceListener } from '../system/Tracer'
 import type { Store as PiniaStore } from 'pinia'
 import type { PluginStoreOptions, StoreOptions } from '../types'
+import type { TraceEvent } from '../types/trace'
 import { defineAStore, defineAStoreCtx, getDefineAStoreSetupContext } from '../utils/store'
 
 class StoreChild extends Store {
     protected static override _requiredKeys?: string[] | undefined = ['test']
+}
+
+class NamedStoreChild extends Store {
+    protected override _className = 'NamedStoreChild'
 }
 
 describe('Store', () => {
@@ -58,29 +64,22 @@ describe('Store', () => {
 
         mockOptions = {
             storeOptions: {
-                debug: false,
                 customOptions: {}
             } as StoreOptions
         }
 
-        storeInstance = new Store(mockPiniaStore, mockOptions, false)
+        storeInstance = new Store(mockPiniaStore, mockOptions)
     })
 
     describe('Constructor', () => {
         it('should initialize with correct parameters', () => {
-            expect(storeInstance.debug).toBe(false)
             expect(storeInstance.store).toEqual(mockPiniaStore)
             expect(storeInstance.options).toEqual(mockOptions.storeOptions)
         })
 
-        it('should set debug mode if provided', () => {
-            const debugStore = new Store(mockPiniaStore, mockOptions, true)
-            expect(debugStore.debug).toBe(true)
-        })
-
         it('should handle undefined storeOptions', () => {
             const emptyOptions = {} as PluginStoreOptions
-            const store = new Store(mockPiniaStore, emptyOptions, false)
+            const store = new Store(mockPiniaStore, emptyOptions)
             expect(store.options).toBeUndefined()
         })
 
@@ -90,7 +89,7 @@ describe('Store', () => {
             }))
             const piniaStore = useStore()
 
-            const store = new Store(piniaStore, { storeOptions: { enhancedStore: true } } as PluginStoreOptions, false)
+            const store = new Store(piniaStore, { storeOptions: { enhancedStore: true } } as PluginStoreOptions)
             const setupContext = getDefineAStoreSetupContext(piniaStore)
 
             expect(setupContext?.extensions.enhancedStore).toBe(store.store)
@@ -103,28 +102,11 @@ describe('Store', () => {
             }))
             const piniaStore = useStore()
 
-            new Store(piniaStore, { storeOptions: {} } as PluginStoreOptions, false)
+            new Store(piniaStore, { storeOptions: {} } as PluginStoreOptions)
             const setupContext = getDefineAStoreSetupContext(piniaStore)
 
             expect(setupContext?.extensions.enhancedStore).toBeUndefined()
             expect(setupContext?.extensions.extending).toBeUndefined()
-        })
-    })
-
-    describe('debug getter/setter', () => {
-        it('should get debug value', () => {
-            expect(storeInstance.debug).toBe(false)
-        })
-
-        it('should set debug to true', () => {
-            storeInstance.debug = true
-            expect(storeInstance.debug).toBe(true)
-        })
-
-        it('should set debug to false', () => {
-            storeInstance.debug = true
-            storeInstance.debug = false
-            expect(storeInstance.debug).toBe(false)
         })
     })
 
@@ -229,17 +211,9 @@ describe('Store', () => {
     describe('customizeStore (static)', () => {
         it('should create a Store instance when options.storeOptions exists', () => {
             const options = { storeOptions: { test: true } as StoreOptions }
-            const result = StoreChild.customizeStore<Store>(mockPiniaStore, options, false)
+            const result = StoreChild.customizeStore<Store>(mockPiniaStore, options)
 
             expect(result).toBeInstanceOf(Store)
-            expect(result?.debug).toBe(false)
-        })
-
-        it('should set debug mode in customized store', () => {
-            const options = { storeOptions: { test: true } as StoreOptions }
-            const result = StoreChild.customizeStore<Store>(mockPiniaStore, options, true)
-
-            expect(result?.debug).toBe(true)
         })
 
         it('should return undefined when storeOptions is missing', () => {
@@ -265,25 +239,60 @@ describe('Store', () => {
         })
     })
 
-    describe('debugLog', () => {
-        it('should log when debug is true', () => {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
-            storeInstance.debug = true
+    describe('trace', () => {
+        it('emits a structured event scoped to the store id', () => {
+            const collector: TraceEvent[] = []
+            const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
 
-            storeInstance.debugLog('test message', { data: 'test' })
+            storeInstance.trace('store:hydrate', () => ({ done: true }))
+            remove()
 
-            expect(consoleSpy).toHaveBeenCalled()
-            consoleSpy.mockRestore()
+            expect(collector).toHaveLength(1)
+            expect(collector[0]).toMatchObject({
+                level: 'debug',
+                namespace: 'store:hydrate',
+                payload: { done: true },
+                scope: mockPiniaStore.$id,
+                source: 'Store'
+            })
         })
 
-        it('should not log when debug is false', () => {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
-            storeInstance.debug = false
+        it('does not resolve the payload when nothing listens', () => {
+            const payload = vi.fn(() => ({ heavy: true }))
 
-            storeInstance.debugLog('test message', { data: 'test' })
+            storeInstance.trace('store:hydrate', payload)
 
-            expect(consoleSpy).not.toHaveBeenCalled()
-            consoleSpy.mockRestore()
+            expect(payload).not.toHaveBeenCalled()
+        })
+
+        it('reports errors to matching listeners', () => {
+            const collector: TraceEvent[] = []
+            const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
+
+            storeInstance.traceError('store:hydrate', new Error('boom'))
+            remove()
+
+            expect(collector).toHaveLength(1)
+            expect(collector[0].level).toBe('error')
+        })
+
+        it('uses the subclass name as source, resolved lazily', () => {
+            const collector: TraceEvent[] = []
+            const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
+
+            new NamedStoreChild(mockPiniaStore, mockOptions as any).trace('child:event')
+            remove()
+
+            expect(collector[0].source).toBe('NamedStoreChild')
+        })
+    })
+
+    describe('removed legacy debug API', () => {
+        it('no longer exposes the removed logging helpers', () => {
+            expect((storeInstance as any).debugLog).toBeUndefined()
+            expect((storeInstance as any).logError).toBeUndefined()
+            expect((storeInstance as any).debug).toBeUndefined()
+            expect((storeInstance as any).console).toBeUndefined()
         })
     })
 
@@ -313,14 +322,13 @@ describe('Store', () => {
         it('should return option value if it exists', () => {
             const options: PluginStoreOptions = {
                 storeOptions: {
-                    debug: true,
                     customOptions: { key: 'value' }
                 } as unknown as StoreOptions
             }
             storeInstance = new Store(mockPiniaStore, options)
 
-            const result = storeInstance.getOption('debug')
-            expect(result).toBe(true)
+            const result = storeInstance.getOption('customOptions')
+            expect(result).toEqual({ key: 'value' })
         })
 
         it('should return undefined for non-existent option', () => {
@@ -584,9 +592,9 @@ describe('Store', () => {
             })
 
             it('should pass options correctly to store definition', () => {
-                const storeId = 'debugStore'
+                const storeId = 'optionsStore'
                 const setupFn = () => ({ value: ref('test') })
-                const options: StoreOptions = { debug: true, customOptions: {} }
+                const options: StoreOptions = { customOptions: {} }
 
                 const result = defineAStore(storeId, setupFn, options)
 

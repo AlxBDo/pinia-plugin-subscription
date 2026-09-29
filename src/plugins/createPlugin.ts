@@ -4,8 +4,8 @@ import type { PiniaPlugin } from "pinia"
 import type { PluginSubscriber } from "../types/plugin"
 import type { RollbackActionParams, StoreOptions } from "../types/store"
 
-export function createPlugin(subscribers: PluginSubscriber[], debug?: string[]): PiniaPlugin {
-    const pluginSubscription = new PluginSubscription(subscribers, debug)
+export function createPlugin(subscribers: PluginSubscriber[]): PiniaPlugin {
+    const pluginSubscription = new PluginSubscription(subscribers)
 
     return pluginSubscription.plugin.bind(pluginSubscription)
 }

@@ -1,12 +1,12 @@
-import Debug from "../system/Debug"
 import RollbackStateSnapshotsHandler from "./RollbackStateSnapshotsHandler"
 import { deepClone } from '../utils/deep-clone'
 import { getActionStoreKey } from '../utils/store'
-import { PluginConsole } from "../system/log"
+import Tracer from "../system/Tracer"
 import { isEmpty } from "../utils/validation"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
+import type { TracePayload } from "../types/trace"
 import type {
     PluginExecutionOptions,
     PluginHydrationScheduler,
@@ -36,14 +36,7 @@ function defaultHydrationScheduler(callback: () => void): void {
     globalThis.setTimeout(callback, 0)
 }
 
-function isPluginSubscriptionOptions(
-    value: PluginSubscriptionOptions | string[] | undefined
-): value is PluginSubscriptionOptions {
-    return value !== undefined && !Array.isArray(value)
-}
-
-
-export default class PluginSubscription extends Debug {
+export default class PluginSubscription {
     protected _className: string = className
     private _hydrationScheduler: PluginHydrationScheduler
     private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
@@ -51,7 +44,6 @@ export default class PluginSubscription extends Debug {
     private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
     private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
     private _options?: PluginSubscriptionOptions
-    private _pluginDebug?: string[]
     private _resetStoreCallback: Map<Store, Set<NonNullable<PluginSubscriber['resetStoreCallback']>>> = new Map()
     private _disposedStores: WeakSet<Store> = new WeakSet()
     private _storeRollbackSnapshotsHandler: RollbackStateSnapshotsHandler = new RollbackStateSnapshotsHandler()
@@ -61,6 +53,7 @@ export default class PluginSubscription extends Debug {
     private _subscriptions: PluginSubscriptions[] = []
     private _subscriptionsDelivered: Set<string> = new Set()
     private _subscriptionsScheduled: Set<string> = new Set()
+    private readonly _tracer: Tracer
 
     set subscribers(subscribers: PluginSubscriber[]) {
         this._subscribers = subscribers
@@ -74,19 +67,13 @@ export default class PluginSubscription extends Debug {
 
     constructor(
         subscribers: PluginSubscriber[],
-        debugOrOptions?: PluginSubscriptionOptions | string[],
-        pluginOptions?: PluginSubscriptionOptions
+        options?: PluginSubscriptionOptions
     ) {
-        const debug = Array.isArray(debugOrOptions) ? debugOrOptions : undefined
-        const options = isPluginSubscriptionOptions(debugOrOptions) ? debugOrOptions : pluginOptions
-
-        super(Array.isArray(debug) && !!debug?.includes(className), PluginConsole)
+        this._tracer = new Tracer(className)
         this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
-        this._pluginDebug = Array.isArray(debug) ? debug : undefined
         this._subscribers = subscribers
     }
-
 
     private addOnActionAfterCallback(actionName: string, store: Store, callback: StoreOnActionAfterCallbackParameter): void {
         const key = getActionStoreKey(actionName, store)
@@ -214,10 +201,6 @@ export default class PluginSubscription extends Debug {
             ?? (typeof window === 'undefined' ? 'server' : 'client')
     }
 
-    private definePluginDebug(subscriber: PluginSubscriber): boolean {
-        return !!this._pluginDebug?.includes(subscriber.name)
-    }
-
     private definePluginExecution(subscriber: PluginSubscriber): Required<PluginExecutionOptions> {
         return {
             ...defaultPluginExecution,
@@ -263,7 +246,11 @@ export default class PluginSubscription extends Debug {
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
             const storageKey = getActionStoreKey(name, store)
-            this.debugLog(`storeOnActionSubscription ${storageKey}`, { args, name, store })
+            this.trace('plugin:onAction', () => ({
+                args,
+                name,
+                store,
+            }), store.$id)
 
             if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
                 this.createRollbackSnapshot(name, store)
@@ -299,17 +286,13 @@ export default class PluginSubscription extends Debug {
 
     private executeSubscriber(context: PiniaPluginContext, subscriber: PluginSubscriber): void {
         const subscriberKey = this.defineSubscriberKey(subscriber, context.store)
-        const debug = this.definePluginDebug(subscriber)
 
         if (this._subscribersDelivered.has(subscriberKey)) {
             return
         }
 
         if (
-            !subscriber.invoke(
-                context,
-                debug
-            )) {
+            !subscriber.invoke(context)) {
             return
         }
 
@@ -318,27 +301,27 @@ export default class PluginSubscription extends Debug {
         let hydrateResult: void | Promise<void>
 
         try {
-            hydrateResult = subscriber.hydrate?.(context, debug)
+            hydrateResult = subscriber.hydrate?.(context)
         } catch (error) {
-            this.logError(error, context.store, context.options)
+            this.traceError('subscriber:hydrate', error, () => ({ store: context.store, options: context.options }), context.store.$id)
             return
         }
 
         const runAfterHydration = () => {
             try {
-                const afterHydration = subscriber.afterHydration?.(context, debug)
+                const afterHydration = subscriber.afterHydration?.(context)
                 if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
-                    ; (afterHydration as Promise<void>).catch(error => this.logError(error, context.store, context.options))
+                    ; (afterHydration as Promise<void>).catch(error => this.traceError('subscriber:afterHydration', error, () => ({ store: context.store, options: context.options }), context.store.$id))
                 }
             } catch (error) {
-                this.logError(error, context.store, context.options)
+                this.traceError('subscriber:afterHydration', error, () => ({ store: context.store, options: context.options }), context.store.$id)
             }
         }
 
         if (hydrateResult && typeof (hydrateResult as Promise<void>).then === 'function') {
             ; (hydrateResult as Promise<void>)
                 .then(() => runAfterHydration())
-                .catch(error => this.logError(error, context.store, context.options))
+                .catch(error => this.traceError('subscriber:hydrate', error, () => ({ store: context.store, options: context.options }), context.store.$id))
         } else {
             runAfterHydration()
         }
@@ -362,7 +345,7 @@ export default class PluginSubscription extends Debug {
         try {
             this.executeSubscriber(context, subscriber)
         } catch (e) {
-            this.logError(e, context.store, context.options)
+            this.traceError('subscriber:execute', e, () => ({ store: context.store, options: context.options }), context.store.$id)
         }
     }
 
@@ -371,11 +354,11 @@ export default class PluginSubscription extends Debug {
             return
         }
 
-        this.debugLog(`plugin() - ${store.$id}`, [
-            'subscriber:', this._subscribers,
-            'store:', store,
-            'options:', options
-        ])
+        this.trace('plugin:invoke', () => ({
+            subscribers: this._subscribers,
+            store,
+            options
+        }), store.$id)
 
         try {
             this._subscribers.forEach(
@@ -408,7 +391,7 @@ export default class PluginSubscription extends Debug {
             this.executeStoreOnActionSubscription(store)
             this.registerStoreCleanup(store)
         } catch (e) {
-            this.logError(e, store, options)
+            this.traceError('plugin:invoke', e, () => ({ store, options }), store.$id)
         }
     }
 
@@ -454,7 +437,10 @@ export default class PluginSubscription extends Debug {
         const safeState = deepClone(initState)
 
         store.$reset = () => {
-            this.debugLog('rewriteResetStore()', { initState: safeState, store })
+            this.trace('plugin:reset', () => ({
+                initState: safeState,
+                store
+            }), store.$id)
 
             this.executeResetStoreCallbacks(store)
 
@@ -490,7 +476,7 @@ export default class PluginSubscription extends Debug {
         const { store, callback } = subscription()
 
         store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
-            this.debugLog(`$subscribe ${store.$id}`, { mutation, store })
+            this.trace('store:mutation', () => ({ mutation, store }), store.$id)
             callback(mutation)
         })
     }
@@ -544,40 +530,51 @@ export default class PluginSubscription extends Debug {
 
             const { subscription, subscriptionOptions, stores } = pluginSubscription
 
-            this.debugLog(`subscriptionDelivery() - store: ${store.$id}`, [
-                'pluginName:', pluginName,
-                'subscription:', subscription,
-                'options:', pluginSubscription,
-                'stores:', stores
-            ])
+            this.trace('subscription:delivery', () => ({
+                pluginName,
+                subscription,
+                options: pluginSubscription,
+                stores
+            }), store.$id)
 
             const pluginOptions = {
                 storeOptions: { ...((options as AnyObject)?.storeOptions ?? {}), ...subscriptionOptions }
             } as AnyObject
 
             subscription.invoke(
-                { store, options: { ...options, ...pluginOptions } } as PiniaPluginContext,
-                this.debug
+                { store, options: { ...options, ...pluginOptions } } as PiniaPluginContext
             )
             this._subscriptionsDelivered.add(this.defineSubscriptionKey(pluginName, store))
 
             if (!isEmpty(stores)) {
                 stores?.forEach(
-                    store => subscription.invoke(
-                        {
-                            store,
-                            options: {
-                                ...options,
-                                ...pluginOptions,
-                                ...((store as AnyObject)?.storeOptions ?? {})
-                            }
-                        } as PiniaPluginContext,
-                        this.debug
-                    )
+                    store => subscription.invoke({
+                        store,
+                        options: {
+                            ...options,
+                            ...pluginOptions,
+                            ...((store as AnyObject)?.storeOptions ?? {})
+                        }
+                    } as PiniaPluginContext)
                 )
             }
         } catch (e) {
-            this.logError(`subscriptionDelivery()`, e, store, options)
+            this.traceError('subscription:delivery', e, () => ({ store, options }), store.$id)
         }
+    }
+
+    /**
+     * Emits a structured trace event.
+     * Prefer the factory form for `payload`: it is only resolved when consumed.
+     */
+    trace(namespace: string, payload?: TracePayload, scope?: string): void {
+        this._tracer.debug(namespace, payload, scope)
+    }
+
+    /**
+     * Emits a structured error event, or rethrows it when no listener matches.
+     */
+    traceError(namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
+        this._tracer.error(namespace, error, payload, scope)
     }
 }

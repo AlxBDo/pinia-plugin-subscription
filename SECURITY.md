@@ -35,7 +35,6 @@ When using pinia-plugin-subscription:
 1. **Keep Dependencies Updated:** Regularly update Pinia, Vue, and other dependencies to the latest versions
 2. **Review Plugin Code:** Always review subscriber code before using in production
 3. **Validate Store Data:** Validate data before storing in Pinia stores
-4. **Debug Mode:** Disable debug mode in production (set `false` when calling `createPlugin`)
 
 ## Dependencies Security
 
