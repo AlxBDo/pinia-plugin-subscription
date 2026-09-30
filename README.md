@@ -125,12 +125,12 @@ Creates and returns a Pinia plugin from the provided `subscribers`. Each subscri
 
 ### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
 
-Creates a Pinia plugin dedicated to SSR / Nuxt hydration orchestration. This helper is useful when a store plugin needs a runtime-specific scheduler or environment override without forcing every app to re-declare the plugin’s execution policy.
+Deprecated. Use `createPlugin()` with hydration options instead. This helper remains available for compatibility.
 
 ```typescript
-import { createHydrationPlugin } from 'pinia-plugin-subscription'
+import { createPlugin } from 'pinia-plugin-subscription'
 
-pinia.use(createHydrationPlugin([
+pinia.use(createPlugin([
   persistedStateSubscriber
 ], {
   hydrationScheduler: (run) => {
@@ -164,7 +164,7 @@ Available execution options:
 
 - `environment: 'both' | 'client' | 'server'` — controls where the subscriber is allowed to run.
 - `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules execution after hydration.
-- `hydrationScheduler` can be provided either on a subscriber or via `createHydrationPlugin()` to override the execution timing when needed.
+- `hydrationScheduler` can be provided on a subscriber or through `createPlugin()` options to override execution timing when needed.
 
 ### SSR / Nuxt best practices
 
@@ -204,27 +204,32 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
   - `onAction` (getter/setter) — factory for `onAction` ({ store, callback }).
   - `static customizeStore(store, options)` — recommended factory for class instantiation.
   - `trace(namespace, payload?)` — emits a structured trace event scoped to the store.
-  - `traceError(namespace, error, payload?)` — emits an error event, or rethrows it when no listener matches.
+  - `traceError(namespace, error, payload?)` — emits an error event, or reports it with `console.error` when no listener matches.
   - Helpers: `stateHas()`, `storeHas()`, `getValue()`.
 
 ## Tracing
 
-Tracing is **opt-in** and **allocation free when unused**. Instead of formatting log strings, the plugin emits structured events that you filter at runtime.
+Tracing is **opt-in**, scoped to an explicit registry, and **allocation free when unused**. Create one registry per application or Pinia instance, then pass its `createTracer` factory to `createPlugin()` so plugin and store events share its listeners.
 
 ### Consuming events
 
 ```ts
-import { addTraceListener } from 'pinia-plugin-subscription'
+import { createPlugin, createTracerRegistry } from 'pinia-plugin-subscription'
 
-const remove = addTraceListener({
+const traceRegistry = createTracerRegistry()
+const remove = traceRegistry.addTraceListener({
   filter: (event) => event.scope === 'cart' && event.namespace.startsWith('subscription:'),
   handler: (event) => console.log(event.namespace, event.scope, event.payload)
 })
 
+pinia.use(createPlugin(subscribers, {
+  createTracer: traceRegistry.createTracer
+}))
+
 remove() // unsubscribe
 ```
 
-`filter` is evaluated on every event and may change at any time, so you can narrow tracing to a single store without rebuilding.
+`filter` is evaluated on every event, so you can narrow tracing to a single store without rebuilding. Registries do not share listeners with one another.
 
 ### Event shape
 
@@ -254,15 +259,16 @@ Always prefer the **function form** for `payload`: it is only invoked once a lis
 
 ### Console listener
 
-`Tracer` never writes to a console itself. Console output is an opt-in listener:
+Normal trace events do not write to a console. Console output for those events is an opt-in listener:
 
 ```ts
 import {
-  addTraceListener,
+  createTracerRegistry,
   createConsoleTraceListener
 } from 'pinia-plugin-subscription'
 
-const remove = addTraceListener(createConsoleTraceListener())
+const traceRegistry = createTracerRegistry()
+const remove = traceRegistry.addTraceListener(createConsoleTraceListener())
 ```
 
 By default, this listener uses the styled plugin console. Pass any object exposing `log` and `error` to use another target:
@@ -270,12 +276,12 @@ By default, this listener uses the styled plugin console. Pass any object exposi
 Any object exposing `log` and `error` satisfies the `Console` interface, so external logging libraries can be connected without this plugin depending on them:
 
 ```ts
-const remove = addTraceListener(createConsoleTraceListener(myLogger))
+const remove = traceRegistry.addTraceListener(createConsoleTraceListener(myLogger))
 ```
 
 ### Error reporting
 
-An error is delivered to every matching listener. If no listener matches — including when listeners exist but all filters reject the event — `Tracer.error()` rethrows the original value. A failing listener is isolated and does not interrupt the traced process or the remaining listeners.
+An error is delivered to every matching listener. If no listener matches — including when listeners exist but all filters reject the event — it is reported with `console.error`; it is not rethrown. Errors thrown by filters or handlers are also reported and isolated so they do not interrupt the traced process or remaining listeners.
 
 ### Migrating from `debugLog()` / `logError()`
 
@@ -287,11 +293,11 @@ this.debugLog(`$subscribe ${store.$id}`, { mutation, store })
 this.logError('subscriptionDelivery()', error, store, options)
 
 // after
-this.trace('store:mutation', () => ({ mutation, store }), store.$id)
-this.traceError('subscription:delivery', error, () => ({ store, options }), store.$id)
+this.trace('store:mutation', () => ({ mutation, store }))
+this.traceError('subscription:delivery', error, () => ({ store, options }))
 ```
 
-The `namespace` replaces the formatted message, `scope` carries the store id, and the payload becomes a factory so it is only built when a listener consumes the event.
+The `namespace` replaces the formatted message, store trace events are scoped to `store.$id`, and the payload becomes a factory so it is only built when a listener consumes the event.
 
 ## Testing
 

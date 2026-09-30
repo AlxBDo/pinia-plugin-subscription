@@ -1,8 +1,9 @@
 import type { AnyObject } from './index'
+import type Tracer from '../system/Tracer'
 
 /**
  * Severity of a trace event.
- * `error` events are delivered to matching listeners, or rethrown when none match.
+ * `error` events are delivered to matching listeners, or reported with `console.error` when none match.
  */
 export type TraceLevel = 'debug' | 'error'
 
@@ -47,6 +48,13 @@ export interface TraceListener {
 
 /** Removes a previously registered listener. */
 export type TraceListenerRemover = () => void
+
+export type TraceRegistry = {
+    addTraceListener: (listener: TraceListener) => TraceListenerRemover
+    clearTraceListeners: () => void
+    createTracer: (source: string, options?: TracerOptions) => Tracer
+    hasTraceListeners: () => boolean
+}
 
 export interface TracerOptions {
     scope?: string

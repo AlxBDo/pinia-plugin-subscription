@@ -28,7 +28,7 @@ describe('createPlugin', () => {
 
         createPlugin(subscribers)
 
-        expect(pluginSubscription).toHaveBeenCalledWith(subscribers)
+        expect(pluginSubscription).toHaveBeenCalledWith(subscribers, undefined)
     })
 
     it('returns a bound function', () => {
@@ -38,7 +38,7 @@ describe('createPlugin', () => {
     it('handles an empty subscribers array', () => {
         createPlugin([])
 
-        expect(pluginSubscription).toHaveBeenCalledWith([])
+        expect(pluginSubscription).toHaveBeenCalledWith([], undefined)
     })
 
     it('forwards hydration options', () => {

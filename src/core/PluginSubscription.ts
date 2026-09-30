@@ -53,7 +53,7 @@ export default class PluginSubscription {
     private _subscriptions: PluginSubscriptions[] = []
     private _subscriptionsDelivered: Set<string> = new Set()
     private _subscriptionsScheduled: Set<string> = new Set()
-    private readonly _tracer: Tracer
+    private _tracer?: Tracer
 
     set subscribers(subscribers: PluginSubscriber[]) {
         this._subscribers = subscribers
@@ -69,10 +69,10 @@ export default class PluginSubscription {
         subscribers: PluginSubscriber[],
         options?: PluginSubscriptionOptions
     ) {
-        this._tracer = new Tracer(className)
         this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
         this._subscribers = subscribers
+        this.initializeTracer()
     }
 
     private addOnActionAfterCallback(actionName: string, store: Store, callback: StoreOnActionAfterCallbackParameter): void {
@@ -292,7 +292,7 @@ export default class PluginSubscription {
         }
 
         if (
-            !subscriber.invoke(context)) {
+            !subscriber.invoke(context, this._options?.createTracer)) {
             return
         }
 
@@ -349,6 +349,19 @@ export default class PluginSubscription {
         }
     }
 
+    private initializeTracer() {
+        if (this._options?.createTracer) {
+            this._tracer = this._options.createTracer('PluginSubscription')
+        }
+    }
+
+    /**
+     * Invokes the plugin with the given Pinia plugin context, executing all relevant subscribers safely.
+     * @param param0 The Pinia plugin context containing the store and options.
+     * @param param0.store The Pinia store instance.
+     * @param param0.options The options passed to the Pinia store.
+     * @returns void
+     */
     plugin({ store, options }: PiniaPluginContext) {
         if (!this._subscribers.length) {
             return
@@ -567,14 +580,20 @@ export default class PluginSubscription {
      * Emits a structured trace event.
      * Prefer the factory form for `payload`: it is only resolved when consumed.
      */
-    trace(namespace: string, payload?: TracePayload, scope?: string): void {
-        this._tracer.debug(namespace, payload, scope)
+    private trace(namespace: string, payload?: TracePayload, scope?: string): void {
+        if (this._tracer) {
+            this._tracer.debug(namespace, payload, scope)
+        }
     }
 
     /**
      * Emits a structured error event, or rethrows it when no listener matches.
      */
-    traceError(namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
-        this._tracer.error(namespace, error, payload, scope)
+    private traceError(namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
+        if (this._tracer) {
+            this._tracer.error(namespace, error, payload, scope)
+        } else {
+            console.error(namespace, error, payload, scope)
+        }
     }
 }

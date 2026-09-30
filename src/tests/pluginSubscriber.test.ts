@@ -25,6 +25,40 @@ describe('PluginSubscriber (abstract)', () => {
         expect((subscriber as any).console).toBeUndefined()
     })
 
+    it('should get instance', () => {
+        const createInstance = vi.fn()
+
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        expect(subscriber.storeInstance).not.toBeDefined()
+    })
+
+    it('should set and get pluginOptions', () => {
+        const createInstance = vi.fn()
+
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        subscriber.pluginOptions = { optionA: 'valueA' }
+        expect(subscriber.pluginOptions).toEqual({ optionA: 'valueA' })
+    })
+
+    it('should set and get subscriptions', () => {
+        const createInstance = vi.fn()
+
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        const pluginAFn = vi.fn()
+        subscriber.subscriptions = { pluginA: pluginAFn }
+        const subscriptions = subscriber.subscriptions
+        expect(typeof subscriptions?.pluginA).toEqual('function')
+    })
+
     it('should do nothing when createInstance returns undefined', () => {
         const createInstance = vi.fn().mockReturnValue(undefined)
 

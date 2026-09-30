@@ -9,32 +9,6 @@ import type {
     TracerOptions,
 } from '../types/trace'
 
-const listeners: TraceListener[] = []
-
-/**
- * Registers a trace listener and returns its remover.
- * Listeners are evaluated in registration order.
- */
-export function addTraceListener(listener: TraceListener): TraceListenerRemover {
-    listeners.push(listener)
-
-    return () => {
-        const index = listeners.indexOf(listener)
-
-        if (index !== -1) {
-            listeners.splice(index, 1)
-        }
-    }
-}
-
-export function clearTraceListeners(): void {
-    listeners.length = 0
-}
-
-export function hasTraceListeners(): boolean {
-    return listeners.length > 0
-}
-
 function resolvePayload(payload: TracePayload): AnyObject | undefined {
     if (typeof payload !== 'function') {
         return payload
@@ -54,12 +28,14 @@ function resolvePayload(payload: TracePayload): AnyObject | undefined {
  * the payload is a factory resolved only once a consumer is known.
  */
 export default class Tracer {
+    private readonly _listeners: TraceListener[] = []
     private _scope?: string
     private readonly _source: string
 
-    constructor(source: string, options: TracerOptions = {}) {
+    constructor(source: string, listeners: TraceListener[], options: TracerOptions = {}) {
         this._scope = options.scope
         this._source = source
+        this._listeners = listeners
     }
 
     get scope(): string | undefined {
@@ -78,7 +54,7 @@ export default class Tracer {
         this.emit('debug', namespace, payload, scope)
     }
 
-    /** Relays the error to matching listeners, or rethrows it when none match. */
+    /** Relays the error to matching listeners, or reports it when none match. */
     error(namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
         this.emit('error', namespace, payload, scope, error)
     }
@@ -90,9 +66,9 @@ export default class Tracer {
         scope?: string,
         error?: unknown
     ): void {
-        if (listeners.length === 0) {
+        if (this._listeners.length === 0) {
             if (level === 'error') {
-                throw error
+                console.error('Unhandled error trace event:', error)
             }
             return
         }
@@ -104,21 +80,22 @@ export default class Tracer {
             source: this._source
         }
 
-        const matched = listeners.filter(listener => {
+        const matched = this._listeners.filter(listener => {
             if (!listener.filter) {
                 return true
             }
 
             try {
                 return listener.filter(metadata)
-            } catch {
+            } catch (error) {
+                console.error('Error in trace listener filter:', error)
                 return false
             }
         })
 
         if (matched.length === 0) {
             if (level === 'error') {
-                throw error
+                console.error('Unhandled error trace event:', error)
             }
             return
         }
@@ -133,8 +110,9 @@ export default class Tracer {
         for (const listener of matched) {
             try {
                 listener.handler(event)
-            } catch {
+            } catch (error) {
                 // a faulty listener must never break the traced code
+                console.error('Error in trace listener:', error)
             }
         }
     }

@@ -2,8 +2,8 @@
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
-import { addTraceListener, clearTraceListeners } from '../system/Tracer'
 import { createConsoleTraceListener } from '../system/createConsoleTraceListener'
+import { createTracerRegistry } from '../factories/trace-registry'
 import type { TraceEvent } from '../types/trace'
 
 function createContext(store: Store): PiniaPluginContext {
@@ -13,12 +13,19 @@ function createContext(store: Store): PiniaPluginContext {
     } as unknown as PiniaPluginContext
 }
 
+const { addTraceListener, clearTraceListeners, createTracer, hasTraceListeners } = createTracerRegistry()
+
 function getPluginSubscription(
     subscribers: PluginSubscriber[],
     options?: PluginSubscriptionOptions
 ) {
-    return new PluginSubscription(subscribers, options)
+    return new PluginSubscription(subscribers, {
+        ...(options ?? {}),
+        createTracer,
+    })
 }
+
+
 
 describe('PluginSubscription', () => {
     let pluginSub: PluginSubscription
@@ -297,7 +304,7 @@ describe('PluginSubscription', () => {
 
             expect(() => pluginSub.plugin(mockContext)).not.toThrow()
             await Promise.resolve()
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext)
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
     })
 
@@ -307,7 +314,7 @@ describe('PluginSubscription', () => {
             const callback2 = vi.fn()
             const callback3 = vi.fn()
 
-            const mockStore = { $state: {} } as Store
+            const mockStore = { $state: {} }
                 ; (pluginSub as any).addResetStoreCallback(mockStore, callback1)
                 ; (pluginSub as any).addResetStoreCallback(mockStore, callback2)
                 ; (pluginSub as any).addResetStoreCallback(mockStore, callback3)
@@ -367,8 +374,8 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin(mockContext)
 
-            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext)
-            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext)
+            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, createTracer)
+            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
 
         it('should skip client-only subscribers while running on the server', () => {
@@ -433,7 +440,7 @@ describe('PluginSubscription', () => {
 
             scheduledCallbacks[0]!()
 
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext)
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
 
         it('should scope immediate and deferred action callbacks to their stores across disposal and recreation', () => {
@@ -1150,8 +1157,8 @@ describe('PluginSubscription', () => {
             pluginSub.plugin(context2)
 
             expect(subscriber.invoke).toHaveBeenCalledTimes(2)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2)
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, createTracer)
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, createTracer)
         })
     })
 

@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import Tracer, { addTraceListener, clearTraceListeners, hasTraceListeners } from '../system/Tracer'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTracerRegistry } from '../factories/trace-registry'
 
 import type { TraceEvent } from '../types/trace'
 
@@ -8,15 +8,24 @@ function createCollector() {
     return { events, handler: (event: TraceEvent) => { events.push(event) } }
 }
 
+const { addTraceListener, clearTraceListeners, createTracer, hasTraceListeners } = createTracerRegistry()
+
 describe('Tracer', () => {
+    let consoleSpy: any
+
     beforeEach(() => {
+        consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
         clearTraceListeners()
+    })
+
+    afterEach(() => {
+        consoleSpy.mockRestore()
     })
 
     describe('lazy payload', () => {
         it('does not resolve the payload when nobody listens', () => {
             const payload = vi.fn(() => ({ heavy: true }))
-            new Tracer('Source').debug('store:mutation', payload)
+                ; (createTracer('Source')).debug('store:mutation', payload)
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -25,7 +34,7 @@ describe('Tracer', () => {
             const payload = vi.fn(() => ({ heavy: true }))
             addTraceListener({ filter: () => false, handler: () => { } })
 
-            new Tracer('Source').debug('store:mutation', payload)
+                ; (createTracer('Source')).debug('store:mutation', payload)
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -35,7 +44,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            new Tracer('Source').debug('store:mutation', payload)
+                ; (createTracer('Source')).debug('store:mutation', payload)
 
             expect(payload).toHaveBeenCalledTimes(1)
             expect(collector.events[0].payload).toEqual({ heavy: true })
@@ -45,7 +54,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            new Tracer('Source').debug('store:mutation', { direct: 1 })
+                ; (createTracer('Source')).debug('store:mutation', { direct: 1 })
 
             expect(collector.events[0].payload).toEqual({ direct: 1 })
         })
@@ -54,7 +63,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            expect(() => new Tracer('Source').debug('ns', () => { throw new Error('boom') })).not.toThrow()
+            expect(() => (createTracer('Source')).debug('ns', () => { throw new Error('boom') })).not.toThrow()
             expect(collector.events[0].payload).toHaveProperty('__tracePayloadError')
         })
     })
@@ -64,7 +73,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            new Tracer('PluginSubscription').debug('subscription:delivery', undefined, 'cart')
+                ; (createTracer('PluginSubscription')).debug('subscription:delivery', undefined, 'cart')
 
             expect(collector.events[0]).toMatchObject({
                 level: 'debug',
@@ -79,7 +88,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            new Tracer('Store', { scope: 'user' }).debug('ns')
+                ; (createTracer('Store', { scope: 'user' })).debug('ns')
 
             expect(collector.events[0].scope).toBe('user')
         })
@@ -88,7 +97,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            new Tracer('Store', { scope: 'user' }).debug('ns', undefined, 'cart')
+                ; (createTracer('Store', { scope: 'user' })).debug('ns', undefined, 'cart')
 
             expect(collector.events[0].scope).toBe('cart')
         })
@@ -102,7 +111,7 @@ describe('Tracer', () => {
                 handler: collector.handler
             })
 
-            const tracer = new Tracer('Source')
+            const tracer = createTracer('Source')
             tracer.debug('store:mutation')
             tracer.debug('plugin:invoke')
 
@@ -113,7 +122,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener({ filter: (event) => event.scope === 'cart', handler: collector.handler })
 
-            const tracer = new Tracer('Source')
+            const tracer = createTracer('Source')
             tracer.debug('ns', undefined, 'cart')
             tracer.debug('ns', undefined, 'user')
 
@@ -125,7 +134,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener({ filter: () => { throw new Error('bad filter') }, handler: collector.handler })
 
-            expect(() => new Tracer('Source').debug('ns')).not.toThrow()
+            expect(() => (createTracer('Source')).debug('ns')).not.toThrow()
             expect(collector.events).toHaveLength(0)
         })
     })
@@ -142,7 +151,7 @@ describe('Tracer', () => {
             const remove = addTraceListener(collector)
 
             remove()
-            new Tracer('Source').debug('ns')
+                ; (createTracer('Source')).debug('ns')
 
             expect(collector.events).toHaveLength(0)
         })
@@ -153,7 +162,7 @@ describe('Tracer', () => {
             addTraceListener(first)
             addTraceListener(second)
 
-            new Tracer('Source').debug('ns')
+                ; (createTracer('Source')).debug('ns')
 
             expect(first.events).toHaveLength(1)
             expect(second.events).toHaveLength(1)
@@ -164,7 +173,7 @@ describe('Tracer', () => {
             addTraceListener({ handler: () => { throw new Error('listener down') } })
             addTraceListener(collector)
 
-            expect(() => new Tracer('Source').debug('ns')).not.toThrow()
+            expect(() => (createTracer('Source')).debug('ns')).not.toThrow()
             expect(collector.events).toHaveLength(1)
         })
     })
@@ -174,50 +183,51 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            new Tracer('Source').error('ns', new Error('boom'))
+                ; (createTracer('Source')).error('ns', new Error('boom'))
 
             expect(collector.events[0].level).toBe('error')
             expect(collector.events[0].error).toBeInstanceOf(Error)
         })
 
-        it('rethrows the original error when no listener is registered', () => {
+        it('log error when no listener is registered', () => {
             const failure = new Error('boom')
-
-            expect(() => new Tracer('Source').error('ns', failure)).toThrow(failure)
+            createTracer('Source').error('ns', failure)
+            expect(console.error).toHaveBeenCalled()
         })
 
-        it('rethrows when registered listeners reject the event', () => {
+        it('log error when registered listeners reject the event', () => {
             const failure = new Error('boom')
             addTraceListener({
                 filter: event => event.level === 'debug',
                 handler: () => { }
             })
+            createTracer('Source').error('ns', failure)
 
-            expect(() => new Tracer('Source').error('ns', failure)).toThrow(failure)
+            expect(console.error).toHaveBeenCalled()
         })
 
         it('does not rethrow when at least one listener matches', () => {
             const failure = new Error('boom')
             addTraceListener({ handler: () => { } })
 
-            expect(() => new Tracer('Source').error('ns', failure)).not.toThrow()
+            expect(() => (createTracer('Source')).error('ns', failure)).not.toThrow()
         })
 
         it('isolates a throwing error listener', () => {
             const failure = new Error('boom')
             addTraceListener({ handler: () => { throw new Error('listener down') } })
 
-            expect(() => new Tracer('Source').error('ns', failure)).not.toThrow()
+            expect(() => (createTracer('Source')).error('ns', failure)).not.toThrow()
         })
     })
 
     describe('accessors', () => {
         it('exposes its source', () => {
-            expect(new Tracer('PluginSubscription').source).toBe('PluginSubscription')
+            expect(createTracer('PluginSubscription').source).toBe('PluginSubscription')
         })
 
         it('exposes and updates its scope', () => {
-            const tracer = new Tracer('Source', { scope: 'user' })
+            const tracer = createTracer('Source', { scope: 'user' })
             expect(tracer.scope).toBe('user')
 
             tracer.scope = 'cart'

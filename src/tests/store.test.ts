@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { ref, isRef } from 'vue'
+import { createTracerRegistry } from '../factories/trace-registry'
 
 const { defineStoreMock, beforeReturnStoreMock } = vi.hoisted(() => ({
     beforeReturnStoreMock: vi.fn(),
@@ -27,11 +28,12 @@ vi.mock('pinia', async () => {
 })
 
 import Store from '../core/Store'
-import { addTraceListener } from '../system/Tracer'
 import type { Store as PiniaStore } from 'pinia'
 import type { PluginStoreOptions, StoreOptions } from '../types'
 import type { TraceEvent } from '../types/trace'
 import { defineAStore, defineAStoreCtx, getDefineAStoreSetupContext } from '../utils/store'
+
+const { addTraceListener, clearTraceListeners, createTracer } = createTracerRegistry()
 
 class StoreChild extends Store {
     protected static override _requiredKeys?: string[] | undefined = ['test']
@@ -50,8 +52,10 @@ describe('Store', () => {
     beforeEach(() => {
         defineStoreMock.mockClear()
         beforeReturnStoreMock.mockClear()
+        clearTraceListeners()
 
         mockPiniaStore = {
+            $id: 'test-store',
             $state: { test: 'my string' },
             $subscribe: vi.fn(),
             $onAction: vi.fn(),
@@ -65,7 +69,8 @@ describe('Store', () => {
         mockOptions = {
             storeOptions: {
                 customOptions: {}
-            } as StoreOptions
+            } as StoreOptions,
+            createTracer
         }
 
         storeInstance = new Store(mockPiniaStore, mockOptions)

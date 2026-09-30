@@ -62,14 +62,11 @@ export type {
     TraceListener,
     TraceListenerRemover,
     TracePayload,
+    TraceRegistry,
     TracerOptions
 } from "../types/trace"
-export {
-    addTraceListener,
-    clearTraceListeners,
-    hasTraceListeners,
-    default as Tracer
-} from "../system/Tracer"
+export { createTracerRegistry } from "../factories/trace-registry"
+export { default as Tracer } from "../system/Tracer"
 export { createConsoleTraceListener } from "../system/createConsoleTraceListener"
 export {
     defineAStore,

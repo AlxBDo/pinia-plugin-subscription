@@ -79,6 +79,7 @@ export type {
     TraceListener,
     TraceListenerRemover,
     TracePayload,
+    TraceRegistry,
     TracerOptions
 } from './trace'
 export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, PluginStoreOptions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
