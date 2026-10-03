@@ -262,7 +262,7 @@ export default class Store {
         if (this.tracer) {
             this.tracer.error(namespace, error, payload)
         } else {
-            console.error({ namespace, error, payload })
+            console.error(error)
         }
     }
 }

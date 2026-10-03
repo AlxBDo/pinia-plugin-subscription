@@ -593,7 +593,7 @@ export default class PluginSubscription {
         if (this._tracer) {
             this._tracer.error(namespace, error, payload, scope)
         } else {
-            console.error(namespace, error, payload, scope)
+            console.error(error)
         }
     }
 }

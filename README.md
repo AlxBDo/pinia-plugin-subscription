@@ -211,6 +211,14 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
 
 Tracing is **opt-in**, scoped to an explicit registry, and **allocation free when unused**. Create one registry per application or Pinia instance, then pass its `createTracer` factory to `createPlugin()` so plugin and store events share its listeners. For SSR, create a fresh registry, Pinia instance, and plugin instance for every request; do not keep them in module-level state or clear a shared registry at request completion, since requests may overlap. See the [SSR guide](./docs/using-plugins.md#ssr--nuxt) for an example.
 
+### Production safety
+
+Tracing is **not automatically blocked in production**. Leave normal tracing disabled by default using your application's environment configuration; enable production diagnostics only deliberately and with limited scope and duration.
+
+Events are **not automatically redacted** and may include sensitive action arguments, store state, plugin options, or error details. Filters select events by metadata; they do not sanitize payloads. Before writing to a console or forwarding to a logging service, select an allowlist of fields and redact sensitive values rather than sending complete events.
+
+**Disabling normal tracing does not disable error reporting.** Errors can still be sent to `console.error` without a tracer or when no listener matches. See [Error reporting](#error-reporting) and the [security guidance](./SECURITY.md#tracing-and-production-logging) for precautions, including log access and retention.
+
 ### Consuming events
 
 ```ts
