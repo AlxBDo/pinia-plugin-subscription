@@ -43,29 +43,10 @@ type DefineAStoreSetupOptions<Id extends string, SS> = DefineSetupStoreOptions<
 const defineAStoreSetupContexts = new WeakMap<object, DefineAStoreSetupContext<AnyObject>>()
 const defineAStoreSetupContextsById = new Map<string, DefineAStoreSetupContext<AnyObject>>()
 const setupContextDisposeWrappedStores = new WeakSet<object>()
-const setupContextMapWarnThreshold = 50
-
-function isSetupContextDebugEnabled(options: PluginStoreOptions): boolean {
-    return options?.storeOptions?.debug === true
-}
-
-function logSetupContextMapSizes(id: string, options: PluginStoreOptions, action: string): void {
-    if (!isSetupContextDebugEnabled(options)) {
-        return
-    }
-
-    const setupContextByIdSize = defineAStoreSetupContextsById.size
-    console.debug(`[defineAStoreSetup] ${id} - ${action} (contextsById=${setupContextByIdSize})`)
-
-    if (setupContextByIdSize >= setupContextMapWarnThreshold) {
-        console.warn(`[defineAStoreSetup] contextsById reached ${setupContextByIdSize} entries`)
-    }
-}
 
 function registerSetupContextCleanupOnDispose(
     store: AnyObject,
-    id: string,
-    options: PluginStoreOptions
+    id: string
 ): void {
     if (setupContextDisposeWrappedStores.has(store) || typeof store.$dispose !== 'function') {
         return
@@ -75,7 +56,6 @@ function registerSetupContextCleanupOnDispose(
     store.$dispose = (...args: unknown[]) => {
         defineAStoreSetupContexts.delete(store)
         defineAStoreSetupContextsById.delete(id)
-        logSetupContextMapSizes(id, options, 'dispose cleanup')
         return originalDispose.apply(store, args)
     }
     setupContextDisposeWrappedStores.add(store)
@@ -223,7 +203,6 @@ export function defineAStoreSetup<Id extends string, SS>(
     return Object.assign(((...args: Parameters<typeof useStore>) => {
         if (shouldStoreSetupContext) {
             defineAStoreSetupContextsById.set(id, setupContext as DefineAStoreSetupContext<AnyObject>)
-            logSetupContextMapSizes(id, options, 'registered context by id')
         }
 
         const store = useStore(...args)
@@ -231,8 +210,7 @@ export function defineAStoreSetup<Id extends string, SS>(
         if (shouldStoreSetupContext) {
             defineAStoreSetupContexts.set(store, setupContext as DefineAStoreSetupContext<AnyObject>)
             defineAStoreSetupContextsById.delete(id)
-            logSetupContextMapSizes(id, options, 'moved context to weak map')
-            registerSetupContextCleanupOnDispose(store as AnyObject, id, options)
+            registerSetupContextCleanupOnDispose(store as AnyObject, id)
         }
 
         return store

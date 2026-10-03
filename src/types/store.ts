@@ -1,4 +1,4 @@
-import type { AnyObject } from ".";
+import type { AnyObject, StoreOptionsExtensions } from ".";
 import type { CreateStateSnapshotKeys } from "./plugin";
 import type {
     _StoreWithGetters,
@@ -91,9 +91,7 @@ type StdStatePropertyValue = AnyObject | boolean | null | number | string | unde
  * `declare module 'pinia-plugin-subscription/types'`, which merges safely as
  * long as each plugin declares its own optional keys.
  */
-export interface StoreOptionsExtensions { } // eslint-disable-line @typescript-eslint/no-empty-object-type
-
-export interface StoreOptions extends StoreOptionsExtensions {
+export type StoreOptions = StoreOptionsExtensions & {
     [key: string]: StoreOptionsPropertyValue
     rollbackAfterFailure?: RollbackAfterFailureParams
 }

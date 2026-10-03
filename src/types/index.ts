@@ -5,6 +5,18 @@ import type {
     SubscriptionCallbackMutation
 } from 'pinia'
 import type { Ref } from 'vue'
+
+/**
+ * Centralized extension point for per-store plugin options.
+ *
+ * Subscriber plugins MUST NOT redeclare pinia's `DefineStoreOptionsBase`:
+ * merging a `storeOptions` property with a different (even compatible) type
+ * raises TS2717 in consumer code. Instead, they augment this interface via
+ * `declare module 'pinia-plugin-subscription/types'`, which merges safely as
+ * long as each plugin declares its own optional keys.
+ */
+export interface StoreOptionsExtensions { } // eslint-disable-line @typescript-eslint/no-empty-object-type
+
 import type {
     NativePiniaSubscription,
     NativePiniaSubscriptionReturn,
@@ -33,7 +45,6 @@ import type {
     PluginStoreOptions,
     StatePropertyValue,
     StoreOptions,
-    StoreOptionsExtensions,
     StoreOptionsPropertyValue,
 } from './store'
 
@@ -59,7 +70,19 @@ export type ConsoleStyleDefinitionKeys = StyleDefinitionKeys
 export type ConsoleStyleDefinitions = StyleDefinitions
 
 export type { List, ListTypes, ListTypesMap, PartialList } from './list'
-export type { CustomStore, DefineAStoreDefinition, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, PluginStoreOptions, StatePropertyValue, StoreOptions, StoreOptionsExtensions, StoreOptionsPropertyValue, StrictStateTree } from './store'
+export type {
+    TraceEvent,
+    TraceEventMetadata,
+    TraceFilter,
+    TraceHandler,
+    TraceLevel,
+    TraceListener,
+    TraceListenerRemover,
+    TracePayload,
+    TraceRegistry,
+    TracerOptions
+} from './trace'
+export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, PluginStoreOptions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
 export type {
     NativePiniaSubscription,
     NativePiniaSubscriptionReturn,
@@ -82,17 +105,16 @@ export type {
 } from './plugin'
 
 export interface PluginSubscriberInterface {
-    console?: Console
     execution?: PluginExecutionOptions
-    hydrate?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
+    hydrate?: (context: PiniaPluginContext) => void | Promise<void>
     hydrationScheduler?: PluginHydrationScheduler
-    invoke: (context: PiniaPluginContext, debug: boolean) => boolean
+    invoke: (context: PiniaPluginContext) => boolean
     name: string
     resetStoreCallback?: (store?: PiniaStore) => void
     storeOnActionSubscription?: StoreOnActionSubscription
     storeMutationSubscription?: StoreMutationSubscription
     subscriptions?: PluginSubscriptions
-    afterHydration?: (context: PiniaPluginContext, debug: boolean) => void | Promise<void>
+    afterHydration?: (context: PiniaPluginContext) => void | Promise<void>
 }
 
 export interface PluginSubscriptionDefinition {

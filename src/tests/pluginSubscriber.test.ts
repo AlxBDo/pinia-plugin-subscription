@@ -22,6 +22,41 @@ describe('PluginSubscriber (abstract)', () => {
         })()
 
         expect(subscriber.name).toBe('my-plugin')
+        expect((subscriber as any).console).toBeUndefined()
+    })
+
+    it('should get instance', () => {
+        const createInstance = vi.fn()
+
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        expect(subscriber.storeInstance).not.toBeDefined()
+    })
+
+    it('should set and get pluginOptions', () => {
+        const createInstance = vi.fn()
+
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        subscriber.pluginOptions = { optionA: 'valueA' }
+        expect(subscriber.pluginOptions).toEqual({ optionA: 'valueA' })
+    })
+
+    it('should set and get subscriptions', () => {
+        const createInstance = vi.fn()
+
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        const pluginAFn = vi.fn()
+        subscriber.subscriptions = { pluginA: pluginAFn }
+        const subscriptions = subscriber.subscriptions
+        expect(typeof subscriptions?.pluginA).toEqual('function')
     })
 
     it('should do nothing when createInstance returns undefined', () => {
@@ -33,9 +68,9 @@ describe('PluginSubscriber (abstract)', () => {
 
         const ctx = createContext({ $state: {} })
 
-        subscriber.invoke(ctx, true)
+        subscriber.invoke(ctx)
 
-        expect(createInstance).toHaveBeenCalledWith(ctx.store, ctx.options, true, expect.any(Object))
+        expect(createInstance).toHaveBeenCalledWith(ctx.store, ctx.options)
         expect(subscriber.subscriptions).toBeUndefined()
         expect(subscriber.storeMutationSubscription).toBeUndefined()
         expect(subscriber.storeOnActionSubscription).toBeUndefined()
@@ -67,7 +102,7 @@ describe('PluginSubscriber (abstract)', () => {
 
         subscriber.invoke(ctx)
 
-        expect(createInstance).toHaveBeenCalledWith(ctx.store, ctx.options, undefined, expect.any(Object))
+        expect(createInstance).toHaveBeenCalledWith(ctx.store, ctx.options)
         expect(subscriber.subscriptions).toBe(subscriptions)
         expect(subscriber.storeMutationSubscription).toBe(instance.storeSubscribe)
         expect(subscriber.storeOnActionSubscription).toBe(instance.onAction)

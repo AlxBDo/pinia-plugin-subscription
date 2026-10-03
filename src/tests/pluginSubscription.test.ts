@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
+import { createConsoleTraceListener } from '../system/createConsoleTraceListener'
+import { createTracerRegistry } from '../factories/trace-registry'
+import type { TraceEvent } from '../types/trace'
 
 function createContext(store: Store): PiniaPluginContext {
     return {
@@ -10,27 +13,102 @@ function createContext(store: Store): PiniaPluginContext {
     } as unknown as PiniaPluginContext
 }
 
+const { addTraceListener, clearTraceListeners, createTracer, hasTraceListeners } = createTracerRegistry()
+
 function getPluginSubscription(
     subscribers: PluginSubscriber[],
-    debugOrOptions?: PluginSubscriptionOptions | string[],
     options?: PluginSubscriptionOptions
 ) {
-    return new PluginSubscription(subscribers, debugOrOptions, options)
+    return new PluginSubscription(subscribers, {
+        ...(options ?? {}),
+        createTracer,
+    })
 }
+
+
 
 describe('PluginSubscription', () => {
     let pluginSub: PluginSubscription
 
     beforeEach(() => {
+        clearTraceListeners()
+        addTraceListener({
+            ...createConsoleTraceListener(),
+            filter: event => event.level === 'error'
+        })
         // Create a fresh instance before each test
         pluginSub = getPluginSubscription([])
+    })
+
+    it('does not expose the removed debug configuration', () => {
+        expect((pluginSub as any).debug).toBeUndefined()
+        expect((pluginSub as any).console).toBeUndefined()
+    })
+
+    describe('structured tracing', () => {
+        function createTracedStore(): Store {
+            return {
+                $id: 'cart',
+                $state: { count: 0 },
+                $reset: vi.fn(),
+                $patch: vi.fn(),
+            } as unknown as Store
+        }
+
+        it('emits plugin:invoke scoped to the store id', () => {
+            const events: TraceEvent[] = []
+            addTraceListener({ handler: (event) => { events.push(event) } })
+            pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
+
+            pluginSub.plugin(createContext(createTracedStore()))
+
+            const invoke = events.find(event => event.namespace === 'plugin:invoke')
+            expect(invoke).toMatchObject({ scope: 'cart', source: 'PluginSubscription' })
+        })
+
+        it('supports filtering a single store at runtime', () => {
+            const events: TraceEvent[] = []
+            addTraceListener({ filter: (event) => event.scope === 'other', handler: (event) => { events.push(event) } })
+            pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
+
+            pluginSub.plugin(createContext(createTracedStore()))
+
+            expect(events).toHaveLength(0)
+        })
+
+        it('emits store:reset when the rewritten $reset runs', () => {
+            const events: TraceEvent[] = []
+            addTraceListener({ handler: (event) => { events.push(event) } })
+            const store = createTracedStore()
+            pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
+
+            pluginSub.plugin(createContext(store))
+            store.$reset()
+
+            expect(events.some(event => event.namespace === 'plugin:reset' && event.scope === 'cart')).toBe(true)
+        })
+
+        it('reports subscriber failures as error events without throwing', () => {
+            const events: TraceEvent[] = []
+            addTraceListener({ handler: (event) => { events.push(event) } })
+            pluginSub.subscribers = [{
+                name: 's',
+                invoke: vi.fn(() => { throw new Error('subscriber down') }),
+                subscriptions: undefined
+            }]
+
+            expect(() => pluginSub.plugin(createContext(createTracedStore()))).not.toThrow()
+
+            const failure = events.find(event => event.level === 'error')
+            expect(failure).toBeDefined()
+            expect(failure?.error).toBeInstanceOf(Error)
+        })
     })
 
     describe('subscribers setter', () => {
         it('should set subscribers array', () => {
             const mockSubscriber: PluginSubscriber = {
                 name: 'mock',
-                console: console,
                 invoke: vi.fn(),
                 subscriptions: undefined,
             }
@@ -42,8 +120,8 @@ describe('PluginSubscription', () => {
         })
 
         it('should replace existing subscribers with new ones', () => {
-            const subscriber1: PluginSubscriber = { name: 'a', console: console, invoke: vi.fn(), subscriptions: undefined }
-            const subscriber2: PluginSubscriber = { name: 'b', console: console, invoke: vi.fn(), subscriptions: undefined }
+            const subscriber1: PluginSubscriber = { name: 'a', invoke: vi.fn(), subscriptions: undefined }
+            const subscriber2: PluginSubscriber = { name: 'b', invoke: vi.fn(), subscriptions: undefined }
 
             pluginSub.subscribers = [subscriber1]
             pluginSub.subscribers = [subscriber2]
@@ -56,7 +134,7 @@ describe('PluginSubscription', () => {
     describe('reset callbacks via plugin', () => {
         it('should register reset callback provided by subscriber during plugin init', () => {
             const callback = vi.fn()
-            const subscriber: PluginSubscriber = { name: 's', console: console, invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback, subscriptions: undefined }
+            const subscriber: PluginSubscriber = { name: 's', invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback, subscriptions: undefined }
 
             pluginSub.subscribers = [subscriber]
 
@@ -74,8 +152,8 @@ describe('PluginSubscription', () => {
         it('should execute multiple reset callbacks when $reset is called', () => {
             const callback1 = vi.fn()
             const callback2 = vi.fn()
-            const subscriber1: PluginSubscriber = { name: 's1', console: console, invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback1, subscriptions: undefined }
-            const subscriber2: PluginSubscriber = { name: 's2', console: console, invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback2, subscriptions: undefined }
+            const subscriber1: PluginSubscriber = { name: 's1', invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback1, subscriptions: undefined }
+            const subscriber2: PluginSubscriber = { name: 's2', invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback2, subscriptions: undefined }
 
             pluginSub.subscribers = [subscriber1, subscriber2]
 
@@ -136,7 +214,6 @@ describe('PluginSubscription', () => {
         it('should clone Map and Set values when $reset is executed', () => {
             const subscriber: PluginSubscriber = {
                 name: 'map-set-reset',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -173,7 +250,6 @@ describe('PluginSubscription', () => {
         it('should allow a new store instance with the same $id after dispose', () => {
             const subscriber: PluginSubscriber = {
                 name: 'recreated-store',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -207,7 +283,6 @@ describe('PluginSubscription', () => {
         it('should ignore hydrate and afterHydration errors without breaking store registration', async () => {
             const subscriber: PluginSubscriber = {
                 name: 'hydration-errors',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 hydrate: vi.fn(() => {
                     throw new Error('hydrate failure')
@@ -229,7 +304,7 @@ describe('PluginSubscription', () => {
 
             expect(() => pluginSub.plugin(mockContext)).not.toThrow()
             await Promise.resolve()
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, false)
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
     })
 
@@ -239,7 +314,7 @@ describe('PluginSubscription', () => {
             const callback2 = vi.fn()
             const callback3 = vi.fn()
 
-            const mockStore = { $state: {} } as Store
+            const mockStore = { $state: {} }
                 ; (pluginSub as any).addResetStoreCallback(mockStore, callback1)
                 ; (pluginSub as any).addResetStoreCallback(mockStore, callback2)
                 ; (pluginSub as any).addResetStoreCallback(mockStore, callback3)
@@ -285,11 +360,11 @@ describe('PluginSubscription', () => {
             }).not.toThrow()
         })
 
-        it('should invoke all subscribers with correct context and debug flag', () => {
-            const subscriber1: PluginSubscriber = { name: 'a', console: console, invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }
-            const subscriber2: PluginSubscriber = { name: 'b', console: console, invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }
+        it('should invoke all subscribers with the correct context', () => {
+            const subscriber1: PluginSubscriber = { name: 'a', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }
+            const subscriber2: PluginSubscriber = { name: 'b', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }
 
-            pluginSub = getPluginSubscription([subscriber1, subscriber2], ['a', 'b'])
+            pluginSub = getPluginSubscription([subscriber1, subscriber2])
 
             const mockContext = createContext({
                 $state: { count: 0 },
@@ -299,14 +374,13 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin(mockContext)
 
-            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, true)
-            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, true)
+            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, createTracer)
+            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
 
         it('should skip client-only subscribers while running on the server', () => {
             const subscriber: PluginSubscriber = {
                 name: 'client-only',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -335,7 +409,6 @@ describe('PluginSubscription', () => {
         it('should defer subscriber execution until the hydration scheduler runs on the client', () => {
             const subscriber: PluginSubscriber = {
                 name: 'deferred',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -367,7 +440,7 @@ describe('PluginSubscription', () => {
 
             scheduledCallbacks[0]!()
 
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, false)
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
 
         it('should scope immediate and deferred action callbacks to their stores across disposal and recreation', () => {
@@ -546,7 +619,6 @@ describe('PluginSubscription', () => {
             const resetCallback = vi.fn()
             const subscriber: PluginSubscriber = {
                 name: 'r',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 resetStoreCallback: resetCallback,
                 subscriptions: undefined,
@@ -568,7 +640,6 @@ describe('PluginSubscription', () => {
         it('should rewrite store $reset method', () => {
             const subscriber: PluginSubscriber = {
                 name: 'x',
-                console: console,
                 invoke: vi.fn(),
                 subscriptions: undefined,
             }
@@ -592,7 +663,6 @@ describe('PluginSubscription', () => {
         it('should handle errors gracefully', () => {
             const errorSubscriber: PluginSubscriber = {
                 name: 'err',
-                console: console,
                 invoke: vi.fn(() => {
                     throw new Error('Test error')
                 }),
@@ -622,7 +692,7 @@ describe('PluginSubscription', () => {
         })
 
         it('subscriptions getter should return added subscriptions', () => {
-            const subs = { myPlugin: { subscription: { invoke: vi.fn(), name: 'c', console: console } } }
+            const subs = { myPlugin: { subscription: { invoke: vi.fn(), name: 'c' } } }
                 ; (pluginSub as any)._subscriptions = [subs]
 
             const got = pluginSub.subscriptions
@@ -631,8 +701,8 @@ describe('PluginSubscription', () => {
         })
 
         it('should find subscriptions by plugin name', () => {
-            const subs1 = { foo: { subscription: { invoke: vi.fn(), name: 's', console: console } } }
-            const subs2 = { bar: { subscription: { invoke: vi.fn(), name: 's2', console: console } } }
+            const subs1 = { foo: { subscription: { invoke: vi.fn(), name: 's' } } }
+            const subs2 = { bar: { subscription: { invoke: vi.fn(), name: 's2' } } }
 
                 ; (pluginSub as any)._subscriptions = [subs1, subs2]
 
@@ -645,7 +715,6 @@ describe('PluginSubscription', () => {
         it('subscriptionDelivery should invoke subscribers for stores returned by subscriptions and wire native subscriptions', () => {
             const subscriber: any = {
                 name: 'foo',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
             }
 
@@ -673,7 +742,7 @@ describe('PluginSubscription', () => {
 
             // Also provide plugin-level subscriptions to invoke
             const pluginSubs = {
-                foo: { subscription: { invoke: vi.fn(), name: 'plug', console: console } }
+                foo: { subscription: { invoke: vi.fn(), name: 'plug' } }
             }
 
             subscriber.subscriptions = pluginSubs
@@ -697,7 +766,6 @@ describe('PluginSubscription', () => {
         it('subscriptionDelivery should invoke subscription for each provided store and merge options correctly', () => {
             const subscriber: any = {
                 name: 'foo',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
             }
 
@@ -714,7 +782,7 @@ describe('PluginSubscription', () => {
 
             const pluginSubs = {
                 foo: {
-                    subscription: { invoke: pluginSubscriptionInvoke, name: 'plug', console: console },
+                    subscription: { invoke: pluginSubscriptionInvoke, name: 'plug' },
                     subscriptionOptions: { subOnly: true, key: 'sub' },
                     stores: [extraStore1, extraStore2]
                 }
@@ -768,13 +836,11 @@ describe('PluginSubscription', () => {
             const nestedInvoke = vi.fn()
             const subscriber: PluginSubscriber = {
                 name: 'root',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: {
                     child: {
                         subscription: {
                             name: 'child',
-                            console,
                             execution: { hydration: 'defer' },
                             invoke: nestedInvoke
                         }
@@ -806,8 +872,7 @@ describe('PluginSubscription', () => {
             scheduledCallbacks[0]!()
 
             expect(nestedInvoke).toHaveBeenCalledWith(
-                { store: baseStore, options: { storeOptions: {} } },
-                false
+                { store: baseStore, options: { storeOptions: {} } }
             )
         })
 
@@ -815,7 +880,6 @@ describe('PluginSubscription', () => {
             const order: string[] = []
             const subscriber: PluginSubscriber = {
                 name: 'async-hydration',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 hydrate: vi.fn().mockImplementation(async () => {
                     order.push('hydrate')
@@ -846,7 +910,6 @@ describe('PluginSubscription', () => {
         it('should clear delivered tracking when a store is disposed', () => {
             const subscriber: PluginSubscriber = {
                 name: 'dispose-tracker',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -882,7 +945,6 @@ describe('PluginSubscription', () => {
 
             const subscriber: PluginSubscriber = {
                 name: 'a',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 resetStoreCallback: callback1,
                 subscriptions: undefined,
@@ -911,7 +973,6 @@ describe('PluginSubscription', () => {
         it('should restore initial state with $patch', () => {
             const subscriber: PluginSubscriber = {
                 name: 'b',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -941,7 +1002,6 @@ describe('PluginSubscription', () => {
         it('should skip properties starting with $ or _', () => {
             const subscriber: PluginSubscriber = {
                 name: 'c',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -969,7 +1029,6 @@ describe('PluginSubscription', () => {
         it('should use initial state value if available', () => {
             const subscriber: PluginSubscriber = {
                 name: 's',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1000,7 +1059,6 @@ describe('PluginSubscription', () => {
         it('should preserve structured values when restoring the initial state', () => {
             const subscriber: PluginSubscriber = {
                 name: 'structured-reset',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1035,14 +1093,12 @@ describe('PluginSubscription', () => {
             const resetCallback = vi.fn()
             const subscriber1: PluginSubscriber = {
                 name: 'a',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 resetStoreCallback: resetCallback,
                 subscriptions: undefined,
             }
             const subscriber2: PluginSubscriber = {
                 name: 'b',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1073,7 +1129,6 @@ describe('PluginSubscription', () => {
         it('should handle multiple stores with different states', () => {
             const subscriber: PluginSubscriber = {
                 name: 'multi',
-                console: console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1102,8 +1157,8 @@ describe('PluginSubscription', () => {
             pluginSub.plugin(context2)
 
             expect(subscriber.invoke).toHaveBeenCalledTimes(2)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, false)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, false)
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, createTracer)
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, createTracer)
         })
     })
 
@@ -1112,13 +1167,11 @@ describe('PluginSubscription', () => {
             const nestedInvoke = vi.fn()
             const subscriber: PluginSubscriber = {
                 name: 'root',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: {
                     child: {
                         subscription: {
                             name: 'child',
-                            console,
                             execution: { environment: 'server' },
                             invoke: nestedInvoke
                         }
@@ -1145,11 +1198,10 @@ describe('PluginSubscription', () => {
             const nestedInvoke = vi.fn()
             const subscriber: PluginSubscriber = {
                 name: 'root',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: {
                     child: {
-                        subscription: { name: 'child', console, invoke: nestedInvoke }
+                        subscription: { name: 'child', invoke: nestedInvoke }
                     }
                 }
             }
@@ -1178,13 +1230,11 @@ describe('PluginSubscription', () => {
             const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             const subscriber: PluginSubscriber = {
                 name: 'root',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: {
                     child: {
                         subscription: {
                             name: 'child',
-                            console,
                             invoke: vi.fn(() => { throw new Error('subscription failure') })
                         }
                     }
@@ -1210,11 +1260,10 @@ describe('PluginSubscription', () => {
             const extraStore = { $id: 'extra', storeOptions: { scoped: true } } as unknown as Store
             const subscriber: PluginSubscriber = {
                 name: 'root',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: {
                     child: {
-                        subscription: { name: 'child', console, invoke: nestedInvoke },
+                        subscription: { name: 'child', invoke: nestedInvoke },
                         stores: [extraStore]
                     }
                 }
@@ -1241,13 +1290,11 @@ describe('PluginSubscription', () => {
             const subscriberScheduler = vi.fn((callback: () => void) => { scheduledCallbacks.push(callback) })
             const subscriber: PluginSubscriber = {
                 name: 'root',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: {
                     child: {
                         subscription: {
                             name: 'child',
-                            console,
                             hydrationScheduler: subscriberScheduler,
                             execution: { hydration: 'defer' },
                             invoke: nestedInvoke
@@ -1282,7 +1329,6 @@ describe('PluginSubscription', () => {
         it('should register rollback callbacks on $onAction when the store has rollback snapshots', () => {
             const subscriber: PluginSubscriber = {
                 name: 'rollback-trigger',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1314,7 +1360,6 @@ describe('PluginSubscription', () => {
         it('should skip $onAction wiring when there are no subscriptions and no rollback snapshots', () => {
             const subscriber: PluginSubscriber = {
                 name: 'no-action-subs',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1341,7 +1386,6 @@ describe('PluginSubscription', () => {
             const afterHydration = vi.fn()
             const subscriber: PluginSubscriber = {
                 name: 'async-hydrate-failure',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 hydrate: vi.fn(() => Promise.reject(new Error('async hydrate failure'))),
                 afterHydration,
@@ -1369,7 +1413,6 @@ describe('PluginSubscription', () => {
             const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             const subscriber: PluginSubscriber = {
                 name: 'async-after-hydration-failure',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 afterHydration: vi.fn(() => Promise.reject(new Error('async afterHydration failure'))),
                 subscriptions: undefined,
@@ -1396,7 +1439,6 @@ describe('PluginSubscription', () => {
         it('should not wrap $dispose twice when plugin is called again for the same store', () => {
             const subscriber: PluginSubscriber = {
                 name: 'rewire',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }
@@ -1426,7 +1468,6 @@ describe('PluginSubscription', () => {
         it('should leave stores without $dispose untouched', () => {
             const subscriber: PluginSubscriber = {
                 name: 'no-dispose',
-                console,
                 invoke: vi.fn().mockReturnValue(true),
                 subscriptions: undefined,
             }

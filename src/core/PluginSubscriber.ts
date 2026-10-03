@@ -9,30 +9,40 @@ import type {
     StoreMutationSubscription,
     StoreOnActionSubscription
 } from "../types/plugin";
-import type { Console } from "../types/log";
+import type Tracer from "../system/Tracer";
 
 
-type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject, debug: boolean, customConsole?: Console) => Instance | undefined
+
+type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject) => Instance | undefined
 
 
+/**
+ * Type definition for the function used to create an instance of a store.
+ * @template Instance The type of the store instance, defaulting to the base Store class.
+ * @param store The Pinia store for which the instance is being created.
+ * @param options Additional options for creating the store instance.
+ * @returns The created store instance or undefined if creation fails.
+ */
 export default abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
-    private _console?: Console
     private _createInstance: CreateInstance
     private _name: string
     private _pluginOptions?: AnyObject
     private _storeInstance?: Instance
+    /** Callback function to reset the store instance, if needed. */
     protected _resetStoreCallback?: (store?: PiniaStore) => void
     private _storeOnActionSubscription?: StoreOnActionSubscription
     private _storeMutationSubscription?: StoreMutationSubscription
     private _subscriptions?: PluginSubscriptions
+    /**
+     * Called when the plugin subscriber has been created for a specific store.
+     * This callback can be used to perform any initialization or setup required for the plugin subscriber.
+     */
     protected pluginCreated?: (store: PiniaStore) => void
+    /** Options for the plugin subscriber's execution. */
     public execution?: PluginExecutionOptions
+    /** Scheduler for handling the hydration process of the plugin subscriber. */
     public hydrationScheduler?: PluginHydrationScheduler
 
-
-    get console(): Console {
-        return this._console ?? console
-    }
 
     get name(): string {
         return this._name;
@@ -71,29 +81,37 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     }
 
 
-    constructor(pluginName: string, createInstanceFunction: CreateInstance, pluginConsole?: Console) {
+    constructor(pluginName: string, createInstanceFunction: CreateInstance) {
         this._name = pluginName
         this._createInstance = createInstanceFunction
-
-        if (pluginConsole) {
-            this._console = pluginConsole
-        }
     }
 
-
-    public afterHydration(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+    /**
+     * Called after the store has been hydrated.
+     * @param context The Pinia plugin context containing the store and options.
+     * @returns A promise that resolves when the post-hydration process is complete, or void if synchronous.
+     */
+    public afterHydration(context: PiniaPluginContext): void | Promise<void> {
         return
     }
 
-    public hydrate(context: PiniaPluginContext, debug: boolean): void | Promise<void> {
+    /**
+     * Called when the plugin subscriber needs to hydrate its state.
+     * @param context The Pinia plugin context containing the store and options.
+     * @returns A promise that resolves when the hydration process is complete, or void if synchronous.
+     */
+    public hydrate(context: PiniaPluginContext): void | Promise<void> {
         return
     }
 
-    public invoke(
-        { store, options }: PiniaPluginContext,
-        debug: boolean
-    ): boolean {
-        this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions }, debug, this.console) as Instance
+    /**
+     * Invokes the plugin subscriber with the given context and optional tracer creation function.
+     * @param context The Pinia plugin context containing the store and options.
+     * @param createTracer Optional function to create a tracer for the plugin.
+     * @returns True if the plugin was successfully invoked, otherwise false.
+     */
+    public invoke({ store, options }: PiniaPluginContext, createTracer?: (name: string) => Tracer): boolean {
+        this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions, createTracer }) as Instance
 
         if (!this._storeInstance) {
             return false

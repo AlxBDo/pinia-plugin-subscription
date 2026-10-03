@@ -1,11 +1,21 @@
 import PluginSubscription from "../core/PluginSubscription"
 
 import type { PiniaPlugin } from "pinia"
-import type { PluginSubscriber } from "../types/plugin"
+import type { PluginSubscriber, PluginSubscriptionOptions } from "../types/plugin"
 import type { RollbackActionParams, StoreOptions } from "../types/store"
 
-export function createPlugin(subscribers: PluginSubscriber[], debug?: string[]): PiniaPlugin {
-    const pluginSubscription = new PluginSubscription(subscribers, debug)
+/**
+ * Creates a Pinia plugin that manages the specified plugin subscribers.
+ *
+ * @param subscribers The list of plugin subscribers to be used by the plugin.
+ * @param options The options for configuring the plugin subscription.
+ * @returns A Pinia plugin that handles the provided subscribers and options.
+ */
+export function createPlugin(
+    subscribers: PluginSubscriber[],
+    options?: PluginSubscriptionOptions
+): PiniaPlugin {
+    const pluginSubscription = new PluginSubscription(subscribers, options)
 
     return pluginSubscription.plugin.bind(pluginSubscription)
 }

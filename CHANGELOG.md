@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
+- Added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
+- Added `createConsoleTraceListener()` as an opt-in console sink for trace events
+- Added `trace()` and `traceError()` to `Store` and `PluginSubscription`
+- Added trace types: `TraceEvent`, `TraceEventMetadata`, `TraceFilter`, `TraceHandler`, `TraceLevel`, `TraceListener`, `TraceListenerRemover`, `TracePayload`, `TracerOptions`
+- Added `check:leaks` script and `scripts/check-dist-leaks.mjs`, guarding published artifacts against non-peer dependency imports in `dist/` (`.js` and `.d.ts`)
+- Added the leak guard to `npm run build` and to the CI workflow
+- Added unit tests covering the tracing system and the leak detection logic
+
+### Changed
+- Clarified that SSR tracing registries and plugin instances must be created per request, and added coverage for listener isolation between registries
+- Replaced the `Debug` abstract class with composition: `Store` and `PluginSubscription` no longer extend it and now own a `Tracer`
+- `createPlugin()` accepts `PluginSubscriptionOptions`, including a `createTracer` factory to connect a tracer registry to plugin and store trace events
+- Trace errors with no matching listener, and failures in listener filters or handlers, are now reported with `console.error` instead of rethrowing the original error
+- Deprecated `createHydrationPlugin()` in favor of `createPlugin()` with hydration options
+- Trace payloads are now lazily resolved, so unobserved tracing no longer builds log arguments
+- Internal log messages became structured namespaces (`plugin:invoke`, `store:mutation`, `subscription:delivery`, …) carrying `store.$id` as `scope`
+- `Tracer` now delegates all output decisions to listeners and no longer owns a console or an enabled state
+- Error events are delivered to matching listeners and reported with `console.error` when none match
+- Excluded `scripts/**` from coverage thresholds, as build tooling is not shipped to consumers
+
+### Removed
+- **Breaking:** removed `debugLog()` and `logError()` from `Store` and `PluginSubscription` — use `trace()` and `traceError()` instead (see the migration snippet in `README.md`)
+- **Breaking:** removed the obsolete `debug` and custom-console arguments from `createPlugin()`, `PluginSubscription`, `PluginSubscriber`, `Store`, and `Store.customizeStore()`
+- **Breaking:** removed the `debug` argument from subscriber `invoke()`, `hydrate()`, and `afterHydration()` hooks; tracing is now configured exclusively through listeners
+- **Breaking:** removed the legacy `debug` and `console` accessors from `Store` and `PluginSubscription`
+- Removed the internal `src/system/Debug.ts` abstract class (was never publicly exported)
+- **Breaking:** replaced module-global trace-listener functions with methods on a `createTracerRegistry()` instance
+
 ## [0.2.1]
 
 ### Fixed
@@ -97,7 +129,6 @@ Minor change
 - `getDefineAStoreSetupContext()` now falls back to store ID lookup during plugin execution timing.
 - `defineAStoreSetup()` now stores setup contexts only for stores with `storeOptions.enhancedStore = true`.
 - `defineAStoreSetup()` now removes ID-indexed setup contexts after weak-map registration and on store disposal.
-- `defineAStoreSetup()` now logs setup-context map size transitions when `storeOptions.debug = true`.
 - Public exports now include `defineAStoreCtx`, `getEnhancedStore`, and `setEnhancedStore`.
 - GitHub Actions now publishes GitHub pre-releases to npm with the `beta` dist-tag.
 

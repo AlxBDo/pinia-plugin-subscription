@@ -27,7 +27,7 @@ Two authoring styles are available:
    no classes.
 2. **`PluginSubscriber` abstract class + `Store` subclass** — recommended
    for richer plugins: the `Store` subclass wraps the pinia store with
-   helpers (state extension, subscriptions, debug logging).
+   helpers (state extension, subscriptions, structured tracing).
 
 ## Your first subscriber: a plain object
 
@@ -37,7 +37,7 @@ Two authoring styles are available:
 export const myStoreSubscriber = {
   name: 'my-plugin',
 
-  invoke: (context, debug) => {
+  invoke: (context) => {
     // context contains `store`, `options`, `pinia`
     console.log('store registered', context.store.$id)
 
@@ -58,7 +58,7 @@ import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
 export const myStoreSubscriber: PluginSubscriberInterface = {
   name: 'my-plugin',
 
-  invoke: (context, debug) => {
+  invoke: (context) => {
     console.log('store registered', context.store.$id)
 
     return true
@@ -82,17 +82,16 @@ pinia.use(createPlugin([myStoreSubscriber]))
 
 | Member | Type | Description |
 | --- | --- | --- |
-| `name` (required) | `string` | Unique plugin name; also used by the debug filter. |
-| `invoke` (required) | `(context: PiniaPluginContext, debug: boolean) => boolean` | Called when a store is registered. Return `false` to skip the store. |
+| `name` (required) | `string` | Unique plugin name. |
+| `invoke` (required) | `(context: PiniaPluginContext) => boolean` | Called when a store is registered. Return `false` to skip the store. |
 | `execution` | `PluginExecutionOptions` | Where/when the subscriber runs — see [Execution policy & SSR](#execution-policy--ssr). |
 | `hydrationScheduler` | `(run: () => void) => void` | Custom scheduler used when hydration is deferred. |
-| `hydrate` | `(context, debug) => void \| Promise<void>` | SSR-safe initialization hook; guaranteed to run before `afterHydration`. |
-| `afterHydration` | `(context, debug) => void \| Promise<void>` | Post-hydration lifecycle hook. |
+| `hydrate` | `(context) => void \| Promise<void>` | SSR-safe initialization hook; guaranteed to run before `afterHydration`. |
+| `afterHydration` | `(context) => void \| Promise<void>` | Post-hydration lifecycle hook. |
 | `resetStoreCallback` | `(store?: Store) => void` | Custom logic executed when a registered store is reset. |
 | `storeOnActionSubscription` | `{ store, callback }` (getter) | Action subscription forwarded to the returned store's `$onAction`, including after deferred hydration; removed on store disposal. |
 | `storeMutationSubscription` | `{ store, callback }` (getter) | Mutation subscription forwarded to pinia's `$subscribe`. |
 | `subscriptions` | `Record<string, PluginSubscription>` | Plugin-specific subscription functions exposed to other plugins. |
-| `console` | `Console` | Custom console used for debug logging. |
 
 All members except `name` and `invoke` are optional.
 
@@ -117,7 +116,7 @@ checks when they call your plugin's custom methods.
 Constructor:
 
 ```ts
-constructor(pluginName: string, createInstance: CreateInstance, pluginConsole?: Console)
+constructor(pluginName: string, createInstance: CreateInstance)
 ```
 
 | Member | Kind | Description |
@@ -136,20 +135,19 @@ constructor(pluginName: string, createInstance: CreateInstance, pluginConsole?: 
 import { PluginSubscriber, Store } from 'pinia-plugin-subscription'
 
 class MyPlugin extends Store {
-  constructor(store, options, debug = false) {
-    super(store, options, debug)
+  constructor(store, options) {
+    super(store, options)
     this.doSomething()
   }
 
   doSomething() {
-    this.debugLog('doSomething', this.store.$id)
+    this.trace('my-plugin:doSomething', () => ({ storeId: this.store.$id }))
   }
 }
 
 class MyPluginSubscriber extends PluginSubscriber {
   constructor() {
-    super('my-plugin', (store, options, debug, customConsole) =>
-      new MyPlugin(store, options, debug, customConsole))
+    super('my-plugin', (store, options) => new MyPlugin(store, options))
   }
 }
 
@@ -165,13 +163,13 @@ class MyPlugin extends Store {
   protected override _className: string = 'MyPlugin'
   protected static override _requiredKeys?: string[] = ['my-plugin-option']
 
-  constructor(store, options, debug = false) {
-    super(store, options, debug)
+  constructor(store, options) {
+    super(store, options)
     this.doSomething()
   }
 
   doSomething(): void {
-    this.debugLog('doSomething', this.store.$id)
+    this.trace('my-plugin:doSomething', () => ({ storeId: this.store.$id }))
   }
 }
 
@@ -195,7 +193,7 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 
 `Store` wraps a pinia store (`PiniaStore`) and exposes:
 
-**Properties:** `debug`, `options`, `state`, `store`.
+**Properties:** `options`, `state`, `store`.
 
 **Methods:**
 
@@ -208,8 +206,9 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 | `getStatePropertyValue(propertyName)` | Reads a state property, unwrapping refs. |
 | `storeSubscribe` (getter/setter) | Factory for pinia's `$subscribe` (`{ store, callback }`). |
 | `onAction` (getter/setter) | Factory for pinia's `$onAction` (`{ store, callback }`). |
-| `static customizeStore(store, options, debug?)` | Recommended factory; guarded by `_requiredKeys` (see above). |
-| `debugLog(message, args)` | Conditional logging, active in debug mode. |
+| `static customizeStore(store, options)` | Recommended factory; guarded by `_requiredKeys` (see above). |
+| `trace(namespace, payload?)` | Emits a structured trace event scoped to the store. |
+| `traceError(namespace, error, payload?)` | Emits an error event, or rethrows it when no listener matches. |
 | `stateHas(property)` / `storeHas(property)` | Safe `hasOwnProperty` checks on state / store. |
 | `getValue(value)` | Unwraps a ref or returns the value as-is. |
 | `isOptionApi()` | Whether the store uses the options API. |
@@ -234,7 +233,7 @@ export const persistedStateSubscriber = {
   hydrationScheduler: (run) => {
     nextTick(() => run())
   },
-  invoke: (context, debug) => {
+  invoke: (context) => {
     // ...
     return true
   }
@@ -256,7 +255,7 @@ export const persistedStateSubscriber: PluginSubscriberInterface = {
   hydrationScheduler: (run) => {
     nextTick(() => run())
   },
-  invoke: (context, debug) => {
+  invoke: (context) => {
     // ...
     return true
   }
@@ -395,7 +394,7 @@ Guidelines:
 - Always declare **optional** keys with names specific enough to avoid
   collisions (prefer `myPluginOption` over `options`).
 - At runtime, merged options are delivered to your subscriber's
-  `invoke(context, debug)` through `context.options.storeOptions` — no
+  `invoke(context)` through `context.options.storeOptions` — no
   extra wiring needed.
 - Never redeclare `DefineStoreOptionsBase` or `PiniaCustomProperties`; only
   this package owns those augmentations.

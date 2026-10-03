@@ -172,20 +172,6 @@ describe('defineAStore setup context', () => {
         expect(getDefineAStoreSetupContext({ $id: 'disposableCtxStore' })).toBeUndefined()
     })
 
-    it('logs setup context map sizes in debug mode', () => {
-        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => { })
-
-        const useStore = defineAStore('debugCtxStore', () => ({
-            count: ref(1)
-        }), { enhancedStore: true, debug: true })
-        useStore()
-
-        expect(debugSpy).toHaveBeenCalled()
-        expect(debugSpy.mock.calls.some((call) => String(call[0]).includes('contextsById='))).toBe(true)
-
-        debugSpy.mockRestore()
-    })
-
     it('reuses setup context for duplicated store ids', () => {
         const storesById = new Map<string, { $id: string }>()
 

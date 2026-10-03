@@ -6,7 +6,6 @@ export { createPlugin } from "../plugins/createPlugin"
 export { createHydrationPlugin } from "../plugins/createHydrationPlugin"
 export type {
     AnyObject,
-    Console,
     CustomStore,
     DefineAStoreSetupContext,
     DefineAStoreSetupExtensions,
@@ -31,19 +30,7 @@ export type {
     StoreOnActionSubscription,
     StoreOnActionSubscriptionCallback,
     NativePiniaSubscription,
-    NativePiniaSubscriptionReturn,
-    SearchCollectionCriteria,
-    LogType,
-    StyleDefinition,
-    StyleDefinitionKeys,
-    StyleDefinitions,
-    ConsoleStyleDefinition,
-    ConsoleStyleDefinitionKeys,
-    ConsoleStyleDefinitions,
-    PartialList,
-    ListTypes,
-    ListTypesMap,
-    List
+    NativePiniaSubscriptionReturn
 } from "../types"
 export type {
     StoreMutationSubscriptionReturn,
@@ -61,8 +48,6 @@ export {
     getExtendingStore,
     setEnhancedStore
 } from "../utils/store"
-export { CustomConsole } from "../system/log"
-export { isEmpty } from "../utils/validation"
 export { pluginName as PLUGIN_NAME } from "../utils/constantes"
 export { PluginSubscriber }
 export { PluginSubscription }

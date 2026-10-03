@@ -22,8 +22,8 @@ Plugins built on `pinia-plugin-subscription` share a common contract:
 - **`$reset` on registered stores** — every store registered by the plugin
   gains a `$reset()` method that restores its initial state, including
   setup-style stores where pinia does not provide one natively.
-- **Per-plugin debug mode** — pass plugin names to `createPlugin()` to
-  enable detailed logging for those plugins only.
+- **Runtime-filtered tracing** — register trace listeners and filter events by
+  source, namespace, scope, or level.
 - **SSR-safe execution** — each plugin declares where (`client`, `server`
   or `both`) and when (`immediate` or deferred after hydration) it runs.
 - **State rollback on action failure** — actions listed in the
@@ -46,15 +46,14 @@ Compatible plugins expose **subscribers** that are passed to
 ```js
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createPlugin, PLUGIN_NAME } from 'pinia-plugin-subscription'
+import { createPlugin } from 'pinia-plugin-subscription'
 import { myStoreSubscriber } from './plugins/my-store'
 import App from './App.vue'
 
 const app = createApp(App)
 const pinia = createPinia()
 
-// Second argument (optional): names of the plugins to debug.
-pinia.use(createPlugin([myStoreSubscriber], [PLUGIN_NAME]))
+pinia.use(createPlugin([myStoreSubscriber]))
 
 app.use(pinia)
 app.mount('#app')
@@ -66,12 +65,12 @@ The TypeScript version is identical — `createPlugin()` is fully typed and
 requires no generics:
 
 ```ts
-import { createPlugin, PLUGIN_NAME } from 'pinia-plugin-subscription'
+import { createPlugin } from 'pinia-plugin-subscription'
 import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
 
 const subscribers: PluginSubscriberInterface[] = [myStoreSubscriber]
 
-pinia.use(createPlugin(subscribers, [PLUGIN_NAME]))
+pinia.use(createPlugin(subscribers))
 ```
 
 ## Defining stores: `defineAStore`
@@ -232,9 +231,7 @@ export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
 
 `defineAStoreCtx()` enables the `enhancedStore` store option automatically.
 The internal setup-context lookup is cleaned up as soon as the store is
-associated (and on store dispose), which limits map growth over time. When
-`storeOptions.debug` is `true`, setup-context map size transitions are
-logged for observability.
+associated (and on store dispose), which limits map growth over time.
 
 ## `$reset` on registered stores
 
@@ -316,17 +313,27 @@ try {
   (forwarded to the action via `apply()`).
 - The original error is rethrown after the state is restored.
 
-## Debug mode
+## Tracing
 
-Pass the names of the plugins you want to inspect as the second argument of
-`createPlugin()`:
+Register listeners independently from plugin construction:
 
 ```js
-pinia.use(createPlugin([myStoreSubscriber], [PLUGIN_NAME, 'my-plugin']))
+import {
+  addTraceListener,
+  createConsoleTraceListener,
+  createPlugin
+} from 'pinia-plugin-subscription'
+
+addTraceListener({
+  ...createConsoleTraceListener(),
+  filter: event => event.scope === 'cart'
+})
+
+pinia.use(createPlugin([myStoreSubscriber]))
 ```
 
-Matching plugins then emit detailed logs (registration, execution policy,
-hydration lifecycle).
+Filters run in real time and can target a source, namespace, store scope, or
+trace level without passing diagnostic options through subscribers.
 
 ## SSR / Nuxt
 
@@ -334,16 +341,47 @@ The package is SSR-safe by design. Each compatible plugin declares its own
 execution policy, so nothing browser-only runs on the server unless the
 plugin explicitly allows it.
 
+For request isolation, create the app, Pinia instance, trace registry, and
+plugin inside the per-request app factory. Do not store the registry or the
+`createPlugin()` result at module scope: both retain request-associated
+listeners or plugin state. A new registry per request also avoids races
+between concurrent requests; do not clear a shared registry when one request
+finishes.
+
+```js
+import { createSSRApp } from 'vue'
+import { createPinia } from 'pinia'
+import { createPlugin, createTracerRegistry } from 'pinia-plugin-subscription'
+import App from './App.vue'
+import { subscribers } from './subscribers'
+
+export function createRequestApp(traceListener) {
+  const app = createSSRApp(App)
+  const pinia = createPinia()
+  const traceRegistry = createTracerRegistry()
+
+  traceRegistry.addTraceListener(traceListener)
+  pinia.use(createPlugin(subscribers, {
+    createTracer: traceRegistry.createTracer
+  }))
+  app.use(pinia)
+
+  return { app, pinia }
+}
+```
+
+Call `createRequestApp()` once for each incoming SSR request. The request's
+listener is then reachable only through that request's registry and plugin.
+
 When a plugin needs a runtime-specific scheduler or environment override —
 without forcing every app to re-declare the plugin's execution policy —
 register it through the dedicated hydration helper:
 
 ```js
 import { nextTick } from 'vue'
-import { createHydrationPlugin, PLUGIN_NAME } from 'pinia-plugin-subscription'
+import { createHydrationPlugin } from 'pinia-plugin-subscription'
 
 pinia.use(createHydrationPlugin([persistedStateSubscriber], {
-  debug: [PLUGIN_NAME],
   hydrationScheduler: (run) => {
     nextTick(() => run())
   }
@@ -355,7 +393,6 @@ pinia.use(createHydrationPlugin([persistedStateSubscriber], {
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `debug` | `string[]` | Plugin names to debug. |
 | `execution` | `PluginExecutionOptions` | Global execution policy override. |
 | `hydrationScheduler` | `(run: () => void) => void` | Scheduler used for deferred hydration. |
 | `runtimeEnvironment` | `'client' \| 'server'` | Forces the runtime environment. |
