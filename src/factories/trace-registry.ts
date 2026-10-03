@@ -11,6 +11,8 @@ export function createTracerRegistry(): TraceRegistry {
     /**
      * Registers a trace listener and returns its remover.
      * Listeners are evaluated in registration order.
+     * @param listener The trace listener to register.
+     * @returns A function that removes the registered listener when called.
      */
     function addTraceListener(listener: TraceListener): TraceListenerRemover {
         listeners.push(listener)

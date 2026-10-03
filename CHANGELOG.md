@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added unit tests covering the tracing system and the leak detection logic
 
 ### Changed
+- Clarified that SSR tracing registries and plugin instances must be created per request, and added coverage for listener isolation between registries
 - Replaced the `Debug` abstract class with composition: `Store` and `PluginSubscription` no longer extend it and now own a `Tracer`
 - `createPlugin()` accepts `PluginSubscriptionOptions`, including a `createTracer` factory to connect a tracer registry to plugin and store trace events
 - Trace errors with no matching listener, and failures in listener filters or handlers, are now reported with `console.error` instead of rethrowing the original error

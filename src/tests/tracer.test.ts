@@ -146,6 +146,21 @@ describe('Tracer', () => {
             expect(hasTraceListeners()).toBe(true)
         })
 
+        it('isolates listeners between registries', () => {
+            const firstRegistry = createTracerRegistry()
+            const secondRegistry = createTracerRegistry()
+            const first = createCollector()
+            const second = createCollector()
+            firstRegistry.addTraceListener(first)
+
+            firstRegistry.createTracer('Source').debug('ns')
+            secondRegistry.createTracer('Source').debug('ns')
+
+            expect(first.events).toHaveLength(1)
+            expect(second.events).toHaveLength(0)
+            expect(secondRegistry.hasTraceListeners()).toBe(false)
+        })
+
         it('removes a listener through the returned remover', () => {
             const collector = createCollector()
             const remove = addTraceListener(collector)

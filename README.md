@@ -209,7 +209,7 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
 
 ## Tracing
 
-Tracing is **opt-in**, scoped to an explicit registry, and **allocation free when unused**. Create one registry per application or Pinia instance, then pass its `createTracer` factory to `createPlugin()` so plugin and store events share its listeners.
+Tracing is **opt-in**, scoped to an explicit registry, and **allocation free when unused**. Create one registry per application or Pinia instance, then pass its `createTracer` factory to `createPlugin()` so plugin and store events share its listeners. For SSR, create a fresh registry, Pinia instance, and plugin instance for every request; do not keep them in module-level state or clear a shared registry at request completion, since requests may overlap. See the [SSR guide](./docs/using-plugins.md#ssr--nuxt) for an example.
 
 ### Consuming events
 

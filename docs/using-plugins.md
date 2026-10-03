@@ -341,6 +341,38 @@ The package is SSR-safe by design. Each compatible plugin declares its own
 execution policy, so nothing browser-only runs on the server unless the
 plugin explicitly allows it.
 
+For request isolation, create the app, Pinia instance, trace registry, and
+plugin inside the per-request app factory. Do not store the registry or the
+`createPlugin()` result at module scope: both retain request-associated
+listeners or plugin state. A new registry per request also avoids races
+between concurrent requests; do not clear a shared registry when one request
+finishes.
+
+```js
+import { createSSRApp } from 'vue'
+import { createPinia } from 'pinia'
+import { createPlugin, createTracerRegistry } from 'pinia-plugin-subscription'
+import App from './App.vue'
+import { subscribers } from './subscribers'
+
+export function createRequestApp(traceListener) {
+  const app = createSSRApp(App)
+  const pinia = createPinia()
+  const traceRegistry = createTracerRegistry()
+
+  traceRegistry.addTraceListener(traceListener)
+  pinia.use(createPlugin(subscribers, {
+    createTracer: traceRegistry.createTracer
+  }))
+  app.use(pinia)
+
+  return { app, pinia }
+}
+```
+
+Call `createRequestApp()` once for each incoming SSR request. The request's
+listener is then reachable only through that request's registry and plugin.
+
 When a plugin needs a runtime-specific scheduler or environment override —
 without forcing every app to re-declare the plugin's execution policy —
 register it through the dedicated hydration helper:
