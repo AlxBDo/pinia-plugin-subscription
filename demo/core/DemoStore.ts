@@ -1,10 +1,11 @@
-import Store from '../../src/core/Store'
+import { Store } from 'pinia-plugin-subscription/helpers'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from "pinia"
 import type { PluginStoreOptions, PluginSubscriptionOptions, StoreOnActionCallbackParameters } from 'pinia-plugin-subscription'
 import type { DemoPluginOptions } from '../types/plugin'
 
 export default class DemoStore extends Store {
+    protected _className = 'DemoStore'
     protected static _requiredKeys?: string[] = ['active']
 
     constructor(store: PiniaStore, options: { storeOptions: DemoPluginOptions }) {

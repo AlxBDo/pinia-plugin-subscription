@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Moved the demo application from `src/demo/` to the repository-level `demo/` directory, separating example code from the library source and tracking the demo files in version control.
-
 ### Added
 - Added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
 - Added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
@@ -22,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added unit tests covering the tracing system and the leak detection logic
 
 ### Changed
+- Moved the demo application from `src/demo/` to the repository-level `demo/` directory, separating example code from the library source and tracking the demo files in version control.
 - Clarified that SSR tracing registries and plugin instances must be created per request, and added coverage for listener isolation between registries
 - Replaced the `Debug` abstract class with composition: `Store` and `PluginSubscription` no longer extend it and now own a `Tracer`
 - `createPlugin()` accepts `PluginSubscriptionOptions`, including a `createTracer` factory to connect a tracer registry to plugin and store trace events

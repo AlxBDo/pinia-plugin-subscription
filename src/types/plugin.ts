@@ -2,7 +2,6 @@ import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation
 import type { StoreOptions } from "./store"
 import type { PluginSubscriberInterface } from "."
 import Tracer from "../system/Tracer"
-import { TracerHandler } from "./trace"
 
 
 export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
@@ -33,7 +32,7 @@ export interface PluginStoreOptions {
      * Store options for the plugin subscriber.
      * @type {StoreOptions}
      */
-    storeOptions: StoreOptions
+    storeOptions?: StoreOptions
 }
 
 export interface PluginSubscriptionOptions {
@@ -157,7 +156,11 @@ export interface NativePiniaSubscriptionReturn<Callback> {
     callback: Callback
 }
 
-export type StoreClassConstructorParams = PluginStoreOptions & PluginSubscriptionOptions
+export type StoreClassConstructorParams = Omit<PluginSubscriptionOptions, 'createTracer'>
+    & {
+        createTracer?: () => Tracer
+        storeOptions?: StoreOptions
+    }
 
 export type StoreOnActionAfterCallbackParameter = (callback: (result?: unknown) => void) => void
 export type StoreOnActionOnErrorCallbackParameter = (callback: (error: unknown) => void) => void

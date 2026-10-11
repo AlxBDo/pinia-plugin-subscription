@@ -2,10 +2,8 @@ import { isRef, ref, toRef } from "vue"
 import Tracer from "../system/Tracer"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
-import { pluginName } from "../utils/constantes"
 
 import type {
-    PluginStoreOptions,
     PluginSubscriptionOptions,
     PluginSubscriptions,
     StoreClassConstructorParams,
@@ -30,7 +28,7 @@ import type { StoreOptions, StatePropertyValue } from "../types/store"
  */
 export default class Store {
     protected _className = 'Store'
-    private _createTracer?: PluginSubscriptionOptions['createTracer']
+    private _createTracer?: () => Tracer
     private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
     private _store: PiniaStore
@@ -96,7 +94,7 @@ export default class Store {
      */
     protected get tracer(): Tracer | undefined {
         if (!this._tracer && this._createTracer) {
-            this._tracer = this._createTracer(pluginName)
+            this._tracer = this._createTracer()
             this._tracer.scope = this.store.$id
         }
 
@@ -114,7 +112,7 @@ export default class Store {
      * @see PluginSubscriptionOptions
      */
     constructor(store: PiniaStore, options: StoreClassConstructorParams) {
-        this._options = options.storeOptions
+        this._options = options.storeOptions as StoreOptions
         this._store = store
         this.initializeTracer(options)
 
@@ -174,7 +172,7 @@ export default class Store {
      */
     static customizeStore<Instance extends Store>(
         store: PiniaStore,
-        options: PluginStoreOptions & PluginSubscriptionOptions
+        options: StoreClassConstructorParams
     ): Instance | undefined {
         if (options.storeOptions && this.hasRequiredKeys(options.storeOptions)) {
             return new this(store, options) as Instance
@@ -250,7 +248,7 @@ export default class Store {
      * Initializes the tracer for plugin subscriptions if the createTracer option is provided.
      * @param options The plugin subscription options containing the createTracer function.
      */
-    private initializeTracer(options: PluginSubscriptionOptions) {
+    private initializeTracer(options: Omit<PluginSubscriptionOptions, 'createTracer'> & { createTracer?: () => Tracer }) {
         this._createTracer = options?.createTracer
     }
 
