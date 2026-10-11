@@ -14,7 +14,7 @@ import type Tracer from "../system/Tracer";
 
 
 
-type CreateInstance<Instance = Store> = (store: PiniaStore, options: unknown) => Instance | undefined
+type CreateInstance<Instance = Store> = (store: PiniaStore, options: StoreClassConstructorParams) => Instance | undefined
 
 
 /**
@@ -112,7 +112,11 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
      * @returns True if the plugin was successfully invoked, otherwise false.
      */
     public invoke({ store, options }: PiniaPluginContext, createTracer?: (name: string) => Tracer): boolean {
-        this._storeInstance = this._createInstance(store, { ...options, ...this.pluginOptions, createTracer }) as Instance
+        this._storeInstance = this._createInstance(store, {
+            ...options,
+            ...this.pluginOptions,
+            createTracer: createTracer ? () => createTracer?.(this.name) : undefined
+        }) as Instance
 
         if (!this._storeInstance) {
             return false

@@ -259,7 +259,7 @@ describe('Store', () => {
                 namespace: 'store:store:hydrate',
                 payload: { done: true },
                 scope: mockPiniaStore.$id,
-                source: 'pinia-plugin-subscription'
+                source: undefined
             })
         })
 
@@ -290,7 +290,7 @@ describe('Store', () => {
             remove()
 
             expect(collector[0].label).toBe('NamedStoreChild:child:event')
-            expect(collector[0].source).toBe('pinia-plugin-subscription')
+            expect(collector[0].source).toBeUndefined()
         })
     })
 
