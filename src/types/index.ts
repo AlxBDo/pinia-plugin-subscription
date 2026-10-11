@@ -18,35 +18,13 @@ import type { Ref } from 'vue'
 export interface StoreOptionsExtensions { } // eslint-disable-line @typescript-eslint/no-empty-object-type
 
 import type {
-    NativePiniaSubscription,
-    NativePiniaSubscriptionReturn,
-    PluginExecutionEnvironment,
     PluginExecutionOptions,
     PluginHydrationScheduler,
-    PluginHydrationTiming,
-    PluginRuntimeEnvironment,
-    PluginSubscriber,
-    PluginSubscription,
-    PluginSubscriptionOptions,
     PluginSubscriptions,
     StoreMutationSubscription,
-    StoreMutationSubscriptionCallback,
-    StoreMutationSubscriptionReturn,
-    StoreOnActionCallbackParameters,
-    StoreOnActionSubscription,
-    StoreOnActionSubscriptionCallback,
-    StoreOnActionSubscriptionReturn,
+    StoreOnActionSubscription
 } from './plugin'
-import type {
-    CustomStore,
-    DefineAStoreSetupContext,
-    DefineAStoreSetupExtensions,
-    EmptyExtensions,
-    PluginStoreOptions,
-    StatePropertyValue,
-    StoreOptions,
-    StoreOptionsPropertyValue,
-} from './store'
+import type { StoreOptions } from './store'
 
 export interface AnyObject {
     [key: number | string | symbol]: any
@@ -82,7 +60,7 @@ export type {
     TraceRegistry,
     TracerOptions
 } from './trace'
-export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, PluginStoreOptions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
+export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
 export type {
     NativePiniaSubscription,
     NativePiniaSubscriptionReturn,
@@ -91,10 +69,12 @@ export type {
     PluginHydrationScheduler,
     PluginHydrationTiming,
     PluginRuntimeEnvironment,
+    PluginStoreOptions,
     PluginSubscriber,
     PluginSubscription,
     PluginSubscriptionOptions,
     PluginSubscriptions,
+    StoreClassConstructorParams,
     StoreMutationSubscription,
     StoreMutationSubscriptionCallback,
     StoreMutationSubscriptionReturn,

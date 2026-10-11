@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createConsoleTraceListener } from '../system/createConsoleTraceListener'
+import { createConsoleTraceListener } from '../factories/console-trace-listener'
+import { createTraceListener } from '../factories/trace-listener'
 
 import type { TraceEvent } from '../types/trace'
 
 function createEvent(overrides: Partial<TraceEvent> = {}): TraceEvent {
     return {
         level: 'debug',
+        label: 'Store:mutation',
         namespace: 'store:mutation',
         source: 'PluginSubscription',
         timestamp: 1,
@@ -16,7 +18,9 @@ function createEvent(overrides: Partial<TraceEvent> = {}): TraceEvent {
 describe('createConsoleTraceListener', () => {
     it('uses the styled plugin console when no target is supplied', () => {
         const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
-        const listener = createConsoleTraceListener()
+        const listener = createTraceListener([{
+            target: 'namespace', value: 'store:mutation',
+        }])
 
         listener.handler(createEvent())
 
@@ -26,7 +30,12 @@ describe('createConsoleTraceListener', () => {
 
     it('writes debug events to log', () => {
         const target = { log: vi.fn(), error: vi.fn() }
-        const listener = createConsoleTraceListener(target)
+        const listener = createTraceListener({
+            handler: createConsoleTraceListener(target).handler,
+            filter: [{
+                target: 'scope', value: 'cart',
+            }]
+        })
 
         listener.handler(createEvent({
             payload: { mutation: 'direct' },
@@ -34,15 +43,26 @@ describe('createConsoleTraceListener', () => {
         }))
 
         expect(target.log).toHaveBeenCalledWith(
-            'PluginSubscription - store:mutation [cart]',
-            { mutation: 'direct' }
+            'Store:mutation [cart]',
+            expect.objectContaining({
+                label: 'Store:mutation',
+                namespace: 'store:mutation',
+                scope: 'cart',
+                source: 'PluginSubscription',
+                payload: { mutation: 'direct' }
+            })
         )
         expect(target.error).not.toHaveBeenCalled()
     })
 
     it('writes error events to error', () => {
         const target = { log: vi.fn(), error: vi.fn() }
-        const listener = createConsoleTraceListener(target)
+        const listener = createTraceListener({
+            handler: createConsoleTraceListener(target).handler,
+            filter: [{
+                target: 'namespace', value: 'subscriber:execute',
+            }]
+        })
         const failure = new Error('boom')
 
         listener.handler(createEvent({
@@ -52,22 +72,31 @@ describe('createConsoleTraceListener', () => {
         }))
 
         expect(target.error).toHaveBeenCalledWith(
-            'PluginSubscription - subscriber:execute',
-            failure
+            'Store:mutation',
+            expect.objectContaining({
+                label: 'Store:mutation',
+                namespace: 'subscriber:execute',
+                source: 'PluginSubscription',
+                error: failure
+            })
         )
         expect(target.log).not.toHaveBeenCalled()
     })
 
-    it('spreads array payloads as console arguments', () => {
+    it('serializes array payloads inside the event object', () => {
         const target = { log: vi.fn(), error: vi.fn() }
         const listener = createConsoleTraceListener(target)
 
         listener.handler(createEvent({ payload: ['first', 'second'] }))
 
         expect(target.log).toHaveBeenCalledWith(
-            'PluginSubscription - store:mutation',
-            'first',
-            'second'
+            'Store:mutation',
+            expect.objectContaining({
+                label: 'Store:mutation',
+                namespace: 'store:mutation',
+                source: 'PluginSubscription',
+                payload: ['first', 'second']
+            })
         )
     })
 })

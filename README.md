@@ -119,9 +119,9 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
 
 ## API Reference
 
-### `createPlugin(subscribers: PluginSubscriber[]): PiniaPlugin`
+### `createPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
 
-Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered.
+Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered. The optional `options` configure execution, hydration and tracing.
 
 ### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
 
@@ -203,8 +203,8 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
   - `storeSubscribe` (getter/setter) — factory for `store.$subscribe` ({ store, callback }).
   - `onAction` (getter/setter) — factory for `onAction` ({ store, callback }).
   - `static customizeStore(store, options)` — recommended factory for class instantiation.
-  - `trace(namespace, payload?)` — emits a structured trace event scoped to the store.
-  - `traceError(namespace, error, payload?)` — emits an error event, or reports it with `console.error` when no listener matches.
+  - `trace(label, payload?, scope?, namespace?)` — emits a structured trace event, scoped to the store by default.
+  - `traceError(label, error, payload?, scope?, namespace?)` — emits an error event, or reports it with `console.error` when no listener matches.
   - Helpers: `stateHas()`, `storeHas()`, `getValue()`.
 
 ## Tracing
@@ -222,11 +222,13 @@ Events are **not automatically redacted** and may include sensitive action argum
 ### Consuming events
 
 ```ts
-import { createPlugin, createTracerRegistry } from 'pinia-plugin-subscription'
+import { createPlugin } from 'pinia-plugin-subscription'
+import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 
 const traceRegistry = createTracerRegistry()
 const remove = traceRegistry.addTraceListener({
-  filter: (event) => event.scope === 'cart' && event.namespace.startsWith('subscription:'),
+  filter: (event) => event.scope === 'cart'
+    && event.namespace.startsWith('pluginsubscription:subscription:'),
   handler: (event) => console.log(event.namespace, event.scope, event.payload)
 })
 
@@ -237,21 +239,47 @@ pinia.use(createPlugin(subscribers, {
 remove() // unsubscribe
 ```
 
-`filter` is evaluated on every event, so you can narrow tracing to a single store without rebuilding. Registries do not share listeners with one another.
+`filter` is evaluated against event metadata before the payload is resolved,
+so you can narrow tracing to a single store without building discarded
+payloads. Registries do not share listeners with one another.
+
+For simple metadata filters, provide comparison criteria instead of a
+callback. Supported comparators are `equals` (the default), `contains`,
+`startsWith` and `endsWith`; multiple criteria use `every` by default or
+`some` when requested:
+
+```ts
+traceRegistry.addTraceListener({
+  filter: [
+    { target: 'scope', value: 'cart' },
+    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+  ]
+}, 'every')
+```
+
+When no `handler` is provided for criteria-based registration, the registry
+uses its styled console listener.
 
 ### Event shape
 
 | Field | Description |
 | --- | --- |
-| `namespace` | Structured identifier, e.g. `subscription:delivery` |
-| `source` | Emitting class name, e.g. `PluginSubscription` |
+| `namespace` | Structured identifier, derived from the label by default |
+| `label` | Human-readable event label |
+| `source` | Source passed to `createTracer`, usually `pinia-plugin-subscription` |
 | `scope` | Instance identifier, usually `store.$id` |
 | `payload` | Event data, resolved only when consumed |
 | `level` | `debug` or `error` |
 | `timestamp` | `Date.now()` at emission |
 | `error` | Present on `error` events |
 
-Namespaces emitted by the plugin: `plugin:invoke`, `store:action`, `store:mutation`, `store:reset`, `subscription:delivery`, `subscriber:execute`, `subscriber:hydrate`, `subscriber:afterHydration`.
+By default, `Store` prefixes its class name to labels and derived namespaces.
+Library events use `PluginSubscription` as their prefix (for example,
+`pluginsubscription:store:mutation` and
+`pluginsubscription:subscription:delivery`). Set
+`classNameAddedToTraceNamespace = false` on a `Store` subclass to omit its
+class prefix, or provide an explicit namespace as the fourth argument to
+`trace()` / `traceError()`.
 
 ### Emitting your own events
 
@@ -263,7 +291,14 @@ class CartStore extends Store {
 }
 ```
 
-Always prefer the **function form** for `payload`: it is only invoked once a listener matches, so unobserved tracing costs nothing.
+`Store.trace(label, payload?, scope?, namespace?)` and
+`Store.traceError(label, error, payload?, scope?, namespace?)` emit the events.
+The store class name is included in the label by default; set
+`classNameAddedToTraceNamespace = false` to omit it. Unless an explicit
+namespace is provided, the normalized label is used as the namespace.
+
+Always prefer the **function form** for `payload`: it is only invoked once a
+listener matches, so unobserved tracing costs nothing.
 
 ### Console listener
 
@@ -271,12 +306,15 @@ Normal trace events do not write to a console. Console output for those events i
 
 ```ts
 import {
-  createTracerRegistry,
-  createConsoleTraceListener
-} from 'pinia-plugin-subscription'
+  createConsoleTraceListener,
+  createTracerRegistry
+} from 'pinia-plugin-subscription/helpers'
 
 const traceRegistry = createTracerRegistry()
-const remove = traceRegistry.addTraceListener(createConsoleTraceListener())
+const remove = traceRegistry.addTraceListener({
+  ...createConsoleTraceListener(),
+  filter: () => true
+})
 ```
 
 By default, this listener uses the styled plugin console. Pass any object exposing `log` and `error` to use another target:
@@ -284,7 +322,10 @@ By default, this listener uses the styled plugin console. Pass any object exposi
 Any object exposing `log` and `error` satisfies the `Console` interface, so external logging libraries can be connected without this plugin depending on them:
 
 ```ts
-const remove = traceRegistry.addTraceListener(createConsoleTraceListener(myLogger))
+const remove = traceRegistry.addTraceListener({
+  ...createConsoleTraceListener(myLogger),
+  filter: () => true
+})
 ```
 
 ### Error reporting
@@ -309,7 +350,7 @@ The `namespace` replaces the formatted message, store trace events are scoped to
 
 ## Testing
 
-- `npm run dev` — runs the dedicated demo app. The library build remains `npm run build` and is intentionally kept separate from the demo entry. The demo ships a complete plugin-authoring example in [`src/demo/extending-pinia-store/`](src/demo/extending-pinia-store/).
+- `npm run dev` — runs the dedicated demo app in [`demo/`](demo/). The library build remains `npm run build` and is intentionally kept separate from the demo entry.
 - `npm test` — runs the Vitest suite, including typecheck tests (`*.test-d.ts`) validating type-level contracts such as `StoreOptionsExtensions` merging. Coverage reports are available in `coverage/`.
 - `npm run bundle:check` — measures the emitted bundle size.
 

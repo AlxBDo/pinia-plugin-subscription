@@ -3,6 +3,7 @@ import { deepClone } from '../utils/deep-clone'
 import { getActionStoreKey } from '../utils/store'
 import Tracer from "../system/Tracer"
 import { isEmpty } from "../utils/validation"
+import { pluginName } from "../utils/constantes"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
@@ -246,11 +247,11 @@ export default class PluginSubscription {
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
             const storageKey = getActionStoreKey(name, store)
-            this.trace('plugin:onAction', () => ({
+            this.trace('plugin:onAction', {
                 args,
                 name,
                 store,
-            }), store.$id)
+            }, store.$id)
 
             if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
                 this.createRollbackSnapshot(name, store)
@@ -351,7 +352,7 @@ export default class PluginSubscription {
 
     private initializeTracer() {
         if (this._options?.createTracer) {
-            this._tracer = this._options.createTracer('PluginSubscription')
+            this._tracer = this._options.createTracer(pluginName)
         }
     }
 
@@ -367,11 +368,11 @@ export default class PluginSubscription {
             return
         }
 
-        this.trace('plugin:invoke', () => ({
+        this.trace('plugin', {
             subscribers: this._subscribers,
             store,
             options
-        }), store.$id)
+        }, store.$id)
 
         try {
             this._subscribers.forEach(
@@ -450,10 +451,10 @@ export default class PluginSubscription {
         const safeState = deepClone(initState)
 
         store.$reset = () => {
-            this.trace('plugin:reset', () => ({
+            this.trace('store:reset', {
                 initState: safeState,
                 store
-            }), store.$id)
+            }, store.$id)
 
             this.executeResetStoreCallbacks(store)
 
@@ -489,7 +490,7 @@ export default class PluginSubscription {
         const { store, callback } = subscription()
 
         store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
-            this.trace('store:mutation', () => ({ mutation, store }), store.$id)
+            this.trace('store:mutation', { mutation, store }, store.$id)
             callback(mutation)
         })
     }
@@ -543,16 +544,16 @@ export default class PluginSubscription {
 
             const { subscription, subscriptionOptions, stores } = pluginSubscription
 
-            this.trace('subscription:delivery', () => ({
+            this.trace('subscription:delivery', {
                 pluginName,
                 subscription,
-                options: pluginSubscription,
+                options: subscriptionOptions,
                 stores
-            }), store.$id)
+            }, store.$id)
 
             const pluginOptions = {
-                storeOptions: { ...((options as AnyObject)?.storeOptions ?? {}), ...subscriptionOptions }
-            } as AnyObject
+                storeOptions: { ...(options?.storeOptions ?? {}), ...subscriptionOptions }
+            }
 
             subscription.invoke(
                 { store, options: { ...options, ...pluginOptions } } as PiniaPluginContext
@@ -580,18 +581,21 @@ export default class PluginSubscription {
      * Emits a structured trace event.
      * Prefer the factory form for `payload`: it is only resolved when consumed.
      */
-    private trace(namespace: string, payload?: TracePayload, scope?: string): void {
+    private trace(label: string, payload?: TracePayload, scope?: string): void {
         if (this._tracer) {
-            this._tracer.debug(namespace, payload, scope)
+            label = this._className + ':' + label
+
+            this._tracer.debug(label, label.toLowerCase(), payload, scope)
         }
     }
 
     /**
      * Emits a structured error event, or rethrows it when no listener matches.
      */
-    private traceError(namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
+    private traceError(label: string, error: unknown, payload?: TracePayload, scope?: string): void {
         if (this._tracer) {
-            this._tracer.error(namespace, error, payload, scope)
+            label = this._className + ':' + label
+            this._tracer.error(label, label.toLowerCase(), error, payload, scope)
         } else {
             console.error(error)
         }

@@ -1,11 +1,140 @@
 import { pluginName } from '../utils/constantes'
 import type { Console, LogType, StyleDefinition, StyleDefinitions } from '../types/log'
+import type { ConsoleTraceEvent } from '../types/trace'
 
 
 const style = (bgColor: string, color: string = 'white') =>
     `background-color: ${bgColor}; color: ${color}; padding: 1px; margin-right: 5px; font-size: 12px`
 
+export function printObject(label: string, payload: object) {
+    const isArray = Array.isArray(payload)
+    const isEmpty = isArray ? payload.length === 0 : Object.keys(payload).length === 0
+    if (isEmpty) {
+        console.log(
+            '%c%s',
+            'color: #f86f63; padding: 1px; margin-right: 5px; font-size: 10px',
+            `[ ${label} ] Empty`
+        )
+        return
+    }
 
+    console.groupCollapsed(
+        '%c%s',
+        'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 11px',
+        `[ ${label} ]`)
+
+    if (Array.isArray(payload)) {
+        if (typeof payload[0] === 'object') {
+            payload.forEach((item: any) => {
+                if (item._name) {
+                    printObject(item._name, item)
+                } else if (item._id) {
+                    printObject(item._id, item)
+                } else {
+                    console.dir(item)
+                }
+            })
+        } else {
+            payload.forEach((item: any, index: number) => {
+                console.log(
+                    '%c%s',
+                    'color: #cae38f; padding: 1px; margin-right: 5px; font-size: 10px',
+                    `[ ${index} ]`, item
+                )
+            })
+        }
+    } else {
+        let emptyKeys: string[] = []
+        Object.keys(payload).forEach(key => {
+            const value = (payload as Record<string, unknown>)[key]
+            if (typeof value === 'object') {
+                if (Array.isArray(value)) {
+                    if (typeof value[0] === 'object') {
+                        printObject(key, value)
+                    } else {
+                        console.groupCollapsed(key)
+                        console.log(value)
+                        console.groupEnd()
+                    }
+                } else {
+                    printObject(key, Object.assign({}, value))
+                }
+            } else {
+                if (!value) {
+                    emptyKeys.push(key)
+                } else {
+                    console.log(
+                        '%c%s',
+                        'color: #b0fa05; padding: 1px; margin-right: 5px; font-size: 10px',
+                        `[ ${key} ]`, value
+                    )
+                }
+            }
+        })
+        if (emptyKeys.length) {
+            console.log(
+                '%c%s',
+                'color: #f86f63; font-size: 9px',
+                `[ Empty properties ]`, emptyKeys
+            )
+        }
+    }
+    console.groupEnd()
+}
+
+function printTracePayload(tracePayload: Record<string, unknown>) {
+    Object.keys(tracePayload).forEach((key: string) => {
+        if (['label', 'namespace', 'scope', 'source'].includes(key)) {
+            return
+        }
+        const arg = tracePayload[key]
+        if (!arg) {
+            return
+        }
+
+        switch (typeof arg) {
+            case 'string':
+                console.log(
+                    '%c%s',
+                    'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 10px',
+                    `[ ${key} ]`, arg
+                )
+                break;
+            case 'object':
+                switch (key) {
+                    case 'mutation':
+                        console.groupCollapsed('[mutation]')
+                        console.dir(arg)
+                        console.groupEnd()
+                        break;
+                    case 'options':
+                        printObject(key, (arg as { storeOptions?: unknown })?.storeOptions ?? arg)
+                        break;
+                    case 'payload':
+                        printTracePayload(arg as Record<string, unknown>)
+                        break;
+                    case 'store':
+                        printObject(key, Object.keys(arg).reduce((acc, curr) => {
+                            if ((curr.startsWith('$') && !['$id', '$state'].includes(curr)) || curr.startsWith('_')) {
+                                return acc
+                            }
+
+                            acc[curr] = (arg as Record<string, unknown>)[curr]
+                            return acc
+                        }, {} as Record<string, unknown>))
+                        break;
+                    default:
+                        printObject(key, arg)
+                }
+                break;
+            case 'function':
+                console.dir(arg)
+                break;
+            default:
+                console.info(arg)
+        }
+    })
+}
 export function log(logStyle: string, args: any) {
     if (!logStyle) {
         throw new Error('Style instructions are required')
@@ -19,21 +148,71 @@ export function log(logStyle: string, args: any) {
     )
 }
 
+
+export function logTrace(logStyle: string, args: any, pluginName: string) {
+    if (!logStyle) {
+        throw new Error('Style instructions are required')
+    }
+
+    const label = args.shift()
+    const event = args[0]
+
+    console.groupCollapsed(
+        '%c%s',
+        logStyle,
+        `${label}
+`,
+        event?.source
+    )
+
+    args.forEach((arg: any) => {
+        switch (typeof arg) {
+            case 'string':
+                console.info(arg)
+                break;
+            case 'object':
+                if (Array.isArray(arg)) {
+                    console.table(arg)
+                } else {
+                    printTracePayload(arg)
+                }
+                break;
+            case 'function':
+                console.dir(arg)
+                break;
+            default:
+                console.info(arg)
+        }
+    })
+
+    console.groupCollapsed(
+        '%c%s',
+        'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 10px',
+        `[ trace ]`
+    )
+    console.trace()
+    console.groupEnd()
+
+    console.groupEnd()
+}
+
 export abstract class CustomConsole implements Console {
-    protected _bgColor: string = '#ffec73'
-    protected _color: string = 'green'
+    protected _bgColor: string = 'transparent'
+    protected _color: string = '#f2f286'
     protected _icon: string = '🍍⚡'
     protected _errorBgColor: string = '#d24545'
     protected _errorColor: string = 'white'
     protected _errorIcon: string = '🍍⚠️'
-    protected abstract _pluginName: string
+    protected _pluginName?: string
     protected _styles: StyleDefinitions = {
         error: { bgColor: this._errorBgColor, color: this._errorColor, icon: this._errorIcon },
         info: { bgColor: this._bgColor, color: this._color, icon: this._icon }
     }
 
     protected formatMessage(message: string, icon: string): string {
-        return ` [${icon} ${pluginName}] - ${message} `
+        return this._pluginName ? ` [${icon} ${this._pluginName}] 
+ ${message} 
+` : message
     }
 
     protected generateStyle(styleDefinition: StyleDefinition): string {
@@ -61,11 +240,11 @@ export abstract class CustomConsole implements Console {
 
     protected rebuildArgs(args: string | any[], icon: string) {
         if (typeof args === 'string') {
-            return [this.formatMessage(args, icon)]
+            return [args]
         }
 
         if (Array.isArray(args)) {
-            return [this.formatMessage(args.shift(), icon), ...(args ?? [])]
+            return [args.shift(), ...(args ?? [])]
         }
     }
 
@@ -82,3 +261,37 @@ class PluginConsoleClass extends CustomConsole {
 }
 
 export const PluginConsole = new PluginConsoleClass()
+
+export class TraceConsole extends CustomConsole {
+    protected _pluginName: string = pluginName
+
+    constructor(pluginName?: string) {
+        super()
+        if (pluginName) {
+            this._pluginName = pluginName
+        }
+    }
+
+
+    logGroup(label: string, group: ConsoleTraceEvent[]) {
+        this.startGroup()
+        this.log(label, group)
+        this.endGroup()
+    }
+
+    private startGroup(groupName?: string) {
+        console.group(groupName)
+    }
+
+    private endGroup() {
+        console.groupEnd()
+    }
+
+    protected useLog(styleDefinition: StyleDefinition, args: any) {
+        logTrace(
+            this.generateStyle(styleDefinition),
+            this.rebuildArgs(args, styleDefinition.icon),
+            this._pluginName
+        )
+    }
+}

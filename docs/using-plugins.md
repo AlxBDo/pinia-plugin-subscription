@@ -319,21 +319,40 @@ Register listeners independently from plugin construction:
 
 ```js
 import {
-  addTraceListener,
   createConsoleTraceListener,
+  createTracerRegistry
+} from 'pinia-plugin-subscription/helpers'
+import {
   createPlugin
 } from 'pinia-plugin-subscription'
 
-addTraceListener({
+const traceRegistry = createTracerRegistry()
+
+traceRegistry.addTraceListener({
   ...createConsoleTraceListener(),
   filter: event => event.scope === 'cart'
 })
 
-pinia.use(createPlugin([myStoreSubscriber]))
+pinia.use(createPlugin([myStoreSubscriber], {
+  createTracer: traceRegistry.createTracer
+}))
 ```
 
 Filters run in real time and can target a source, namespace, store scope, or
 trace level without passing diagnostic options through subscribers.
+You can also use comparison criteria (`equals`, `contains`, `startsWith` or
+`endsWith`) instead of a filter callback; criteria are combined with `every`
+by default or `some` when requested. If criteria are provided without a
+handler, the registry uses its styled console listener.
+
+```js
+traceRegistry.addTraceListener({
+  filter: [
+    { target: 'scope', value: 'cart' },
+    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+  ]
+}, 'every')
+```
 
 ## SSR / Nuxt
 
@@ -351,7 +370,8 @@ finishes.
 ```js
 import { createSSRApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createPlugin, createTracerRegistry } from 'pinia-plugin-subscription'
+import { createPlugin } from 'pinia-plugin-subscription'
+import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 import App from './App.vue'
 import { subscribers } from './subscribers'
 

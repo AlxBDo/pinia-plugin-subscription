@@ -6,6 +6,7 @@ import type {
     PluginHydrationScheduler,
     PluginSubscriber as PluginSubscriberInterface,
     PluginSubscriptions,
+    StoreClassConstructorParams,
     StoreMutationSubscription,
     StoreOnActionSubscription
 } from "../types/plugin";
@@ -13,7 +14,7 @@ import type Tracer from "../system/Tracer";
 
 
 
-type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject) => Instance | undefined
+type CreateInstance<Instance = Store> = (store: PiniaStore, options: unknown) => Instance | undefined
 
 
 /**
@@ -26,7 +27,7 @@ type CreateInstance<Instance = Store> = (store: PiniaStore, options: AnyObject) 
 export default abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
     private _createInstance: CreateInstance
     private _name: string
-    private _pluginOptions?: AnyObject
+    private _pluginOptions?: StoreClassConstructorParams
     private _storeInstance?: Instance
     /** Callback function to reset the store instance, if needed. */
     protected _resetStoreCallback?: (store?: PiniaStore) => void
@@ -52,11 +53,11 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
         return this._storeInstance
     }
 
-    get pluginOptions(): AnyObject {
-        return this._pluginOptions ?? {};
+    get pluginOptions(): StoreClassConstructorParams | undefined {
+        return this._pluginOptions;
     }
 
-    set pluginOptions(options: AnyObject | undefined) {
+    set pluginOptions(options: StoreClassConstructorParams | undefined) {
         this._pluginOptions = options;
     }
 

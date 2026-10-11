@@ -28,4 +28,4 @@ export type {
 } from "../types/trace"
 export { createTracerRegistry } from "../factories/trace-registry"
 export { default as Tracer } from "../system/Tracer"
-export { createConsoleTraceListener } from "../system/createConsoleTraceListener"
+export { createConsoleTraceListener } from "../factories/console-trace-listener"

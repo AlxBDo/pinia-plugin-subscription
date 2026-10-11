@@ -4,7 +4,6 @@ import type {
     TraceEventMetadata,
     TraceLevel,
     TraceListener,
-    TraceListenerRemover,
     TracePayload,
     TracerOptions,
 } from '../types/trace'
@@ -50,17 +49,18 @@ export default class Tracer {
         return this._source
     }
 
-    debug(namespace: string, payload?: TracePayload, scope?: string): void {
-        this.emit('debug', namespace, payload, scope)
+    debug(label: string, namespace: string, payload?: TracePayload, scope?: string): void {
+        this.emit('debug', label, namespace, payload, scope)
     }
 
     /** Relays the error to matching listeners, or reports it when none match. */
-    error(namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
-        this.emit('error', namespace, payload, scope, error)
+    error(label: string, namespace: string, error: unknown, payload?: TracePayload, scope?: string): void {
+        this.emit('error', label, namespace, payload, scope, error)
     }
 
     private emit(
         level: TraceLevel,
+        label: string,
         namespace: string,
         payload?: TracePayload,
         scope?: string,
@@ -74,6 +74,7 @@ export default class Tracer {
         }
 
         const metadata: TraceEventMetadata = {
+            label,
             level,
             namespace,
             scope: scope ?? this._scope,
@@ -81,10 +82,6 @@ export default class Tracer {
         }
 
         const matched = this._listeners.filter(listener => {
-            if (!listener.filter) {
-                return true
-            }
-
             try {
                 return listener.filter(metadata)
             } catch (error) {

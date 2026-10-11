@@ -255,10 +255,11 @@ describe('Store', () => {
             expect(collector).toHaveLength(1)
             expect(collector[0]).toMatchObject({
                 level: 'debug',
-                namespace: 'store:hydrate',
+                label: 'Store:store:hydrate',
+                namespace: 'store:store:hydrate',
                 payload: { done: true },
                 scope: mockPiniaStore.$id,
-                source: 'Store'
+                source: 'pinia-plugin-subscription'
             })
         })
 
@@ -281,14 +282,15 @@ describe('Store', () => {
             expect(collector[0].level).toBe('error')
         })
 
-        it('uses the subclass name as source, resolved lazily', () => {
+        it('uses the subclass name in the trace label, resolved lazily', () => {
             const collector: TraceEvent[] = []
             const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
 
             new NamedStoreChild(mockPiniaStore, mockOptions as any).trace('child:event')
             remove()
 
-            expect(collector[0].source).toBe('NamedStoreChild')
+            expect(collector[0].label).toBe('NamedStoreChild:child:event')
+            expect(collector[0].source).toBe('pinia-plugin-subscription')
         })
     })
 

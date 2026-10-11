@@ -24,12 +24,12 @@ describe('PluginConsole', () => {
 
     it('formatMessage formats messages correctly', () => {
         const formatted = (PluginConsole as any).formatMessage('Test', '🔥')
-        expect(formatted).toBe(` [🔥 ${pluginName}] - Test `)
+        expect(formatted).toBe(` [🔥 ${pluginName}] \n Test \n`)
     })
 
     it('getStyleDefinition returns info by default and error when requested', () => {
         const info = (PluginConsole as any).getStyleDefinition()
-        expect(info).toEqual({ bgColor: '#ffec73', color: 'green', icon: '🍍⚡' })
+        expect(info).toEqual({ bgColor: 'transparent', color: '#f2f286', icon: '🍍⚡' })
 
         const error = (PluginConsole as any).getStyleDefinition('error')
         expect(error).toEqual({ bgColor: '#d24545', color: 'white', icon: '🍍⚠️' })
@@ -37,20 +37,20 @@ describe('PluginConsole', () => {
 
     it('rebuildArgs with a string returns a single formatted message', () => {
         const rebuilt = (PluginConsole as any).rebuildArgs('hello', '🔥')
-        expect(rebuilt).toEqual([` [🔥 ${pluginName}] - hello `])
+        expect(rebuilt).toEqual(['hello'])
     })
 
     it('rebuildArgs with an array shifts the message and keeps extra args', () => {
         const rebuilt = (PluginConsole as any).rebuildArgs(['hello', 1, true], '🔥')
-        expect(rebuilt).toEqual([` [🔥 ${pluginName}] - hello `, 1, true])
+        expect(rebuilt).toEqual(['hello', 1, true])
     })
 
     it('log calls console.log with the info style and formatted message', () => {
         PluginConsole.log('Test message')
         expect(console.log).toHaveBeenCalledWith(
             '%c%s',
-            'background-color: #ffec73; color: green; padding: 1px; margin-right: 5px; font-size: 12px',
-            ` [🍍⚡ ${pluginName}] - Test message `
+            'background-color: transparent; color: #f2f286; padding: 1px; margin-right: 5px; font-size: 12px',
+            'Test message'
         )
     })
 
@@ -59,7 +59,7 @@ describe('PluginConsole', () => {
         expect(console.log).toHaveBeenCalledWith(
             '%c%s',
             'background-color: #d24545; color: white; padding: 1px; margin-right: 5px; font-size: 12px',
-            ` [🍍⚠️ ${pluginName}] - Test error `
+            'Test error'
         )
     })
 
@@ -68,7 +68,7 @@ describe('PluginConsole', () => {
         expect(console.log).toHaveBeenCalledWith(
             '%c%s',
             'background-color: #000; color: #111; padding: 1px; margin-right: 5px; font-size: 12px',
-            ` [⭐ ${pluginName}] - Hello `,
+            'Hello',
             'world',
             42
         )

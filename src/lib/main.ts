@@ -21,6 +21,7 @@ export type {
     PluginSubscriptionDefinition,
     PluginSubscriptions,
     StatePropertyValue,
+    StoreClassConstructorParams,
     StoreOptions,
     StoreOptionsExtensions,
     StoreOptionsPropertyValue,
