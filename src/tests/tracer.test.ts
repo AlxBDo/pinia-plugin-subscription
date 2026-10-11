@@ -25,7 +25,7 @@ describe('Tracer', () => {
     describe('lazy payload', () => {
         it('does not resolve the payload when nobody listens', () => {
             const payload = vi.fn(() => ({ heavy: true }))
-                ; (createTracer('Source')).debug('store:mutation', payload)
+                ; (createTracer('Source')).debug('Mutation', 'store:mutation', payload)
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -34,7 +34,7 @@ describe('Tracer', () => {
             const payload = vi.fn(() => ({ heavy: true }))
             addTraceListener({ filter: () => false, handler: () => { } })
 
-                ; (createTracer('Source')).debug('store:mutation', payload)
+                ; (createTracer('Source')).debug('Mutation', 'store:mutation', payload)
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -44,7 +44,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-                ; (createTracer('Source')).debug('store:mutation', payload)
+                ; (createTracer('Source')).debug('Mutation', 'store:mutation', payload)
 
             expect(payload).toHaveBeenCalledTimes(1)
             expect(collector.events[0].payload).toEqual({ heavy: true })
@@ -54,7 +54,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-                ; (createTracer('Source')).debug('store:mutation', { direct: 1 })
+                ; (createTracer('Source')).debug('Mutation', 'store:mutation', { direct: 1 })
 
             expect(collector.events[0].payload).toEqual({ direct: 1 })
         })
@@ -63,7 +63,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-            expect(() => (createTracer('Source')).debug('ns', () => { throw new Error('boom') })).not.toThrow()
+            expect(() => (createTracer('Source')).debug('Mutation', 'ns', () => { throw new Error('boom') })).not.toThrow()
             expect(collector.events[0].payload).toHaveProperty('__tracePayloadError')
         })
     })
@@ -73,10 +73,11 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-                ; (createTracer('PluginSubscription')).debug('subscription:delivery', undefined, 'cart')
+                ; (createTracer('PluginSubscription')).debug('Subscription:delivery', 'subscription:delivery', undefined, 'cart')
 
             expect(collector.events[0]).toMatchObject({
                 level: 'debug',
+                label: 'Subscription:delivery',
                 namespace: 'subscription:delivery',
                 scope: 'cart',
                 source: 'PluginSubscription'
@@ -88,7 +89,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-                ; (createTracer('Store', { scope: 'user' })).debug('ns')
+                ; (createTracer('Store', { scope: 'user' })).debug('Mutation', 'ns')
 
             expect(collector.events[0].scope).toBe('user')
         })
@@ -97,7 +98,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-                ; (createTracer('Store', { scope: 'user' })).debug('ns', undefined, 'cart')
+                ; (createTracer('Store', { scope: 'user' })).debug('Mutation', 'ns', undefined, 'cart')
 
             expect(collector.events[0].scope).toBe('cart')
         })
@@ -112,8 +113,8 @@ describe('Tracer', () => {
             })
 
             const tracer = createTracer('Source')
-            tracer.debug('store:mutation')
-            tracer.debug('plugin:invoke')
+            tracer.debug('Mutation', 'store:mutation')
+            tracer.debug('Invoke', 'plugin:invoke')
 
             expect(collector.events.map(e => e.namespace)).toEqual(['store:mutation'])
         })
@@ -123,8 +124,8 @@ describe('Tracer', () => {
             addTraceListener({ filter: (event) => event.scope === 'cart', handler: collector.handler })
 
             const tracer = createTracer('Source')
-            tracer.debug('ns', undefined, 'cart')
-            tracer.debug('ns', undefined, 'user')
+            tracer.debug('Mutation', 'ns', undefined, 'cart')
+            tracer.debug('Mutation', 'ns', undefined, 'user')
 
             expect(collector.events).toHaveLength(1)
             expect(collector.events[0].scope).toBe('cart')
@@ -134,7 +135,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener({ filter: () => { throw new Error('bad filter') }, handler: collector.handler })
 
-            expect(() => (createTracer('Source')).debug('ns')).not.toThrow()
+            expect(() => (createTracer('Source')).debug('Mutation', 'ns')).not.toThrow()
             expect(collector.events).toHaveLength(0)
         })
     })
@@ -153,8 +154,8 @@ describe('Tracer', () => {
             const second = createCollector()
             firstRegistry.addTraceListener(first)
 
-            firstRegistry.createTracer('Source').debug('ns')
-            secondRegistry.createTracer('Source').debug('ns')
+            firstRegistry.createTracer('Source').debug('Mutation', 'ns')
+            secondRegistry.createTracer('Source').debug('Mutation', 'ns')
 
             expect(first.events).toHaveLength(1)
             expect(second.events).toHaveLength(0)
@@ -166,7 +167,7 @@ describe('Tracer', () => {
             const remove = addTraceListener(collector)
 
             remove()
-                ; (createTracer('Source')).debug('ns')
+                ; (createTracer('Source')).debug('Mutation', 'ns')
 
             expect(collector.events).toHaveLength(0)
         })
@@ -177,7 +178,7 @@ describe('Tracer', () => {
             addTraceListener(first)
             addTraceListener(second)
 
-                ; (createTracer('Source')).debug('ns')
+                ; (createTracer('Source')).debug('Mutation', 'ns')
 
             expect(first.events).toHaveLength(1)
             expect(second.events).toHaveLength(1)
@@ -188,7 +189,7 @@ describe('Tracer', () => {
             addTraceListener({ handler: () => { throw new Error('listener down') } })
             addTraceListener(collector)
 
-            expect(() => (createTracer('Source')).debug('ns')).not.toThrow()
+            expect(() => (createTracer('Source')).debug('Mutation', 'ns')).not.toThrow()
             expect(collector.events).toHaveLength(1)
         })
     })
@@ -198,7 +199,7 @@ describe('Tracer', () => {
             const collector = createCollector()
             addTraceListener(collector)
 
-                ; (createTracer('Source')).error('ns', new Error('boom'))
+                ; (createTracer('Source')).error('Failure', 'ns', new Error('boom'))
 
             expect(collector.events[0].level).toBe('error')
             expect(collector.events[0].error).toBeInstanceOf(Error)
@@ -206,7 +207,7 @@ describe('Tracer', () => {
 
         it('log error when no listener is registered', () => {
             const failure = new Error('boom')
-            createTracer('Source').error('ns', failure)
+            createTracer('Source').error('Failure', 'ns', failure)
             expect(console.error).toHaveBeenCalled()
         })
 
@@ -216,7 +217,7 @@ describe('Tracer', () => {
                 filter: event => event.level === 'debug',
                 handler: () => { }
             })
-            createTracer('Source').error('ns', failure)
+            createTracer('Source').error('Failure', 'ns', failure)
 
             expect(console.error).toHaveBeenCalled()
         })
@@ -225,14 +226,14 @@ describe('Tracer', () => {
             const failure = new Error('boom')
             addTraceListener({ handler: () => { } })
 
-            expect(() => (createTracer('Source')).error('ns', failure)).not.toThrow()
+            expect(() => (createTracer('Source')).error('Failure', 'ns', failure)).not.toThrow()
         })
 
         it('isolates a throwing error listener', () => {
             const failure = new Error('boom')
             addTraceListener({ handler: () => { throw new Error('listener down') } })
 
-            expect(() => (createTracer('Source')).error('ns', failure)).not.toThrow()
+            expect(() => (createTracer('Source')).error('Failure', 'ns', failure)).not.toThrow()
         })
     })
 

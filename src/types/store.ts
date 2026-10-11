@@ -63,10 +63,6 @@ export type ObjectBaseProperty = Record<string, OptionBaseProperty | OptionBaseP
 
 export type OptionBaseProperty = string | number | boolean | null | undefined | object | Function
 
-export interface PluginStoreOptions {
-    storeOptions: StoreOptions
-}
-
 export interface RollbackActionParams {
     action: string
     stateKeys?: CreateStateSnapshotKeys

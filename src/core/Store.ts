@@ -1,11 +1,14 @@
-import { isRef, ref, toRef, type Ref } from "vue"
+import { isRef, ref, toRef } from "vue"
 import Tracer from "../system/Tracer"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
+import { pluginName } from "../utils/constantes"
 
 import type {
+    PluginStoreOptions,
     PluginSubscriptionOptions,
     PluginSubscriptions,
+    StoreClassConstructorParams,
     StoreMutationSubscription,
     StoreMutationSubscriptionCallback,
     StoreMutationSubscriptionReturn,
@@ -16,23 +19,38 @@ import type {
 import type { Store as PiniaStore, StateTree } from "pinia"
 import type { TracePayload } from "../types/trace"
 import type { AnyObject, PluginSubscriberInterface } from "../types"
-import type { StoreOptions, StatePropertyValue, PluginStoreOptions } from "../types/store"
+import type { StoreOptions, StatePropertyValue } from "../types/store"
 
 /**
  * Base class for a Pinia store with enhanced capabilities.
  * Provides structured tracing, plugin subscriptions, and state management utilities.
+ * @remarks
+ * This class is intended to be extended by specific store implementations
+ * that require enhanced capabilities such as structured tracing and plugin subscriptions.
  */
 export default class Store {
     protected _className = 'Store'
+    private _createTracer?: PluginSubscriptionOptions['createTracer']
     private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
     private _store: PiniaStore
-    private _subscriptions: PluginSubscriptions = {}
     private _storeSubscribe?: StoreMutationSubscriptionCallback
+    private _subscriptions: PluginSubscriptions = {}
+    private _traceOptions: Record<string, boolean> = {
+        /** Indicates whether to add the class name to the namespace for tracing purposes. */
+        addClassNameToLabel: true,
+    }
     private _tracer?: Tracer
-    private _createTracer?: PluginSubscriptionOptions['createTracer']
 
     protected static _requiredKeys?: string[]
+
+    get classNameAddedToTraceNamespace(): boolean {
+        return this._traceOptions.addClassNameToLabel
+    }
+
+    set classNameAddedToTraceNamespace(value: boolean) {
+        this._traceOptions.addClassNameToLabel = value
+    }
 
     get onAction(): StoreOnActionSubscription | undefined {
         if (!this._onAction) {
@@ -78,14 +96,24 @@ export default class Store {
      */
     protected get tracer(): Tracer | undefined {
         if (!this._tracer && this._createTracer) {
-            this._tracer = this._createTracer(this._className)
+            this._tracer = this._createTracer(pluginName)
             this._tracer.scope = this.store.$id
         }
 
         return this._tracer
     }
 
-    constructor(store: PiniaStore, options: PluginStoreOptions & PluginSubscriptionOptions) {
+    /**
+     * Constructs a new instance of the store.
+     * @param store The Pinia store instance.
+     * @param options The plugin store options and subscription options.
+     * @remarks
+     * This constructor is typically called by the `customizeStore` static method
+     * to create an instance of the store with the provided Pinia store and options.
+     * @see PluginStoreOptions
+     * @see PluginSubscriptionOptions
+     */
+    constructor(store: PiniaStore, options: StoreClassConstructorParams) {
         this._options = options.storeOptions
         this._store = store
         this.initializeTracer(options)
@@ -141,7 +169,8 @@ export default class Store {
      * Create and return a class instance
      * @param store 
      * @param options 
-     * @returns 
+     * @template Instance The type of the store instance being created.
+     * @returns The created store instance of type `Instance`, or undefined if the required keys are not present.
      */
     static customizeStore<Instance extends Store>(
         store: PiniaStore,
@@ -249,20 +278,30 @@ export default class Store {
      * Emits a structured trace event scoped to this store.
      * Prefer the factory form for `payload`: it is only resolved when consumed.
      */
-    trace(namespace: string, payload?: TracePayload): void {
+    trace(label: string, payload?: TracePayload, scope?: string, namespace?: string): void {
         if (this.tracer) {
-            this.tracer.debug(namespace, payload)
+            label = this.traceLabelFormatter(label)
+            this.tracer.debug(label, namespace ?? label.toLowerCase(), payload, scope)
         }
     }
 
     /**
      * Emits a structured error event, or rethrows it when no listener matches.
      */
-    traceError(namespace: string, error: unknown, payload?: TracePayload): void {
+    traceError(label: string, error: unknown, payload?: TracePayload, scope?: string, namespace?: string): void {
         if (this.tracer) {
-            this.tracer.error(namespace, error, payload)
+            label = this.traceLabelFormatter(label)
+            this.tracer.error(label, namespace ?? label.toLowerCase(), error, payload, scope)
         } else {
             console.error(error)
         }
+    }
+
+    private traceLabelFormatter(label: string): string {
+        if (this.classNameAddedToTraceNamespace) {
+            label = `${this.constructor.name}:${label}`
+        }
+
+        return label
     }
 }

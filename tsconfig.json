@@ -16,14 +16,6 @@
   "exclude": [
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
-    "src/**/*.performance.test.ts",
-    "src/demo/**",
-    "src/demo/main.ts",
-    "src/**/*.vue",
-    "src/assets/**",
-    "src/demo/components/**",
-    "src/demo/extending-pinia-store/**",
-    "src/demo/models/**",
-    "src/demo/stores/**"
+    "src/**/*.performance.test.ts"
   ]
 }

@@ -16,9 +16,9 @@ import type {
     DefineAStoreDefinition,
     DefineAStoreSetupContext,
     EmptyExtensions,
-    PluginStoreOptions,
     StoreOptions
 } from "../types/store"
+import type { PluginStoreOptions } from "../types/plugin"
 
 
 export const itemState = {

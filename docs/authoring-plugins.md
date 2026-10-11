@@ -207,8 +207,9 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 | `storeSubscribe` (getter/setter) | Factory for pinia's `$subscribe` (`{ store, callback }`). |
 | `onAction` (getter/setter) | Factory for pinia's `$onAction` (`{ store, callback }`). |
 | `static customizeStore(store, options)` | Recommended factory; guarded by `_requiredKeys` (see above). |
-| `trace(namespace, payload?)` | Emits a structured trace event scoped to the store. |
-| `traceError(namespace, error, payload?)` | Emits an error event, or rethrows it when no listener matches. |
+| `trace(label, payload?, scope?, namespace?)` | Emits a structured trace event. The default scope is the wrapped store ID. |
+| `traceError(label, error, payload?, scope?, namespace?)` | Emits an error event; if no listener matches, reports it with `console.error` without rethrowing it. |
+| `classNameAddedToTraceNamespace` (getter/setter) | Controls whether the store class name is prefixed to trace labels; enabled by default. |
 | `stateHas(property)` / `storeHas(property)` | Safe `hasOwnProperty` checks on state / store. |
 | `getValue(value)` | Unwraps a ref or returns the value as-is. |
 | `isOptionApi()` | Whether the store uses the options API. |
@@ -359,6 +360,35 @@ const mySubscriber = {
 This keeps the server render deterministic and prevents browser-only
 initialization from crashing Nuxt or SSR builds.
 
+### Emitting trace events
+
+Use `trace()` and `traceError()` from a `Store` subclass to emit structured
+events. The first argument is a human-readable label; by default the store
+class name is prefixed to it and the normalized label becomes the namespace.
+Pass an explicit fourth `namespace` argument to control the namespace, or set
+`classNameAddedToTraceNamespace = false` to omit the class prefix. Prefer a
+payload factory so data is not built unless a listener consumes the event:
+
+```ts
+class CartStore extends Store {
+  reportItems(): void {
+    this.trace(
+      'cart:items',
+      () => ({ items: this.state.items }),
+      this.store.$id,
+      'cart:items'
+    )
+  }
+}
+```
+
+`createTracerRegistry()` and `createConsoleTraceListener()` are available
+from `pinia-plugin-subscription/helpers`. Register listeners on a registry
+and pass its `createTracer` factory through `createPlugin()` options to
+connect them to plugin and store events. Listener filters can be callbacks
+over event metadata or criteria using `equals`, `contains`, `startsWith` and
+`endsWith` comparisons.
+
 ## Typing per-store options: `StoreOptionsExtensions` (TypeScript)
 
 This package is the only one allowed to augment pinia's
@@ -402,6 +432,6 @@ Guidelines:
 ## Reference implementation
 
 The demo app ships a complete plugin implementation in
-[`src/demo/extending-pinia-store/`](../src/demo/extending-pinia-store/): a
+[`demo/`](../demo/): a
 `PluginSubscriber` subclass, a `Store` subclass, option typing and SSR
 guards. Run `npm run dev` to explore it live.

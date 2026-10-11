@@ -1,6 +1,22 @@
 import type { AnyObject } from './index'
 import type Tracer from '../system/Tracer'
 
+export interface AddTraceListenerOptions {
+    filterMode?: TraceListenerFilterMode
+    groupBy?: TraceListenerGroupBy
+}
+
+export interface ConsoleTraceEventArgs extends Omit<TraceEvent, 'level' | 'timestamp'> { }
+export type ConsoleTraceEvent = Array<string | ConsoleTraceEventArgs>
+
+/**
+ * A trace listener that supports grouping of trace events.
+ */
+export interface ConsoleTraceGroupListener extends Omit<TraceListener, 'filter'> {
+    createGroup: (key: string) => void
+    logGroup: (key: string) => void
+}
+
 /**
  * Severity of a trace event.
  * `error` events are delivered to matching listeners, or reported with `console.error` when none match.
@@ -12,6 +28,9 @@ export type TraceLevel = 'debug' | 'error'
  * Filters receive this object so that discarded events never allocate a payload.
  */
 export interface TraceEventMetadata {
+    /** Label describing the event, e.g. `Subscription:Delivery`. */
+    label: string
+    /** Severity of the trace event. */
     level: TraceLevel
     /** Structured, colon separated identifier, e.g. `subscription:delivery`. */
     namespace: string
@@ -30,6 +49,23 @@ export interface TraceEvent extends TraceEventMetadata {
     timestamp: number
 }
 
+type TraceFilterCriterionComparator = 'equals' | 'contains' | 'startsWith' | 'endsWith'
+
+export interface TraceFilterCriterion {
+    comparator: TraceFilterCriterionComparator
+    target: keyof TraceEventMetadata
+    value: string
+}
+
+export interface TraceFilterFactoryCriterion extends Omit<TraceFilterCriterion, 'comparator'> {
+    comparator?: TraceFilterCriterionComparator
+}
+
+export type TraceFilterFactoryParam = {
+    handler?: TraceHandler
+    filter: TraceFilter | TraceFilterFactoryCriterion[]
+}
+
 /**
  * Event data. Prefer the function form: it is only invoked when a listener
  * actually consumes the event, keeping unobserved tracing allocation free.
@@ -43,6 +79,10 @@ export type TracePayload = AnyObject | (() => AnyObject)
  */
 export type TraceFilter = (event: TraceEventMetadata) => boolean
 
+export interface TraceGroupListener extends ConsoleTraceGroupListener, TraceListener {
+    groupBy: TraceListenerGroupBy
+}
+
 /**
  * Handles a trace event.
  * @param event The resolved trace event to handle.
@@ -50,12 +90,16 @@ export type TraceFilter = (event: TraceEventMetadata) => boolean
 export type TraceHandler = (event: TraceEvent) => void
 
 export interface TraceListener {
-    /** Evaluated on every event; return `true` to receive it. Omit to receive all. */
-    filter?: TraceFilter
+    /** Evaluated on every event; return `true` to receive it. */
+    filter: TraceFilter
 
     /** Handles the trace event when it passes the filter. */
     handler: TraceHandler
 }
+
+export type TraceListenerFilterMode = 'every' | 'some'
+
+export type TraceListenerGroupBy = keyof TraceEventMetadata
 
 /** Removes a previously registered listener. */
 export type TraceListenerRemover = () => void
@@ -67,7 +111,7 @@ export type TraceRegistry = {
      * @param listener The trace listener to register.
      * @returns A function that removes the registered listener when called.
      */
-    addTraceListener: (listener: TraceListener) => TraceListenerRemover
+    addTraceListener: (listener: TraceListener | TraceFilterFactoryParam, filterMode?: 'every' | 'some') => TraceListenerRemover
 
     /**
      * Clears all registered trace listeners.
@@ -87,6 +131,12 @@ export type TraceRegistry = {
      * @returns True if there are registered trace listeners, otherwise false.
      */
     hasTraceListeners: () => boolean
+}
+
+export interface TracerHandler {
+    closeGroup: (payload: TraceEvent) => undefined,
+    createTracer: (source: string) => Tracer,
+    startGroup: (payload: TraceEvent) => undefined
 }
 
 export interface TracerOptions {

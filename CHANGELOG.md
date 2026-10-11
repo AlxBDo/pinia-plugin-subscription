@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Moved the demo application from `src/demo/` to the repository-level `demo/` directory, separating example code from the library source and tracking the demo files in version control.
+
 ### Added
 - Added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
 - Added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
+- Added metadata-based trace filter criteria with `equals`, `contains`, `startsWith` and `endsWith` comparators, combined with `every` or `some`
 - Added `createConsoleTraceListener()` as an opt-in console sink for trace events
 - Added `trace()` and `traceError()` to `Store` and `PluginSubscription`
 - Added trace types: `TraceEvent`, `TraceEventMetadata`, `TraceFilter`, `TraceHandler`, `TraceLevel`, `TraceListener`, `TraceListenerRemover`, `TracePayload`, `TracerOptions`
@@ -24,9 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Trace errors with no matching listener, and failures in listener filters or handlers, are now reported with `console.error` instead of rethrowing the original error
 - Deprecated `createHydrationPlugin()` in favor of `createPlugin()` with hydration options
 - Trace payloads are now lazily resolved, so unobserved tracing no longer builds log arguments
-- Internal log messages became structured namespaces (`plugin:invoke`, `store:mutation`, `subscription:delivery`, …) carrying `store.$id` as `scope`
+- Internal events now derive namespaces from trace labels, with `PluginSubscription` prefixed by default; store events carry `store.$id` as `scope`
 - `Tracer` now delegates all output decisions to listeners and no longer owns a console or an enabled state
 - Error events are delivered to matching listeners and reported with `console.error` when none match
+- Store trace labels can include the store class name by default, and callers can override the event namespace
 - Excluded `scripts/**` from coverage thresholds, as build tooling is not shipped to consumers
 
 ### Removed

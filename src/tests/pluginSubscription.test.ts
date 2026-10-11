@@ -2,7 +2,7 @@
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
-import { createConsoleTraceListener } from '../system/createConsoleTraceListener'
+import { createConsoleTraceListener } from '../factories/console-trace-listener'
 import { createTracerRegistry } from '../factories/trace-registry'
 import type { TraceEvent } from '../types/trace'
 
@@ -55,15 +55,15 @@ describe('PluginSubscription', () => {
             } as unknown as Store
         }
 
-        it('emits plugin:invoke scoped to the store id', () => {
+        it('emits the plugin lifecycle trace scoped to the store id', () => {
             const events: TraceEvent[] = []
             addTraceListener({ handler: (event) => { events.push(event) } })
             pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
 
             pluginSub.plugin(createContext(createTracedStore()))
 
-            const invoke = events.find(event => event.namespace === 'plugin:invoke')
-            expect(invoke).toMatchObject({ scope: 'cart', source: 'PluginSubscription' })
+            const invoke = events.find(event => event.label?.endsWith(':plugin') || event.namespace?.endsWith(':plugin'))
+            expect(invoke).toMatchObject({ scope: 'cart', source: 'pinia-plugin-subscription' })
         })
 
         it('supports filtering a single store at runtime', () => {
@@ -85,7 +85,7 @@ describe('PluginSubscription', () => {
             pluginSub.plugin(createContext(store))
             store.$reset()
 
-            expect(events.some(event => event.namespace === 'plugin:reset' && event.scope === 'cart')).toBe(true)
+            expect(events.some(event => (event.label?.endsWith(':store:reset') || event.namespace?.endsWith(':store:reset')) && event.scope === 'cart')).toBe(true)
         })
 
         it('reports subscriber failures as error events without throwing', () => {
