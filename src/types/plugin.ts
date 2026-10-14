@@ -2,6 +2,7 @@ import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation
 import type { StoreOptions } from "./store"
 import type { PluginSubscriberInterface } from "."
 import Tracer from "../system/Tracer"
+import { TracerHandler } from "./trace"
 
 
 export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
@@ -42,7 +43,9 @@ export interface PluginSubscriptionOptions {
      * @returns A new instance of the Tracer class.
      * @see Tracer for more details on the tracer implementation.
      */
-    createTracer?: (source: string) => Tracer
+    //createTracer?: (source: string) => Tracer
+
+    tracerHandler?: TracerHandler
 
     /**
      * Execution options for the plugin subscriber.

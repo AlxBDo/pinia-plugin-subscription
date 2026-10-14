@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTracerRegistry } from '../factories/trace-registry'
+import { createTraceGroupsRegistry, createTracerRegistry } from '../factories/trace-registry'
 
 import type { TraceEvent } from '../types/trace'
 
@@ -16,6 +16,45 @@ describe('Tracer', () => {
     beforeEach(() => {
         consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
         clearTraceListeners()
+    })
+
+    describe('Trace groups registry', () => {
+        it('groups matching events by scope and flushes them when the group closes', () => {
+            const registry = createTraceGroupsRegistry()
+            const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
+            registry.addListener([{ target: 'scope', value: 'cart' }])
+
+            registry.tracerHandler.startGroup({ scope: 'cart' } as TraceEvent)
+            registry.tracerHandler.createTracer('Store').debug('Mutation', 'store:mutation', { count: 1 }, 'cart')
+            expect(groupSpy).not.toHaveBeenCalled()
+
+            registry.tracerHandler.closeGroup({ scope: 'cart' } as TraceEvent)
+
+            expect(groupSpy).toHaveBeenCalled()
+            expect(logSpy).not.toHaveBeenCalled()
+            groupSpy.mockRestore()
+            logSpy.mockRestore()
+        })
+
+        it('uses the configured filter mode when selecting groups', () => {
+            const registry = createTraceGroupsRegistry()
+            const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
+            registry.addListener([
+                { target: 'scope', value: 'cart' },
+                { target: 'namespace', value: 'store:mutation' },
+            ], { filterMode: 'some' })
+
+            registry.tracerHandler.startGroup({ scope: 'cart' } as TraceEvent)
+            registry.tracerHandler.createTracer('Store').debug('Mutation', 'plugin:invoke', undefined, 'cart')
+            registry.tracerHandler.closeGroup({ scope: 'cart' } as TraceEvent)
+
+            expect(groupSpy).toHaveBeenCalled()
+            expect(logSpy).not.toHaveBeenCalled()
+            groupSpy.mockRestore()
+            logSpy.mockRestore()
+        })
     })
 
     afterEach(() => {

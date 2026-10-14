@@ -276,7 +276,7 @@ export default class Store {
      * Emits a structured trace event scoped to this store.
      * Prefer the factory form for `payload`: it is only resolved when consumed.
      */
-    trace(label: string, payload?: TracePayload, scope?: string, namespace?: string): void {
+    trace(label: string, scope?: string, payload?: TracePayload, namespace?: string): void {
         if (this.tracer) {
             label = this.traceLabelFormatter(label)
             this.tracer.debug(label, namespace ?? label.toLowerCase(), payload, scope)
@@ -286,7 +286,7 @@ export default class Store {
     /**
      * Emits a structured error event, or rethrows it when no listener matches.
      */
-    traceError(label: string, error: unknown, payload?: TracePayload, scope?: string, namespace?: string): void {
+    traceError(label: string, error: unknown, scope?: string, payload?: TracePayload, namespace?: string): void {
         if (this.tracer) {
             label = this.traceLabelFormatter(label)
             this.tracer.error(label, namespace ?? label.toLowerCase(), error, payload, scope)

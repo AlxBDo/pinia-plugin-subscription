@@ -42,6 +42,11 @@ function formatTraceLabel(event: TraceEvent): string {
         : `${event.label}`
 }
 
+function log(target: Console, event: TraceEvent): void {
+    const consoleMethod = event.level === 'error' ? 'error' : 'log'
+    target[consoleMethod](...buildConsoleArgsFromEvent(event))
+}
+
 /**
  * Creates an opt-in trace listener that reproduces the former console output.
  */
@@ -52,8 +57,7 @@ export function createConsoleTraceListener(target?: Console): Omit<TraceListener
 
     return {
         handler(event): void {
-            const consoleMethod = event.level === 'error' ? 'error' : 'log'
-            target[consoleMethod](...buildConsoleArgsFromEvent(event))
+            log(target, event)
         }
     }
 }
@@ -76,9 +80,9 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
             return
         }
 
-        if (group.length) { target.logGroup(`[ ${groupBy} ] ${key}`, group) }
+        if (group.length) { target.logGroup(group) }
 
-        //groups.delete(key)
+        groups.delete(key)
     }
 
     return {
@@ -87,7 +91,7 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
         handler(event): void {
             const groupKey = event[groupBy] as string
             if (!groups.has(groupKey)) {
-                target.error(`No group found for key "${groupKey}"`)
+                log(target, event)
                 return
             }
 

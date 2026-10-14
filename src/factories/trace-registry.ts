@@ -76,9 +76,10 @@ export function createTraceGroupsRegistry() {
     /**
      * Registers a trace listener and returns its remover.
      * Listeners are evaluated in registration order.
-     * @param listener The trace listener to register.
-     * @param filterMode The mode to use when creating a trace listener from a filter factory parameter. Defaults to 'every'.
-     * @returns A function that removes the registered listener when called.
+     * @param criteria The criteria used to create the trace group listener.
+     * @param filterMode The mode to use when creating the trace group listener from the criteria. Defaults to 'every'.
+     * @param groupBy The property to group traces by. Defaults to 'scope'.
+     * @returns A function that removes the registered trace group listener when called.
      */
     function addListener(
         criteria: TraceFilterFactoryCriterion[],
