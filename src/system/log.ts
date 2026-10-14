@@ -1,6 +1,7 @@
 import { pluginName } from '../utils/constantes'
 import type { Console, LogType, StyleDefinition, StyleDefinitions } from '../types/log'
-import type { ConsoleTraceEvent } from '../types/trace'
+import type { ConsoleTraceEvent, ConsoleTraceEventArgs } from '../types/trace'
+import { Store } from 'pinia'
 
 
 const style = (bgColor: string, color: string = 'white') =>
@@ -20,7 +21,7 @@ export function printObject(label: string, payload: object) {
 
     console.groupCollapsed(
         '%c%s',
-        'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 11px',
+        'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
         `[ ${label} ]`)
 
     if (Array.isArray(payload)) {
@@ -114,14 +115,17 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
                         printTracePayload(arg as Record<string, unknown>)
                         break;
                     case 'store':
-                        printObject(key, Object.keys(arg).reduce((acc, curr) => {
-                            if ((curr.startsWith('$') && !['$id', '$state'].includes(curr)) || curr.startsWith('_')) {
-                                return acc
-                            }
+                        printObject(key, {
+                            $state: (arg as Store)['$state'],
+                            ...Object.keys(arg).reduce((acc, curr) => {
+                                if ((curr.startsWith('$') && !['$id', '$state'].includes(curr)) || curr.startsWith('_')) {
+                                    return acc
+                                }
 
-                            acc[curr] = (arg as Record<string, unknown>)[curr]
-                            return acc
-                        }, {} as Record<string, unknown>))
+                                acc[curr] = (arg as Record<string, unknown>)[curr]
+                                return acc
+                            }, {} as Record<string, unknown>)
+                        })
                         break;
                     default:
                         printObject(key, arg)
@@ -157,12 +161,21 @@ export function logTrace(logStyle: string, args: any, pluginName: string) {
     const label = args.shift()
     const event = args[0]
 
+    if (!event?.payload || Object.keys(event.payload).length === 0) {
+        console.log(
+            '%c%s',
+            logStyle,
+            `${event?.label ?? event?.namespace}`,
+            event?.source
+        )
+        return
+    }
+
     console.groupCollapsed(
         '%c%s',
         logStyle,
         `${label}
-`,
-        event?.source
+`, event?.source
     )
 
     args.forEach((arg: any) => {
@@ -185,13 +198,15 @@ export function logTrace(logStyle: string, args: any, pluginName: string) {
         }
     })
 
-    console.groupCollapsed(
+    /**
+     console.groupCollapsed(
         '%c%s',
         'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 10px',
         `[ trace ]`
     )
     console.trace()
     console.groupEnd()
+     */
 
     console.groupEnd()
 }
@@ -273,17 +288,25 @@ export class TraceConsole extends CustomConsole {
     }
 
 
-    logGroup(label: string, group: ConsoleTraceEvent[]) {
-        this.startGroup()
-        this.log(label, group)
-        this.endGroup()
-    }
+    logGroup(groups: ConsoleTraceEvent[]) {
+        const firstEntry = groups.shift()
+        const context = firstEntry?.[1] as ConsoleTraceEventArgs
 
-    private startGroup(groupName?: string) {
-        console.group(groupName)
-    }
-
-    private endGroup() {
+        console.groupCollapsed(
+            '%c%s',
+            'color: #68ca59; padding: 1px; margin-right: 5px; font-size: 12px',
+            `[ 🍍 ${context?.label ?? context?.namespace} ] - ${context?.scope}`
+        )
+        if (context?.payload) {
+            printTracePayload(context.payload)
+        }
+        console.groupCollapsed(
+            '%c%s',
+            'color: #f1f6b7; padding: 1px; margin-right: 5px; font-size: 11px',
+            `[ TRACES ]`
+        )
+        groups.forEach(group => this.log(...group))
+        console.groupEnd()
         console.groupEnd()
     }
 

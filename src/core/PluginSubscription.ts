@@ -246,12 +246,8 @@ export default class PluginSubscription {
 
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
+            this.traceGroupStart(() => ({ args, name }), store.$id, 'onAction')
             const storageKey = getActionStoreKey(name, store)
-            this.trace('plugin:onAction', {
-                args,
-                name,
-                store,
-            }, store.$id)
 
             if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
                 this.createRollbackSnapshot(name, store)
@@ -275,12 +271,16 @@ export default class PluginSubscription {
             if (afterCallbacks?.length) {
                 after((result) => {
                     afterCallbacks.forEach(callback => callback(result))
+                    this.traceGroupEnd({}, store.$id)
                 })
             }
             if (onErrorCallbacks?.length) {
                 onError((error) => {
                     onErrorCallbacks.forEach(callback => callback(error))
                 })
+            }
+            if (!afterCallbacks?.length) {
+                this.traceGroupEnd({}, store.$id)
             }
         })
     }
@@ -293,7 +293,7 @@ export default class PluginSubscription {
         }
 
         if (
-            !subscriber.invoke(context, this._options?.createTracer)) {
+            !subscriber.invoke(context, this._options?.tracerHandler?.createTracer)) {
             return
         }
 
@@ -304,7 +304,7 @@ export default class PluginSubscription {
         try {
             hydrateResult = subscriber.hydrate?.(context)
         } catch (error) {
-            this.traceError('subscriber:hydrate', error, () => ({ store: context.store, options: context.options }), context.store.$id)
+            this.traceError('subscriber:hydrate', error, context.store.$id)
             return
         }
 
@@ -312,17 +312,19 @@ export default class PluginSubscription {
             try {
                 const afterHydration = subscriber.afterHydration?.(context)
                 if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
-                    ; (afterHydration as Promise<void>).catch(error => this.traceError('subscriber:afterHydration', error, () => ({ store: context.store, options: context.options }), context.store.$id))
+                    ; (afterHydration as Promise<void>).catch(
+                        error => this.traceError('subscriber:afterHydration', error, context.store.$id)
+                    )
                 }
             } catch (error) {
-                this.traceError('subscriber:afterHydration', error, () => ({ store: context.store, options: context.options }), context.store.$id)
+                this.traceError('subscriber:afterHydration', error, context.store.$id)
             }
         }
 
         if (hydrateResult && typeof (hydrateResult as Promise<void>).then === 'function') {
             ; (hydrateResult as Promise<void>)
                 .then(() => runAfterHydration())
-                .catch(error => this.traceError('subscriber:hydrate', error, () => ({ store: context.store, options: context.options }), context.store.$id))
+                .catch(error => this.traceError('subscriber:hydrate', error, context.store.$id))
         } else {
             runAfterHydration()
         }
@@ -346,13 +348,14 @@ export default class PluginSubscription {
         try {
             this.executeSubscriber(context, subscriber)
         } catch (e) {
-            this.traceError('subscriber:execute', e, () => ({ store: context.store, options: context.options }), context.store.$id)
+            this.traceError('subscriber:execute', e, context.store.$id)
         }
     }
 
     private initializeTracer() {
-        if (this._options?.createTracer) {
-            this._tracer = this._options.createTracer(pluginName)
+        console.log('Initializing tracer', this._options?.tracerHandler, this._options)
+        if (this._options?.tracerHandler) {
+            this._tracer = this._options.tracerHandler.createTracer(pluginName)
         }
     }
 
@@ -368,11 +371,11 @@ export default class PluginSubscription {
             return
         }
 
-        this.trace('plugin', {
+        this.traceGroupStart(() => ({
             subscribers: this._subscribers,
             store,
             options
-        }, store.$id)
+        }), store.$id)
 
         try {
             this._subscribers.forEach(
@@ -405,8 +408,9 @@ export default class PluginSubscription {
             this.executeStoreOnActionSubscription(store)
             this.registerStoreCleanup(store)
         } catch (e) {
-            this.traceError('plugin:invoke', e, () => ({ store, options }), store.$id)
+            this.traceError('plugin:invoke', e, store.$id)
         }
+        this.traceGroupEnd(() => ({}), store.$id)
     }
 
     private queueSubscriberExecution(
@@ -451,13 +455,8 @@ export default class PluginSubscription {
         const safeState = deepClone(initState)
 
         store.$reset = () => {
-            this.trace('store:reset', {
-                initState: safeState,
-                store
-            }, store.$id)
-
+            this.trace('store:reset', store.$id, () => ({ initialState: safeState }))
             this.executeResetStoreCallbacks(store)
-
             store.$patch(deepClone(safeState))
         }
     }
@@ -490,8 +489,9 @@ export default class PluginSubscription {
         const { store, callback } = subscription()
 
         store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
-            this.trace('store:mutation', { mutation, store }, store.$id)
+            this.traceGroupStart(() => ({ mutation }), store.$id, 'store:mutation')
             callback(mutation)
+            this.traceGroupEnd({}, store.$id)
         })
     }
 
@@ -544,12 +544,11 @@ export default class PluginSubscription {
 
             const { subscription, subscriptionOptions, stores } = pluginSubscription
 
-            this.trace('subscription:delivery', {
+            this.trace('Subscription:delivery', store.$id, () => ({
                 pluginName,
                 subscription,
-                options: subscriptionOptions,
-                stores
-            }, store.$id)
+                subscriptionOptions
+            }))
 
             const pluginOptions = {
                 storeOptions: { ...(options?.storeOptions ?? {}), ...subscriptionOptions }
@@ -573,7 +572,7 @@ export default class PluginSubscription {
                 )
             }
         } catch (e) {
-            this.traceError('subscription:delivery', e, () => ({ store, options }), store.$id)
+            this.traceError('subscription:delivery', e, store.$id)
         }
     }
 
@@ -581,7 +580,7 @@ export default class PluginSubscription {
      * Emits a structured trace event.
      * Prefer the factory form for `payload`: it is only resolved when consumed.
      */
-    private trace(label: string, payload?: TracePayload, scope?: string): void {
+    private trace(label: string, scope?: string, payload?: TracePayload): void {
         if (this._tracer) {
             label = this._className + ':' + label
 
@@ -592,12 +591,25 @@ export default class PluginSubscription {
     /**
      * Emits a structured error event, or rethrows it when no listener matches.
      */
-    private traceError(label: string, error: unknown, payload?: TracePayload, scope?: string): void {
+    private traceError(label: string, error: unknown, scope?: string, payload?: TracePayload): void {
         if (this._tracer) {
             label = this._className + ':' + label
             this._tracer.error(label, label.toLowerCase(), error, payload, scope)
         } else {
             console.error(error)
+        }
+    }
+
+    private traceGroupEnd(payload: TracePayload, scope: string): void {
+        if (this._options?.tracerHandler) {
+            this._options.tracerHandler.closeGroup({ ...(typeof payload === 'function' ? payload() : payload), scope })
+        }
+    }
+
+    private traceGroupStart(payload: TracePayload, scope: string, label?: string): void {
+        if (this._options?.tracerHandler) {
+            this._options.tracerHandler.startGroup({ ...(typeof payload === 'function' ? payload() : payload), scope })
+            this.trace(label ?? 'context', scope, payload)
         }
     }
 }

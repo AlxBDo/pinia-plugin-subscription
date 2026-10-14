@@ -22,8 +22,7 @@ export default class DemoStore extends Store {
         // Augment the store here if needed
         this.store.pluginIsActiveToggle = () => {
             this.state.pluginIsActive = !this.state.pluginIsActive
-            this.trace(`DemoStore:pluginIsActiveToggle`, {
-                scope: this.store.$id,
+            this.trace(`DemoStore:pluginIsActiveToggle`, this.store.$id, {
                 pluginIsActive: this.state.pluginIsActive
             })
         }
@@ -37,10 +36,7 @@ export default class DemoStore extends Store {
     private initialize() {
         // Using the trace method to log DemoStore methods execution
         // Store state, store and options are available using this.state, this.store and this.options
-        this.trace('DemoStore:initialize', {
-            state: this.state,
-            storeOptions: this.options
-        }, this.store.$id)
+        this.trace('DemoStore:initialize', this.store.$id)
 
         this.augmentState()
         this.augmentStore()
@@ -56,25 +52,23 @@ export default class DemoStore extends Store {
 
     private onActionCallback({ after, args, name, onError }: StoreOnActionCallbackParameters) {
         // Handle the mutation here
-        this.trace(`DemoStore:onAction:before:${name}`, { actionArgs: args }, this.store.$id)
+        this.trace(`DemoStore:onAction:before:${name}`, this.store.$id)
 
         after((result) => {
-            this.trace(`DemoStore:onAction:after:${name}`, {
-                actionResult: result,
-                actionArgs: args
-            }, this.store.$id)
+            this.trace(`DemoStore:onAction:after:${name}`, this.store.$id, {
+                actionResult: result
+            })
         })
 
         onError((error) => {
-            this.trace(`DemoStore:onAction:error:${name}`, {
-                actionError: error,
-                actionArgs: args
-            }, this.store.$id)
+            this.trace(`DemoStore:onAction:error:${name}`, this.store.$id, {
+                actionError: error
+            })
         })
     }
 
     private onMutationCallback(mutation: SubscriptionCallbackMutation<StateTree>) {
         // Handle the mutation here
-        this.trace(`demo-store:on-mutation`, { mutation }, this.store.$id)
+        this.trace(`demo-store:on-mutation`, this.store.$id)
     }
 }

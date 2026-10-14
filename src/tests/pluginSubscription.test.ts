@@ -13,7 +13,12 @@ function createContext(store: Store): PiniaPluginContext {
     } as unknown as PiniaPluginContext
 }
 
-const { addTraceListener, clearTraceListeners, createTracer, hasTraceListeners } = createTracerRegistry()
+const { addTraceListener, clearTraceListeners, createTracer } = createTracerRegistry()
+const tracerHandler = {
+    closeGroup: vi.fn(),
+    createTracer,
+    startGroup: vi.fn(),
+}
 
 function getPluginSubscription(
     subscribers: PluginSubscriber[],
@@ -21,7 +26,7 @@ function getPluginSubscription(
 ) {
     return new PluginSubscription(subscribers, {
         ...(options ?? {}),
-        createTracer,
+        tracerHandler,
     })
 }
 
@@ -62,7 +67,7 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin(createContext(createTracedStore()))
 
-            const invoke = events.find(event => event.label?.endsWith(':plugin') || event.namespace?.endsWith(':plugin'))
+            const invoke = events.find(event => event.label?.endsWith(':context') || event.namespace?.endsWith(':context'))
             expect(invoke).toMatchObject({ scope: 'cart', source: 'pinia-plugin-subscription' })
         })
 
@@ -1251,7 +1256,12 @@ describe('PluginSubscription', () => {
             } as unknown as Store
 
             expect(() => pluginSub.plugin({ store: mockStore, options: {} } as any)).not.toThrow()
-            expect(consoleLogSpy).toHaveBeenCalled()
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                '%c%s',
+                expect.any(String),
+                expect.stringContaining('subscription:delivery'),
+                expect.any(String)
+            )
             consoleLogSpy.mockRestore()
         })
 
@@ -1405,7 +1415,12 @@ describe('PluginSubscription', () => {
             await flushMicrotasks()
 
             expect(afterHydration).not.toHaveBeenCalled()
-            expect(consoleLogSpy).toHaveBeenCalled()
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                '%c%s',
+                expect.any(String),
+                expect.stringContaining('subscriber:hydrate'),
+                expect.any(String)
+            )
             consoleLogSpy.mockRestore()
         })
 
@@ -1430,7 +1445,12 @@ describe('PluginSubscription', () => {
             pluginSub.plugin({ store: mockStore, options: {} } as any)
             await flushMicrotasks()
 
-            expect(consoleLogSpy).toHaveBeenCalled()
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                '%c%s',
+                expect.any(String),
+                expect.stringContaining('subscriber:afterHydration'),
+                expect.any(String)
+            )
             consoleLogSpy.mockRestore()
         })
     })

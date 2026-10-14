@@ -249,7 +249,7 @@ describe('Store', () => {
             const collector: TraceEvent[] = []
             const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
 
-            storeInstance.trace('store:hydrate', () => ({ done: true }))
+            storeInstance.trace('store:hydrate', mockPiniaStore.$id, () => ({ done: true }))
             remove()
 
             expect(collector).toHaveLength(1)
@@ -266,7 +266,7 @@ describe('Store', () => {
         it('does not resolve the payload when nothing listens', () => {
             const payload = vi.fn(() => ({ heavy: true }))
 
-            storeInstance.trace('store:hydrate', payload)
+            storeInstance.trace('store:hydrate', mockPiniaStore.$id, payload)
 
             expect(payload).not.toHaveBeenCalled()
         })
