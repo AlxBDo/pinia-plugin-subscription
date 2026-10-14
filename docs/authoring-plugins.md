@@ -382,12 +382,12 @@ class CartStore extends Store {
 }
 ```
 
-`createTracerRegistry()` and `createConsoleTraceListener()` are available
-from `pinia-plugin-subscription/helpers`. Register listeners on a registry
-and pass its `createTracer` factory through `createPlugin()` options to
-connect them to plugin and store events. Listener filters can be callbacks
-over event metadata or criteria using `equals`, `contains`, `startsWith` and
-`endsWith` comparisons.
+`createTraceGroupsRegistry()` is available from
+`pinia-plugin-subscription/helpers`. Register event criteria with
+`addListener()` and pass the registry's `tracerHandler` through
+`createPlugin()` options to group plugin and store events in the console.
+Criteria target event metadata and support `equals`, `contains`, `startsWith`
+and `endsWith` comparisons.
 
 ## Typing per-store options: `StoreOptionsExtensions` (TypeScript)
 

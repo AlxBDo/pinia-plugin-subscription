@@ -209,7 +209,7 @@ The `Store` class (see [src/core/Store.ts](src/core/Store.ts)) is a wrapper arou
 
 ## Tracing
 
-Tracing is **opt-in**, scoped to an explicit registry, and **allocation free when unused**. Create one registry per application or Pinia instance, then pass its `createTracer` factory to `createPlugin()` so plugin and store events share its listeners. For SSR, create a fresh registry, Pinia instance, and plugin instance for every request; do not keep them in module-level state or clear a shared registry at request completion, since requests may overlap. See the [SSR guide](./docs/using-plugins.md#ssr--nuxt) for an example.
+Tracing is **opt-in**, scoped to an explicit registry, and **allocation free when unused**. Create a trace-groups registry per application or Pinia instance, add criteria to select the events to group, then pass its `tracerHandler` to `createPlugin()` so plugin and store events share its groups. For SSR, create a fresh registry, Pinia instance, and plugin instance for every request; do not keep them in module-level state or clear a shared registry at request completion, since requests may overlap. See the [SSR guide](./docs/using-plugins.md#ssr--nuxt) for an example.
 
 ### Production safety
 
@@ -223,42 +223,35 @@ Events are **not automatically redacted** and may include sensitive action argum
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTraceGroupsRegistry } from 'pinia-plugin-subscription/helpers'
 
-const traceRegistry = createTracerRegistry()
-const remove = traceRegistry.addTraceListener({
-  filter: (event) => event.scope === 'cart'
-    && event.namespace.startsWith('pluginsubscription:subscription:'),
-  handler: (event) => console.log(event.namespace, event.scope, event.payload)
-})
+const traceGroupsRegistry = createTraceGroupsRegistry()
+const remove = traceGroupsRegistry.addListener([
+  { target: 'scope', value: 'cart' },
+  { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+])
 
 pinia.use(createPlugin(subscribers, {
-  createTracer: traceRegistry.createTracer
+  tracerHandler: traceGroupsRegistry.tracerHandler
 }))
 
 remove() // unsubscribe
 ```
 
-`filter` is evaluated against event metadata before the payload is resolved,
-so you can narrow tracing to a single store without building discarded
-payloads. Registries do not share listeners with one another.
-
-For simple metadata filters, provide comparison criteria instead of a
-callback. Supported comparators are `equals` (the default), `contains`,
-`startsWith` and `endsWith`; multiple criteria use `every` by default or
-`some` when requested:
+Criteria are evaluated against event metadata, before the payload is resolved.
+By default, all criteria must match and events are grouped by `scope`. Supported
+comparators are `equals` (the default), `contains`, `startsWith` and `endsWith`;
+set `filterMode` to `some` to match any criterion or `groupBy` to group by a
+different event metadata field:
 
 ```ts
-traceRegistry.addTraceListener({
-  filter: [
-    { target: 'scope', value: 'cart' },
-    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
-  ]
-}, 'every')
+traceGroupsRegistry.addListener([
+  { target: 'scope', value: 'cart' },
+  { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+], { filterMode: 'every', groupBy: 'scope' })
 ```
 
-When no `handler` is provided for criteria-based registration, the registry
-uses its styled console listener.
+The registry uses the console's grouped output for matching events.
 
 ### Event shape
 
@@ -300,33 +293,24 @@ namespace is provided, the normalized label is used as the namespace.
 Always prefer the **function form** for `payload`: it is only invoked once a
 listener matches, so unobserved tracing costs nothing.
 
-### Console listener
+### Grouped console output
 
-Normal trace events do not write to a console. Console output for those events is an opt-in listener:
-
-```ts
-import {
-  createConsoleTraceListener,
-  createTracerRegistry
-} from 'pinia-plugin-subscription/helpers'
-
-const traceRegistry = createTracerRegistry()
-const remove = traceRegistry.addTraceListener({
-  ...createConsoleTraceListener(),
-  filter: () => true
-})
-```
-
-By default, this listener uses the styled plugin console. Pass any object exposing `log` and `error` to use another target:
-
-Any object exposing `log` and `error` satisfies the `Console` interface, so external logging libraries can be connected without this plugin depending on them:
+Normal trace events do not write to a console. To opt into console output grouped
+by store, configure the registry and pass its `tracerHandler` to the plugin:
 
 ```ts
-const remove = traceRegistry.addTraceListener({
-  ...createConsoleTraceListener(myLogger),
-  filter: () => true
-})
+import { createTraceGroupsRegistry } from 'pinia-plugin-subscription/helpers'
+
+const traceGroupsRegistry = createTraceGroupsRegistry()
+traceGroupsRegistry.addListener([{ target: 'scope', value: 'cart' }])
+
+pinia.use(createPlugin(subscribers, {
+  tracerHandler: traceGroupsRegistry.tracerHandler
+}))
 ```
+
+Groups are selected by event metadata and default to grouping by `scope`. Use
+`addListener()`'s `groupBy` option to group by another metadata field.
 
 ### Error reporting
 

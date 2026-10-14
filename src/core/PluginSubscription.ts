@@ -353,7 +353,6 @@ export default class PluginSubscription {
     }
 
     private initializeTracer() {
-        console.log('Initializing tracer', this._options?.tracerHandler, this._options)
         if (this._options?.tracerHandler) {
             this._tracer = this._options.tracerHandler.createTracer(pluginName)
         }
