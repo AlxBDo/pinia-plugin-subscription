@@ -319,39 +319,33 @@ Register listeners independently from plugin construction:
 
 ```js
 import {
-  createConsoleTraceListener,
-  createTracerRegistry
+  createTraceGroupsRegistry
 } from 'pinia-plugin-subscription/helpers'
 import {
   createPlugin
 } from 'pinia-plugin-subscription'
 
-const traceRegistry = createTracerRegistry()
+const traceGroupsRegistry = createTraceGroupsRegistry()
 
-traceRegistry.addTraceListener({
-  ...createConsoleTraceListener(),
-  filter: event => event.scope === 'cart'
-})
+traceGroupsRegistry.addListener([
+  { target: 'scope', value: 'cart' }
+])
 
 pinia.use(createPlugin([myStoreSubscriber], {
-  createTracer: traceRegistry.createTracer
+  tracerHandler: traceGroupsRegistry.tracerHandler
 }))
 ```
 
-Filters run in real time and can target a source, namespace, store scope, or
-trace level without passing diagnostic options through subscribers.
-You can also use comparison criteria (`equals`, `contains`, `startsWith` or
-`endsWith`) instead of a filter callback; criteria are combined with `every`
-by default or `some` when requested. If criteria are provided without a
-handler, the registry uses its styled console listener.
+The registry groups matching events by store scope by default. Criteria can
+target a source, namespace, store scope, or trace level and support the
+`equals`, `contains`, `startsWith` and `endsWith` comparators. Criteria use
+`every` by default; pass `{ filterMode: 'some' }` to match any criterion.
 
 ```js
-traceRegistry.addTraceListener({
-  filter: [
-    { target: 'scope', value: 'cart' },
-    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
-  ]
-}, 'every')
+traceGroupsRegistry.addListener([
+  { target: 'scope', value: 'cart' },
+  { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+], { filterMode: 'every', groupBy: 'scope' })
 ```
 
 ## SSR / Nuxt
@@ -371,18 +365,18 @@ finishes.
 import { createSSRApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTraceGroupsRegistry } from 'pinia-plugin-subscription/helpers'
 import App from './App.vue'
 import { subscribers } from './subscribers'
 
-export function createRequestApp(traceListener) {
+export function createRequestApp(traceCriteria) {
   const app = createSSRApp(App)
   const pinia = createPinia()
-  const traceRegistry = createTracerRegistry()
+  const traceGroupsRegistry = createTraceGroupsRegistry()
 
-  traceRegistry.addTraceListener(traceListener)
+  traceGroupsRegistry.addListener(traceCriteria)
   pinia.use(createPlugin(subscribers, {
-    createTracer: traceRegistry.createTracer
+    tracerHandler: traceGroupsRegistry.tracerHandler
   }))
   app.use(pinia)
 
@@ -391,7 +385,7 @@ export function createRequestApp(traceListener) {
 ```
 
 Call `createRequestApp()` once for each incoming SSR request. The request's
-listener is then reachable only through that request's registry and plugin.
+trace criteria are then registered only in that request's registry and plugin.
 
 When a plugin needs a runtime-specific scheduler or environment override —
 without forcing every app to re-declare the plugin's execution policy —
