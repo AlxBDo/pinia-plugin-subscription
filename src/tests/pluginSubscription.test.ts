@@ -2,7 +2,7 @@
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
-import { createConsoleTraceListener } from '../factories/console-trace-listener'
+import { createConsoleGroupTraceListener } from '../factories/console-trace-listener'
 import { createTracerRegistry } from '../factories/trace-registry'
 import type { TraceEvent } from '../types/trace'
 
@@ -13,11 +13,13 @@ function createContext(store: Store): PiniaPluginContext {
     } as unknown as PiniaPluginContext
 }
 
-const { addTraceListener, clearTraceListeners, createTracer } = createTracerRegistry()
+const traceRegistry = createTracerRegistry()
+const { addListener, clearTraceListeners } = traceRegistry
+const createTracer = traceRegistry.tracerHandler.createTracer
 const tracerHandler = {
-    closeGroup: vi.fn(),
+    closeGroup: traceRegistry.tracerHandler.closeGroup,
     createTracer,
-    startGroup: vi.fn(),
+    startGroup: traceRegistry.tracerHandler.startGroup,
 }
 
 function getPluginSubscription(
@@ -37,9 +39,9 @@ describe('PluginSubscription', () => {
 
     beforeEach(() => {
         clearTraceListeners()
-        addTraceListener({
-            ...createConsoleTraceListener(),
-            filter: event => event.level === 'error'
+        addListener({
+            filter: event => event.level === 'error',
+            handler: createConsoleGroupTraceListener().handler
         })
         // Create a fresh instance before each test
         pluginSub = getPluginSubscription([])
@@ -62,7 +64,7 @@ describe('PluginSubscription', () => {
 
         it('emits the plugin lifecycle trace scoped to the store id', () => {
             const events: TraceEvent[] = []
-            addTraceListener({ handler: (event) => { events.push(event) } })
+            addListener({ filter: () => true, handler: (event) => { events.push(event) } })
             pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
 
             pluginSub.plugin(createContext(createTracedStore()))
@@ -73,7 +75,7 @@ describe('PluginSubscription', () => {
 
         it('supports filtering a single store at runtime', () => {
             const events: TraceEvent[] = []
-            addTraceListener({ filter: (event) => event.scope === 'other', handler: (event) => { events.push(event) } })
+            addListener({ filter: (event) => event.scope === 'other', handler: (event) => { events.push(event) } })
             pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
 
             pluginSub.plugin(createContext(createTracedStore()))
@@ -83,7 +85,7 @@ describe('PluginSubscription', () => {
 
         it('emits store:reset when the rewritten $reset runs', () => {
             const events: TraceEvent[] = []
-            addTraceListener({ handler: (event) => { events.push(event) } })
+            addListener({ filter: () => true, handler: (event) => { events.push(event) } })
             const store = createTracedStore()
             pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
 
@@ -95,7 +97,7 @@ describe('PluginSubscription', () => {
 
         it('reports subscriber failures as error events without throwing', () => {
             const events: TraceEvent[] = []
-            addTraceListener({ handler: (event) => { events.push(event) } })
+            addListener({ filter: () => true, handler: (event) => { events.push(event) } })
             pluginSub.subscribers = [{
                 name: 's',
                 invoke: vi.fn(() => { throw new Error('subscriber down') }),

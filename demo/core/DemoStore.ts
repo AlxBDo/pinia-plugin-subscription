@@ -1,14 +1,14 @@
-import { Store } from 'pinia-plugin-subscription/helpers'
+import Store from '../../src/core/Store'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from "pinia"
 import type { PluginStoreOptions, PluginSubscriptionOptions, StoreOnActionCallbackParameters } from 'pinia-plugin-subscription'
-import type { DemoPluginOptions } from '../types/plugin'
+import type { DemoPluginClassOptions } from '../types/plugin'
 
 export default class DemoStore extends Store {
     protected _className = 'DemoStore'
     protected static _requiredKeys?: string[] = ['active']
 
-    constructor(store: PiniaStore, options: { storeOptions: DemoPluginOptions }) {
+    constructor(store: PiniaStore, options: { storeOptions: DemoPluginClassOptions }) {
         super(store, options)
         this.initialize()
     }
@@ -22,13 +22,13 @@ export default class DemoStore extends Store {
         // Augment the store here if needed
         this.store.pluginIsActiveToggle = () => {
             this.state.pluginIsActive = !this.state.pluginIsActive
-            this.trace(`DemoStore:pluginIsActiveToggle`, this.store.$id, {
+            this.trace(`pluginIsActiveToggle`, this.store.$id, {
                 pluginIsActive: this.state.pluginIsActive
             })
         }
     }
 
-    protected static hasRequiredKeys(options: DemoPluginOptions & PluginStoreOptions & PluginSubscriptionOptions): boolean {
+    protected static hasRequiredKeys(options: DemoPluginClassOptions & PluginStoreOptions & PluginSubscriptionOptions): boolean {
         // Plugin is executed only if the hasRequiredKeys check passes
         return options.active === true
     }
@@ -36,7 +36,7 @@ export default class DemoStore extends Store {
     private initialize() {
         // Using the trace method to log DemoStore methods execution
         // Store state, store and options are available using this.state, this.store and this.options
-        this.trace('DemoStore:initialize', this.store.$id)
+        this.trace('initialize', this.store.$id)
 
         this.augmentState()
         this.augmentStore()
@@ -52,23 +52,23 @@ export default class DemoStore extends Store {
 
     private onActionCallback({ after, args, name, onError }: StoreOnActionCallbackParameters) {
         // Handle the mutation here
-        this.trace(`DemoStore:onAction:before:${name}`, this.store.$id)
+        this.trace(`onAction:before:${name}`, this.store.$id)
 
         after((result) => {
-            this.trace(`DemoStore:onAction:after:${name}`, this.store.$id, {
+            this.trace(`onAction:after:${name}`, this.store.$id, () => ({
                 actionResult: result
-            })
+            }))
         })
 
         onError((error) => {
-            this.trace(`DemoStore:onAction:error:${name}`, this.store.$id, {
+            this.trace(`onAction:error:${name}`, this.store.$id, () => ({
                 actionError: error
-            })
+            }))
         })
     }
 
     private onMutationCallback(mutation: SubscriptionCallbackMutation<StateTree>) {
         // Handle the mutation here
-        this.trace(`demo-store:on-mutation`, this.store.$id)
+        this.trace(`onMutation`, this.store.$id)
     }
 }

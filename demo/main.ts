@@ -3,28 +3,50 @@ import { createPinia } from 'pinia'
 import './style.css'
 import App from './App.vue'
 import { createPlugin } from '../src/plugins/createPlugin.ts'
-import { createTracerRegistry, createTraceGroupsRegistry } from '../src/factories/trace-registry.ts'
-import { DemoPlugin } from './plugins/DemoPlugin.ts'
+import { createTracerRegistry } from '../src/factories/trace-registry.ts'
+import { DemoPluginClass } from './plugins/DemoPluginClass.ts'
+import { demoPluginObject } from './plugins/DemoPluginObject.ts'
 import { ExtendsPiniaStore, PLUGIN_NAME as PPES } from 'pinia-plugin-extending-store'
-import { pluginName } from '../src/utils/constantes.ts'
 
 const app = createApp(App)
 const pinia = createPinia()
 
-//const tracerRegistry = createTracerRegistry()
-const tracerGroupRegistry = createTraceGroupsRegistry()
+const tracerRegistry = createTracerRegistry()
 
 pinia.use(
     createPlugin(
-        [DemoPlugin, ExtendsPiniaStore],
-        { tracerHandler: tracerGroupRegistry.tracerHandler }
+        [DemoPluginClass, ExtendsPiniaStore, demoPluginObject],
+        { tracerHandler: tracerRegistry.tracerHandler }
     )
 )
 
-tracerGroupRegistry.addListener([{
-    target: 'scope',
-    value: 'rollbackSnapshotStoreWithRollback'
-}, { target: 'scope', value: 'lists' }], { filterMode: 'some' })
+
+/**
+ tracerRegistry.addListener({
+    filter: event => {
+        const namespaceArray = event.namespace?.split(':') ?? []
+        return event.scope === 'rollbackSnapshotStoreWithRollback' && (
+            namespaceArray[0] === 'demostore'
+            || namespaceArray[0] === 'pluginsubscription'
+            || namespaceArray[0] === 'store'
+            || !namespaceArray[0]
+        )
+    }
+})
+ */
+
+
+tracerRegistry.addListener(
+    [
+        {
+            target: 'scope',
+            value: 'rollbackSnapshotStoreWithRollback',
+        },
+        //{ target: 'namespace', value: 'demostore', comparator: 'startsWith' },
+        { target: 'scope', value: 'lists' }
+    ],
+    { filterMode: 'some' }
+)
 
 /**
 

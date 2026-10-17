@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { PluginConsole } from '../system/log'
-import { pluginName } from '../utils/constantes'
+import { pluginName } from '../utils/constants'
 
 describe('PluginConsole', () => {
     let consoleSpy: any

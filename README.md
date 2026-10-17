@@ -223,9 +223,9 @@ Events are **not automatically redacted** and may include sensitive action argum
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTraceGroupsRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 
-const traceGroupsRegistry = createTraceGroupsRegistry()
+const traceGroupsRegistry = createTracerRegistry()
 const remove = traceGroupsRegistry.addListener([
   { target: 'scope', value: 'cart' },
   { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
@@ -299,9 +299,9 @@ Normal trace events do not write to a console. To opt into console output groupe
 by store, configure the registry and pass its `tracerHandler` to the plugin:
 
 ```ts
-import { createTraceGroupsRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 
-const traceGroupsRegistry = createTraceGroupsRegistry()
+const traceGroupsRegistry = createTracerRegistry()
 traceGroupsRegistry.addListener([{ target: 'scope', value: 'cart' }])
 
 pinia.use(createPlugin(subscribers, {

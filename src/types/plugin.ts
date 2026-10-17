@@ -38,13 +38,9 @@ export interface PluginStoreOptions {
 
 export interface PluginSubscriptionOptions {
     /**
-     * Creates a new tracer instance for the plugin subscriber.
-     * @param source The source string used to create the tracer.
-     * @returns A new instance of the Tracer class.
-     * @see Tracer for more details on the tracer implementation.
+     * Tracer handler for the plugin subscriber.
+     * This allows the plugin to interact with the tracing system.
      */
-    //createTracer?: (source: string) => Tracer
-
     tracerHandler?: TracerHandler
 
     /**
@@ -103,7 +99,7 @@ export interface PluginSubscriber {
      * Function to invoke the plugin subscriber.
      * Returns a boolean indicating whether the invocation was successful.
      */
-    invoke: (context: PiniaPluginContext, createTracer?: (source: string) => Tracer) => boolean
+    invoke: PluginSubscriberInvoke
 
     /**
      * Name of the plugin subscriber.
@@ -140,6 +136,8 @@ export interface PluginSubscriber {
      */
     afterHydration?: (context: PiniaPluginContext) => void | Promise<void>
 }
+
+export type PluginSubscriberInvoke = (context: PiniaPluginContext, createTracer?: (source: string) => Tracer) => boolean
 
 /**
  * Return type for native Pinia subscriptions.

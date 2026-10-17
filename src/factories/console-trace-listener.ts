@@ -1,8 +1,8 @@
-import { PluginConsole, TraceConsole } from '../system/log'
+import { TraceConsole } from '../system/log'
 
 import type { Console } from '../types/log'
 import type {
-    ConsoleTraceEvent, ConsoleTraceEventArgs, TraceEvent, TraceListenerGroupBy, ConsoleTraceGroupListener, TraceListener
+    ConsoleTraceEvent, ConsoleTraceEventArgs, TraceEvent, TraceListenerGroupBy, ConsoleTraceGroupListener
 } from '../types/trace'
 
 
@@ -20,20 +20,6 @@ function buildConsoleArgsFromEvent(event: TraceEvent): ConsoleTraceEvent {
     }, {} as Record<string, unknown>)
 
     return [formatTraceLabel(event), sanitizedEvent as ConsoleTraceEventArgs]
-
-    /**
-     if (event.error !== undefined) {
-        args.push(event.error)
-    }
-
-    if (event.payload !== undefined) {
-        if (Array.isArray(event.payload)) {
-            args.push(...event.payload)
-        } else {
-            args.push(event.payload)
-        }
-    }
-        */
 }
 
 function formatTraceLabel(event: TraceEvent): string {
@@ -48,21 +34,10 @@ function log(target: Console, event: TraceEvent): void {
 }
 
 /**
- * Creates an opt-in trace listener that reproduces the former console output.
+ * Creates a console trace group listener that groups trace events by the specified key.
+ * @param groupBy The key of the trace event metadata to group by.
+ * @returns A console trace group listener configured to group trace events by the specified key.
  */
-export function createConsoleTraceListener(target?: Console): Omit<TraceListener, 'filter'> {
-    if (!target) {
-        target = new TraceConsole()
-    }
-
-    return {
-        handler(event): void {
-            log(target, event)
-        }
-    }
-}
-
-
 export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 'scope'): ConsoleTraceGroupListener {
     const target = new TraceConsole()
     const groups = new Map<string, ConsoleTraceEvent[]>()

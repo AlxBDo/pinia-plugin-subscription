@@ -1,19 +1,24 @@
-import { createConsoleTraceListener, createConsoleGroupTraceListener } from "./console-trace-listener"
+import { createConsoleGroupTraceListener } from "./console-trace-listener"
+import { pluginName } from "../utils/constants"
+
 import type {
-    ConsoleTraceGroupListener,
     TraceEventMetadata,
     TraceFilterFactoryCriterion,
     TraceFilterFactoryParam,
-    TraceGroupListener,
-    TraceListener
+    TraceGroupListener
 } from "../types/trace"
 
 
-function createFilter(criteria: TraceFilterFactoryCriterion[], mode: 'every' | 'some') {
+function createFilter(criteria: TraceFilterFactoryCriterion[], context: boolean = true, mode: 'every' | 'some') {
     return (event: TraceEventMetadata) => {
         return criteria[mode](({ comparator = 'equals', target, value }) => {
+            if (target === 'namespace' && context && isPluginSubscription(event)) {
+                return true
+            }
+
             const eventValue = event[target]
             if (typeof eventValue !== 'string') return false
+
             let result = false
             switch (comparator) {
                 case 'equals':
@@ -39,57 +44,44 @@ function createFilter(criteria: TraceFilterFactoryCriterion[], mode: 'every' | '
 
 /**
  * Creates a trace group listener with optional filtering.
- * @param filterDef The filter criteria for the trace events.
+ * @param listenerDef The listener definition or filter criteria for the trace group listener.
+ * @param context Print the plugin context (subscribers, store, options, and traces) to the console.. Defaults to true.
  * @param filterMode The mode to apply when evaluating multiple filter criteria: 'every' or 'some'.
  * @param groupBy The key of the trace event metadata to group by.
  * @returns A trace listener configured with group handling and filtering.
  */
 export function createTraceGroupListener(
-    filterDef: TraceFilterFactoryCriterion[],
+    listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
+    context: boolean = true,
     filterMode: 'every' | 'some' = 'every',
     groupBy: keyof TraceEventMetadata = 'scope'
 ) {
     return {
         groupBy,
         ...createConsoleGroupTraceListener(groupBy),
-        ...createTraceFilter(filterDef, filterMode)
+        ...createTraceFilter(listenerDef, context, filterMode)
     } as TraceGroupListener
 
 }
 
 function createTraceFilter(
     listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
+    context: boolean = true,
     filterMode: 'every' | 'some' = 'every'
 ) {
     if (Array.isArray(listenerDef)) {
         listenerDef = {
-            filter: createFilter(listenerDef, filterMode)
+            filter: createFilter(listenerDef, context, filterMode)
         }
     }
 
     if (listenerDef.filter && Array.isArray(listenerDef.filter)) {
-        listenerDef.filter = createFilter(listenerDef.filter, filterMode)
-    }
-
-    if (!listenerDef.filter || typeof listenerDef.filter !== 'function') {
-        listenerDef = { ...listenerDef, filter: () => true }
+        listenerDef.filter = createFilter(listenerDef.filter, context, filterMode)
     }
 
     return listenerDef
 }
 
-/**
- * Creates a trace listener with optional filtering.
- * @param param The trace listener parameters including handler and optional filter criteria.
- * @param filterMode The mode to apply when evaluating multiple filter criteria: 'every' or 'some'.
- * @returns A trace listener configured with the specified handler and filter.
- */
-export function createTraceListener(listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[], filterMode: 'every' | 'some' = 'every'): TraceListener {
-    listenerDef = createTraceFilter(listenerDef, filterMode)
-
-    if (!listenerDef?.handler) {
-        listenerDef = { ...listenerDef, ...createConsoleTraceListener() } as TraceFilterFactoryParam
-    }
-
-    return listenerDef as TraceListener
+function isPluginSubscription(event: TraceEventMetadata): boolean {
+    return event?.source === pluginName && (!event?.namespace || event.namespace.startsWith('pluginsubscription'))
 }

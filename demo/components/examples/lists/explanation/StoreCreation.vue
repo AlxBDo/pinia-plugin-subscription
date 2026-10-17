@@ -34,7 +34,11 @@ export const useListsStore = (id?: string) => defineAStore<ListsStoreMethods, Li
     () => ({}),
     {
         parentsStores: [
-            new ParentStore('listsCollection', useCollectionStore, { actionsToRename: { getItems: 'getLists' } })
+            new ParentStore(
+                ($id ?? 'lists') + 'Collection', 
+                useCollectionStore, 
+                { actionsToRename: { getItems: 'getLists' } }
+            )
         ]
     }
 )()`}}

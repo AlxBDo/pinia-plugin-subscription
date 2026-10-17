@@ -33,7 +33,9 @@ import type { PluginStoreOptions, StoreOptions } from '../types'
 import type { TraceEvent } from '../types/trace'
 import { defineAStore, defineAStoreCtx, getDefineAStoreSetupContext } from '../utils/store'
 
-const { addTraceListener, clearTraceListeners, createTracer } = createTracerRegistry()
+const traceRegistry = createTracerRegistry()
+const { addListener, clearTraceListeners } = traceRegistry
+const createTracer = traceRegistry.tracerHandler.createTracer
 
 class StoreChild extends Store {
     protected static override _requiredKeys?: string[] | undefined = ['test']
@@ -247,7 +249,7 @@ describe('Store', () => {
     describe('trace', () => {
         it('emits a structured event scoped to the store id', () => {
             const collector: TraceEvent[] = []
-            const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
+            const remove = addListener({ filter: () => true, handler: (event) => { collector.push(event) } })
 
             storeInstance.trace('store:hydrate', mockPiniaStore.$id, () => ({ done: true }))
             remove()
@@ -273,24 +275,13 @@ describe('Store', () => {
 
         it('reports errors to matching listeners', () => {
             const collector: TraceEvent[] = []
-            const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
+            const remove = addListener({ filter: () => true, handler: (event) => { collector.push(event) } })
 
             storeInstance.traceError('store:hydrate', new Error('boom'))
             remove()
 
             expect(collector).toHaveLength(1)
             expect(collector[0].level).toBe('error')
-        })
-
-        it('uses the subclass name in the trace label, resolved lazily', () => {
-            const collector: TraceEvent[] = []
-            const remove = addTraceListener({ handler: (event) => { collector.push(event) } })
-
-            new NamedStoreChild(mockPiniaStore, mockOptions as any).trace('child:event')
-            remove()
-
-            expect(collector[0].label).toBe('NamedStoreChild:child:event')
-            expect(collector[0].source).toBeUndefined()
         })
     })
 

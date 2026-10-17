@@ -1,5 +1,5 @@
 import type { StoreOptions } from "pinia-plugin-subscription"
 
-export interface DemoPluginOptions extends StoreOptions {
+export interface DemoPluginClassOptions extends StoreOptions {
     active: boolean
 }

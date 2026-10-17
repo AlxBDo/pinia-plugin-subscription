@@ -6,10 +6,10 @@ class DemoPluginSubscriber extends PluginSubscriber<DemoStore> {
 
     constructor() {
         super(
-            'demo-plugin',
+            'demo-plugin-class',
             DemoStore.customizeStore.bind(DemoStore)
         )
     }
 }
 
-export const DemoPlugin = new DemoPluginSubscriber()
+export const DemoPluginClass = new DemoPluginSubscriber()
