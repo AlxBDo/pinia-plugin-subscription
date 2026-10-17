@@ -319,13 +319,13 @@ Register listeners independently from plugin construction:
 
 ```js
 import {
-  createTraceGroupsRegistry
+  createTracerRegistry
 } from 'pinia-plugin-subscription/helpers'
 import {
   createPlugin
 } from 'pinia-plugin-subscription'
 
-const traceGroupsRegistry = createTraceGroupsRegistry()
+const traceGroupsRegistry = createTracerRegistry()
 
 traceGroupsRegistry.addListener([
   { target: 'scope', value: 'cart' }
@@ -365,14 +365,14 @@ finishes.
 import { createSSRApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTraceGroupsRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 import App from './App.vue'
 import { subscribers } from './subscribers'
 
 export function createRequestApp(traceCriteria) {
   const app = createSSRApp(App)
   const pinia = createPinia()
-  const traceGroupsRegistry = createTraceGroupsRegistry()
+  const traceGroupsRegistry = createTracerRegistry()
 
   traceGroupsRegistry.addListener(traceCriteria)
   pinia.use(createPlugin(subscribers, {

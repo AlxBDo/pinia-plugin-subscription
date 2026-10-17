@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
-- Added `createTraceGroupsRegistry()` to group matching trace events in the console
+- Added `createTracerRegistry()` to group matching trace events in the console
 - Added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
 - Added metadata-based trace filter criteria with `equals`, `contains`, `startsWith` and `endsWith` comparators, combined with `every` or `some`
 - Added `createConsoleTraceListener()` as an opt-in console sink for trace events

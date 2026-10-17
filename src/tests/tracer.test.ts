@@ -1,14 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTraceGroupsRegistry, createTracerRegistry } from '../factories/trace-registry'
+import { createTracerRegistry } from '../factories/trace-registry'
 
 import type { TraceEvent } from '../types/trace'
 
 function createCollector() {
     const events: TraceEvent[] = []
-    return { events, handler: (event: TraceEvent) => { events.push(event) } }
+    return {
+        events,
+        filter: () => true,
+        handler: (event: TraceEvent) => { events.push(event) }
+    }
 }
 
-const { addTraceListener, clearTraceListeners, createTracer, hasTraceListeners } = createTracerRegistry()
+const registry = createTracerRegistry()
+const { addListener, clearTraceListeners, hasTraceListeners } = registry
+const createTracer = registry.tracerHandler.createTracer
 
 describe('Tracer', () => {
     let consoleSpy: any
@@ -20,7 +26,7 @@ describe('Tracer', () => {
 
     describe('Trace groups registry', () => {
         it('groups matching events by scope and flushes them when the group closes', () => {
-            const registry = createTraceGroupsRegistry()
+            const registry = createTracerRegistry()
             const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
             const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             registry.addListener([{ target: 'scope', value: 'cart' }])
@@ -38,7 +44,7 @@ describe('Tracer', () => {
         })
 
         it('uses the configured filter mode when selecting groups', () => {
-            const registry = createTraceGroupsRegistry()
+            const registry = createTracerRegistry()
             const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
             const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             registry.addListener([
@@ -71,7 +77,7 @@ describe('Tracer', () => {
 
         it('does not resolve the payload when every filter rejects the event', () => {
             const payload = vi.fn(() => ({ heavy: true }))
-            addTraceListener({ filter: () => false, handler: () => { } })
+            addListener({ filter: () => false, handler: () => { } })
 
                 ; (createTracer('Source')).debug('Mutation', 'store:mutation', payload)
 
@@ -81,7 +87,7 @@ describe('Tracer', () => {
         it('resolves the payload once a listener matches', () => {
             const payload = vi.fn(() => ({ heavy: true }))
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
                 ; (createTracer('Source')).debug('Mutation', 'store:mutation', payload)
 
@@ -91,7 +97,7 @@ describe('Tracer', () => {
 
         it('accepts a plain object payload', () => {
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
                 ; (createTracer('Source')).debug('Mutation', 'store:mutation', { direct: 1 })
 
@@ -100,7 +106,7 @@ describe('Tracer', () => {
 
         it('never lets a throwing payload factory break the caller', () => {
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
             expect(() => (createTracer('Source')).debug('Mutation', 'ns', () => { throw new Error('boom') })).not.toThrow()
             expect(collector.events[0].payload).toHaveProperty('__tracePayloadError')
@@ -110,7 +116,7 @@ describe('Tracer', () => {
     describe('event shape', () => {
         it('exposes namespace, source, scope and timestamp', () => {
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
                 ; (createTracer('PluginSubscription')).debug('Subscription:delivery', 'subscription:delivery', undefined, 'cart')
 
@@ -126,7 +132,7 @@ describe('Tracer', () => {
 
         it('falls back to the tracer scope when none is given', () => {
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
                 ; (createTracer('Store', { scope: 'user' })).debug('Mutation', 'ns')
 
@@ -135,7 +141,7 @@ describe('Tracer', () => {
 
         it('lets an explicit scope override the tracer scope', () => {
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
                 ; (createTracer('Store', { scope: 'user' })).debug('Mutation', 'ns', undefined, 'cart')
 
@@ -146,7 +152,7 @@ describe('Tracer', () => {
     describe('filtering', () => {
         it('delivers only events matching the filter', () => {
             const collector = createCollector()
-            addTraceListener({
+            addListener({
                 filter: (event) => event.namespace.startsWith('store:'),
                 handler: collector.handler
             })
@@ -160,7 +166,7 @@ describe('Tracer', () => {
 
         it('supports filtering by scope, enabling per-instance tracing', () => {
             const collector = createCollector()
-            addTraceListener({ filter: (event) => event.scope === 'cart', handler: collector.handler })
+            addListener({ filter: (event) => event.scope === 'cart', handler: collector.handler })
 
             const tracer = createTracer('Source')
             tracer.debug('Mutation', 'ns', undefined, 'cart')
@@ -172,7 +178,7 @@ describe('Tracer', () => {
 
         it('treats a throwing filter as non matching', () => {
             const collector = createCollector()
-            addTraceListener({ filter: () => { throw new Error('bad filter') }, handler: collector.handler })
+            addListener({ filter: () => { throw new Error('bad filter') }, handler: collector.handler })
 
             expect(() => (createTracer('Source')).debug('Mutation', 'ns')).not.toThrow()
             expect(collector.events).toHaveLength(0)
@@ -182,7 +188,7 @@ describe('Tracer', () => {
     describe('listener registry', () => {
         it('reports whether listeners are registered', () => {
             expect(hasTraceListeners()).toBe(false)
-            addTraceListener({ handler: () => { } })
+            addListener({ filter: () => true, handler: () => { } })
             expect(hasTraceListeners()).toBe(true)
         })
 
@@ -191,10 +197,10 @@ describe('Tracer', () => {
             const secondRegistry = createTracerRegistry()
             const first = createCollector()
             const second = createCollector()
-            firstRegistry.addTraceListener(first)
+            firstRegistry.addListener(first)
 
-            firstRegistry.createTracer('Source').debug('Mutation', 'ns')
-            secondRegistry.createTracer('Source').debug('Mutation', 'ns')
+            firstRegistry.tracerHandler.createTracer('Source').debug('Mutation', 'ns')
+            secondRegistry.tracerHandler.createTracer('Source').debug('Mutation', 'ns')
 
             expect(first.events).toHaveLength(1)
             expect(second.events).toHaveLength(0)
@@ -203,7 +209,7 @@ describe('Tracer', () => {
 
         it('removes a listener through the returned remover', () => {
             const collector = createCollector()
-            const remove = addTraceListener(collector)
+            const remove = addListener(collector)
 
             remove()
                 ; (createTracer('Source')).debug('Mutation', 'ns')
@@ -214,8 +220,8 @@ describe('Tracer', () => {
         it('delivers to every registered listener', () => {
             const first = createCollector()
             const second = createCollector()
-            addTraceListener(first)
-            addTraceListener(second)
+            addListener(first)
+            addListener(second)
 
                 ; (createTracer('Source')).debug('Mutation', 'ns')
 
@@ -225,8 +231,8 @@ describe('Tracer', () => {
 
         it('isolates a throwing listener from the traced code and other listeners', () => {
             const collector = createCollector()
-            addTraceListener({ handler: () => { throw new Error('listener down') } })
-            addTraceListener(collector)
+            addListener({ filter: () => true, handler: () => { throw new Error('listener down') } })
+            addListener(collector)
 
             expect(() => (createTracer('Source')).debug('Mutation', 'ns')).not.toThrow()
             expect(collector.events).toHaveLength(1)
@@ -236,7 +242,7 @@ describe('Tracer', () => {
     describe('error propagation', () => {
         it('delivers error events to listeners too', () => {
             const collector = createCollector()
-            addTraceListener(collector)
+            addListener(collector)
 
                 ; (createTracer('Source')).error('Failure', 'ns', new Error('boom'))
 
@@ -252,7 +258,7 @@ describe('Tracer', () => {
 
         it('log error when registered listeners reject the event', () => {
             const failure = new Error('boom')
-            addTraceListener({
+            addListener({
                 filter: event => event.level === 'debug',
                 handler: () => { }
             })
@@ -263,14 +269,14 @@ describe('Tracer', () => {
 
         it('does not rethrow when at least one listener matches', () => {
             const failure = new Error('boom')
-            addTraceListener({ handler: () => { } })
+            addListener({ filter: () => true, handler: () => { } })
 
             expect(() => (createTracer('Source')).error('Failure', 'ns', failure)).not.toThrow()
         })
 
         it('isolates a throwing error listener', () => {
             const failure = new Error('boom')
-            addTraceListener({ handler: () => { throw new Error('listener down') } })
+            addListener({ filter: () => true, handler: () => { throw new Error('listener down') } })
 
             expect(() => (createTracer('Source')).error('Failure', 'ns', failure)).not.toThrow()
         })

@@ -2,6 +2,7 @@ import type { AnyObject } from './index'
 import type Tracer from '../system/Tracer'
 
 export interface AddTraceListenerOptions {
+    context?: boolean
     filterMode?: TraceListenerFilterMode
     groupBy?: TraceListenerGroupBy
 }

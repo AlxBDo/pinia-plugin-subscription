@@ -2,6 +2,7 @@ import type { AnyObject } from '../types'
 import type {
     TraceEvent,
     TraceEventMetadata,
+    TraceGroupListener,
     TraceLevel,
     TraceListener,
     TracePayload,
@@ -27,11 +28,11 @@ function resolvePayload(payload: TracePayload): AnyObject | undefined {
  * the payload is a factory resolved only once a consumer is known.
  */
 export default class Tracer {
-    private readonly _listeners: TraceListener[] = []
+    private readonly _listeners: Array<TraceListener | TraceGroupListener> = []
     private _scope?: string
     private readonly _source: string
 
-    constructor(source: string, listeners: TraceListener[], options: TracerOptions = {}) {
+    constructor(source: string, listeners: Array<TraceListener | TraceGroupListener>, options: TracerOptions = {}) {
         this._scope = options.scope
         this._source = source
         this._listeners = listeners

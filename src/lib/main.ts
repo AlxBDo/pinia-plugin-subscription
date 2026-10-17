@@ -49,7 +49,7 @@ export {
     getExtendingStore,
     setEnhancedStore
 } from "../utils/store"
-export { pluginName as PLUGIN_NAME } from "../utils/constantes"
+export { pluginName as PLUGIN_NAME } from "../utils/constants"
 export { PluginSubscriber }
 export { PluginSubscription }
 export { Store }

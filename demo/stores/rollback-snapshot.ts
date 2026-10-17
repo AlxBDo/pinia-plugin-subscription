@@ -37,6 +37,7 @@ export const useRollbackSnapshotStore = (rollback = false) => defineAStore(
         }
     }, {
     active: true,
+    demo: true,
     parentsStores: [new ParentStore('rollbackItem', useItemStore)],
     rollbackAfterFailure: rollback ? {
         codeError: ['count'],

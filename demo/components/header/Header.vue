@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { pluginName } from '../../../src/utils/constantes'
+import { pluginName } from '../../../src/utils/constants'
 </script>
 
 <template>

@@ -26,6 +26,6 @@ export type {
     TraceRegistry,
     TracerOptions
 } from "../types/trace"
-export { createTracerRegistry, createTraceGroupsRegistry } from "../factories/trace-registry"
+export { createTracerRegistry, createTracerRegistry } from "../factories/trace-registry"
 export { default as Tracer } from "../system/Tracer"
 export { createConsoleTraceListener, createConsoleGroupTraceListener } from "../factories/console-trace-listener"

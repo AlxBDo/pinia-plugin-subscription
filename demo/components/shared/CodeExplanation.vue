@@ -27,5 +27,9 @@ div {
         margin: 10px;
         padding: 5px;
     }
+
+    .code {
+        background-color: #1a1919;
+    }
 }
 </style>

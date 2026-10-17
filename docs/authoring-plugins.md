@@ -382,7 +382,7 @@ class CartStore extends Store {
 }
 ```
 
-`createTraceGroupsRegistry()` is available from
+`createTracerRegistry()` is available from
 `pinia-plugin-subscription/helpers`. Register event criteria with
 `addListener()` and pass the registry's `tracerHandler` through
 `createPlugin()` options to group plugin and store events in the console.

@@ -1,10 +1,7 @@
-import type {
-    PiniaPluginContext,
-    StateTree,
-    Store as PiniaStore,
-    SubscriptionCallbackMutation
-} from 'pinia'
-import type { Ref } from 'vue'
+import type { Store as PiniaStore } from 'pinia'
+
+import type { PluginSubscriber as PluginSubscriberInterface } from './plugin'
+import type { StoreOptions } from './store'
 
 /**
  * Centralized extension point for per-store plugin options.
@@ -16,15 +13,6 @@ import type { Ref } from 'vue'
  * long as each plugin declares its own optional keys.
  */
 export interface StoreOptionsExtensions { } // eslint-disable-line @typescript-eslint/no-empty-object-type
-
-import type {
-    PluginExecutionOptions,
-    PluginHydrationScheduler,
-    PluginSubscriptions,
-    StoreMutationSubscription,
-    StoreOnActionSubscription
-} from './plugin'
-import type { StoreOptions } from './store'
 
 export interface AnyObject {
     [key: number | string | symbol]: any
@@ -66,11 +54,11 @@ export type {
     NativePiniaSubscriptionReturn,
     PluginExecutionEnvironment,
     PluginExecutionOptions,
-    PluginHydrationScheduler,
     PluginHydrationTiming,
     PluginRuntimeEnvironment,
     PluginStoreOptions,
-    PluginSubscriber,
+    PluginSubscriberInvoke,
+    PluginHydrationScheduler,
     PluginSubscription,
     PluginSubscriptionOptions,
     PluginSubscriptions,
@@ -84,18 +72,7 @@ export type {
     StoreOnActionSubscriptionReturn,
 } from './plugin'
 
-export interface PluginSubscriberInterface {
-    execution?: PluginExecutionOptions
-    hydrate?: (context: PiniaPluginContext) => void | Promise<void>
-    hydrationScheduler?: PluginHydrationScheduler
-    invoke: (context: PiniaPluginContext) => boolean
-    name: string
-    resetStoreCallback?: (store?: PiniaStore) => void
-    storeOnActionSubscription?: StoreOnActionSubscription
-    storeMutationSubscription?: StoreMutationSubscription
-    subscriptions?: PluginSubscriptions
-    afterHydration?: (context: PiniaPluginContext) => void | Promise<void>
-}
+export type { PluginSubscriberInterface }
 
 export interface PluginSubscriptionDefinition {
     stores?: PiniaStore[]

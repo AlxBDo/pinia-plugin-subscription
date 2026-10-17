@@ -1,4 +1,4 @@
-import { pluginName } from '../utils/constantes'
+import { pluginName } from '../utils/constants'
 import type { Console, LogType, StyleDefinition, StyleDefinitions } from '../types/log'
 import type { ConsoleTraceEvent, ConsoleTraceEventArgs } from '../types/trace'
 import { Store } from 'pinia'
@@ -27,8 +27,8 @@ export function printObject(label: string, payload: object) {
     if (Array.isArray(payload)) {
         if (typeof payload[0] === 'object') {
             payload.forEach((item: any) => {
-                if (item._name) {
-                    printObject(item._name, item)
+                if (item.name) {
+                    printObject(item.name, item)
                 } else if (item._id) {
                     printObject(item._id, item)
                 } else {
@@ -90,6 +90,11 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
         }
         const arg = tracePayload[key]
         if (!arg) {
+            console.log(
+                '%c%s',
+                'color: #f86f63; padding: 1px; margin-right: 5px; font-size: 10px',
+                `[ ${key} ] ${arg}`
+            )
             return
         }
 
@@ -117,7 +122,7 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
                     case 'store':
                         printObject(key, {
                             $state: (arg as Store)['$state'],
-                            ...Object.keys(arg).reduce((acc, curr) => {
+                            $actions: Object.keys(arg).reduce((acc, curr) => {
                                 if ((curr.startsWith('$') && !['$id', '$state'].includes(curr)) || curr.startsWith('_')) {
                                     return acc
                                 }
@@ -161,11 +166,12 @@ export function logTrace(logStyle: string, args: any, pluginName: string) {
     const label = args.shift()
     const event = args[0]
 
+
     if (!event?.payload || Object.keys(event.payload).length === 0) {
         console.log(
             '%c%s',
             logStyle,
-            `${event?.label ?? event?.namespace}`,
+            `${event?.source === pluginName ? (event?.label ?? event?.namespace) : label}`,
             event?.source
         )
         return
@@ -294,8 +300,8 @@ export class TraceConsole extends CustomConsole {
 
         console.groupCollapsed(
             '%c%s',
-            'color: #68ca59; padding: 1px; margin-right: 5px; font-size: 12px',
-            `[ 🍍 ${context?.label ?? context?.namespace} ] - ${context?.scope}`
+            'color: #87e47f; padding: 1px; margin-right: 5px; font-size: 11px; font-family: arial',
+            `[ 🍍 ${context?.label ?? context?.namespace} ]`, context?.scope
         )
         if (context?.payload) {
             printTracePayload(context.payload)
@@ -303,7 +309,7 @@ export class TraceConsole extends CustomConsole {
         console.groupCollapsed(
             '%c%s',
             'color: #f1f6b7; padding: 1px; margin-right: 5px; font-size: 11px',
-            `[ TRACES ]`
+            `[ traces ]`
         )
         groups.forEach(group => this.log(...group))
         console.groupEnd()

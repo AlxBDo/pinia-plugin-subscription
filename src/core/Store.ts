@@ -115,12 +115,14 @@ export default class Store {
         this._options = options.storeOptions as StoreOptions
         this._store = store
         this.initializeTracer(options)
+        this.trace('instance:created', store.$id)
 
         if (this._options?.enhancedStore) {
             const ctx = getDefineAStoreSetupContext(this.store)
 
             if (ctx) {
                 setEnhancedStore(ctx, this.store)
+                this.trace('setup:enhancedStore:success', this.store.$id)
             }
         }
     }
@@ -297,7 +299,7 @@ export default class Store {
 
     private traceLabelFormatter(label: string): string {
         if (this.classNameAddedToTraceNamespace) {
-            label = `${this.constructor.name}:${label}`
+            label = `${this._className}:${label}`
         }
 
         return label

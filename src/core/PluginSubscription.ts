@@ -3,7 +3,7 @@ import { deepClone } from '../utils/deep-clone'
 import { getActionStoreKey } from '../utils/store'
 import Tracer from "../system/Tracer"
 import { isEmpty } from "../utils/validation"
-import { pluginName } from "../utils/constantes"
+import { pluginName } from "../utils/constants"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
@@ -601,13 +601,19 @@ export default class PluginSubscription {
 
     private traceGroupEnd(payload: TracePayload, scope: string): void {
         if (this._options?.tracerHandler) {
-            this._options.tracerHandler.closeGroup({ ...(typeof payload === 'function' ? payload() : payload), scope })
+            this._options.tracerHandler.closeGroup({
+                ...(typeof payload === 'function' ? payload() : (payload ?? {})),
+                scope
+            })
         }
     }
 
     private traceGroupStart(payload: TracePayload, scope: string, label?: string): void {
         if (this._options?.tracerHandler) {
-            this._options.tracerHandler.startGroup({ ...(typeof payload === 'function' ? payload() : payload), scope })
+            this._options.tracerHandler.startGroup({
+                ...(typeof payload === 'function' ? payload() : (payload ?? {})),
+                scope
+            })
             this.trace(label ?? 'context', scope, payload)
         }
     }
