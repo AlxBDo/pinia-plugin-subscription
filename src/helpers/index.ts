@@ -23,9 +23,12 @@ export type {
     TraceListener,
     TraceListenerRemover,
     TracePayload,
+    TraceRedactOptions,
     TraceRegistry,
-    TracerOptions
+    TracerOptions,
+    TracerRegistryOptions
 } from "../types/trace"
 export { createTracerRegistry } from "../factories/trace-registry"
 export { default as Tracer } from "../system/Tracer"
 export { createConsoleGroupTraceListener } from "../factories/console-trace-listener"
+export { defaultRedactedKeys } from '../utils/redact'

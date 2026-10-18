@@ -80,7 +80,7 @@ export type TracePayload = AnyObject | (() => AnyObject)
  */
 export type TraceFilter = (event: TraceEventMetadata) => boolean
 
-export interface TraceGroupListener extends ConsoleTraceGroupListener, TraceListener {
+export interface TraceGroupListener extends ConsoleTraceGroupListener, Pick<TraceListener, 'filter'> {
     groupBy: TraceListenerGroupBy
 }
 
@@ -109,10 +109,14 @@ export type TraceRegistry = {
     /**
      * Registers a trace listener and returns its remover.
      * Listeners are evaluated in registration order.
-     * @param listener The trace listener to register.
+     * @param listenerDef The listener definition or filter criteria.
+     * @param options Context, filter mode and grouping options.
      * @returns A function that removes the registered listener when called.
      */
-    addTraceListener: (listener: TraceListener | TraceFilterFactoryParam, filterMode?: 'every' | 'some') => TraceListenerRemover
+    addListener: (
+        listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
+        options?: AddTraceListenerOptions
+    ) => TraceListenerRemover
 
     /**
      * Clears all registered trace listeners.
@@ -120,26 +124,52 @@ export type TraceRegistry = {
     clearTraceListeners: () => void
 
     /**
-     * Creates a new tracer instance.
-     * @param source The source of the tracer, usually the class name.
-     * @param options Optional tracer options.
-     * @returns A new tracer instance.
-     */
-    createTracer: (source: string, options?: TracerOptions) => Tracer
-
-    /**
      * Checks if there are any registered trace listeners.
      * @returns True if there are registered trace listeners, otherwise false.
      */
     hasTraceListeners: () => boolean
+
+    /** Handler to pass to the plugin through `PluginSubscriptionOptions.tracerHandler`. */
+    tracerHandler: TracerHandler
 }
 
 export interface TracerHandler {
-    closeGroup: (payload: TraceEvent) => undefined,
-    createTracer: (source: string) => Tracer,
-    startGroup: (payload: TraceEvent) => undefined
+    /** Flushes the group of the event's group key to the matching listeners. */
+    closeGroup: (payload: TraceEvent) => void
+    /**
+     * Creates a new tracer instance.
+     * @param source The source of the tracer, usually the class name.
+     * @param options Optional tracer options.
+     */
+    createTracer: (source: string, options?: TracerOptions) => Tracer
+    /** Opens a group for the event's group key on the matching listeners. */
+    startGroup: (payload: TraceEvent) => void
+}
+
+export interface TraceRedactOptions {
+    /** Replaces the default key list instead of extending it when `false`. Defaults to `true`. */
+    includeDefaults?: boolean
+    /** Additional keys to mask: strings match exactly (case-insensitive), regular expressions match anywhere in the key. */
+    keys?: Array<string | RegExp>
+    /** Value substituted for masked values. Defaults to `[REDACTED]`. */
+    replacement?: string
+}
+
+export interface TracerRegistryOptions {
+    /**
+     * Whether listeners can be registered. When `false`, `addListener()` is a no-op and tracing stays inactive.
+     * Defaults to `false` in production builds (`process.env.NODE_ENV === 'production'`), `true` otherwise.
+     */
+    enabled?: boolean
+    /**
+     * Masks sensitive values (passwords, tokens, secrets...) of event payloads before they reach any listener.
+     * Opt-in: `true` uses the default key list, an object customizes it. Redaction works on a copy.
+     */
+    redact?: boolean | TraceRedactOptions
 }
 
 export interface TracerOptions {
+    /** Transforms the resolved payload before it is delivered to listeners. */
+    redactor?: (payload: AnyObject) => AnyObject
     scope?: string
 }

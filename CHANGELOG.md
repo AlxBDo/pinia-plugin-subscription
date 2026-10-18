@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a dedicated tracing guide, `docs/tracing.md`; the README now only presents tracing and links to it
+- Moved the API reference, import subpaths, development, `Store` summary and testing sections from `README.md` to `docs/authoring-plugins.md`
+- `createTracerRegistry({ redact })`: opt-in redaction of event payloads before they reach listeners. `true` masks a default list of sensitive keys (`password`, `token`, `secret`, `authorization`, API/private keys, `credential`, `cookie`, `cipher`...); an object adds custom `keys`, a `replacement`, or drops the defaults with `includeDefaults: false`. It works on a copy, covers arrays/`Map`/`Set`, handles circular references, and replaces the payload by `__traceRedactionError` if redaction fails. `defaultRedactedKeys` and `TraceRedactOptions` are exported
+- `createTracerRegistry({ enabled })`: tracing is now disabled by default in production builds (`process.env.NODE_ENV === 'production'`); `addListener()` becomes a no-op unless `enabled: true` is passed. `enabled: false` forces it off in any environment. Error reporting through `console.error` is unchanged
 - Added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
 - Added `createTracerRegistry()` to group matching trace events in the console
 - Added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
@@ -32,9 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error events are delivered to matching listeners and reported with `console.error` when none match
 - Store trace labels can include the store class name by default, and callers can override the event namespace
 - Excluded `scripts/**` from coverage thresholds, as build tooling is not shipped to consumers
+- `Store` and `PluginSubscription` now share the abstract `TraceEmitter` class for `trace()`, `traceError()` and class-name label formatting, removing duplicated code
+- `Tracer` listener matching no longer allocates intermediate arrays beyond the matched set, and duplicated unhandled-error reporting was factored out
+- The `pluginsubscription` namespace prefix is now a shared constant (`pluginSubscriptionNamespace`) instead of a hard-coded string
+
+### Fixed
+- Trace groups opened by `onAction`, `$subscribe` and `$reset` are now always closed (also when the action fails or a callback throws), so grouped events no longer stay buffered forever
+- Listener definitions passed to `addListener()` are no longer mutated when their `filter` is an array of criteria
+- `TracerHandler` and `TraceRegistry` types now match the implementation (`createTracer(source, options?)`, `void` group callbacks, `addListener()` with options, `tracerHandler`); `createTracerRegistry()` is explicitly typed as `TraceRegistry`
+- `CustomConsole.rebuildArgs()` no longer returns `undefined` for unsupported argument types
+- `clearTraceListeners()` now empties the shared listener list in place, so tracers created before the call stop delivering to cleared listeners and see listeners registered afterwards
 
 ### Removed
-- **Breaking:** removed `debugLog()` and `logError()` from `Store` and `PluginSubscription` — use `trace()` and `traceError()` instead (see the migration snippet in `README.md`)
+- Removed the internal `PluginConsole` singleton and the dead commented code of `system/log.ts`; `CustomConsole` stays exported from `helpers` for plugins not yet migrated to the tracer
+- **Breaking:** removed `debugLog()` and `logError()` from `Store` and `PluginSubscription` — use `trace()` and `traceError()` instead (see the migration snippet in `docs/tracing.md`)
 - **Breaking:** removed the obsolete `debug` and custom-console arguments from `createPlugin()`, `PluginSubscription`, `PluginSubscriber`, `Store`, and `Store.customizeStore()`
 - **Breaking:** removed the `debug` argument from subscriber `invoke()`, `hydrate()`, and `afterHydration()` hooks; tracing is now configured exclusively through listeners
 - **Breaking:** removed the legacy `debug` and `console` accessors from `Store` and `PluginSubscription`

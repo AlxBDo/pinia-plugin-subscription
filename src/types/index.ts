@@ -45,8 +45,10 @@ export type {
     TraceListener,
     TraceListenerRemover,
     TracePayload,
+    TraceRedactOptions,
     TraceRegistry,
-    TracerOptions
+    TracerOptions,
+    TracerRegistryOptions
 } from './trace'
 export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
 export type {

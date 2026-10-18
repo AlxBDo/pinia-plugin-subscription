@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { PluginConsole } from '../../../../src/system/log';
 import { useOptionApiStore } from '../../../stores/optionApi'
 import { useContactStore } from '../../../stores/contact';
 import { useErrorsStore } from 'pinia-plugin-extending-store';
@@ -83,7 +82,7 @@ contactStore.setData({
 
 contactStore.addError({ id: 'contact-error', message: 'Contact error' })
 
-PluginConsole.log('contactStore', [contactStore.getError({ id: 'contact-error' }), contactStore])
+console.log('contactStore', [contactStore.getError({ id: 'contact-error' }), contactStore])
 
 
 const optionApiStore = useOptionApiStore()

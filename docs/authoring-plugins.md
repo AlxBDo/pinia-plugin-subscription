@@ -207,8 +207,8 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 | `storeSubscribe` (getter/setter) | Factory for pinia's `$subscribe` (`{ store, callback }`). |
 | `onAction` (getter/setter) | Factory for pinia's `$onAction` (`{ store, callback }`). |
 | `static customizeStore(store, options)` | Recommended factory; guarded by `_requiredKeys` (see above). |
-| `trace(label, payload?, scope?, namespace?)` | Emits a structured trace event. The default scope is the wrapped store ID. |
-| `traceError(label, error, payload?, scope?, namespace?)` | Emits an error event; if no listener matches, reports it with `console.error` without rethrowing it. |
+| `trace(label, scope?, payload?, namespace?)` | Emits a structured trace event (inherited from the abstract `TraceEmitter` class, shared with `PluginSubscription`). The default scope is the wrapped store ID. |
+| `traceError(label, error, scope?, payload?, namespace?)` | Emits an error event; if no listener matches, reports it with `console.error` without rethrowing it. |
 | `classNameAddedToTraceNamespace` (getter/setter) | Controls whether the store class name is prefixed to trace labels; enabled by default. |
 | `stateHas(property)` / `storeHas(property)` | Safe `hasOwnProperty` checks on state / store. |
 | `getValue(value)` | Unwraps a ref or returns the value as-is. |
@@ -374,8 +374,8 @@ class CartStore extends Store {
   reportItems(): void {
     this.trace(
       'cart:items',
-      () => ({ items: this.state.items }),
       this.store.$id,
+      () => ({ items: this.state.items }),
       'cart:items'
     )
   }
@@ -387,7 +387,8 @@ class CartStore extends Store {
 `addListener()` and pass the registry's `tracerHandler` through
 `createPlugin()` options to group plugin and store events in the console.
 Criteria target event metadata and support `equals`, `contains`, `startsWith`
-and `endsWith` comparisons.
+and `endsWith` comparisons. See the [Tracing documentation](./tracing.md) for
+filtering, redaction, production safety and error reporting.
 
 ## Typing per-store options: `StoreOptionsExtensions` (TypeScript)
 
@@ -428,6 +429,116 @@ Guidelines:
   extra wiring needed.
 - Never redeclare `DefineStoreOptionsBase` or `PiniaCustomProperties`; only
   this package owns those augmentations.
+
+## API Reference
+
+### Import subpaths
+
+For helper-only imports, the package exposes an additive subpath kept separate from the default library API:
+
+```ts
+import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
+```
+
+For type-only imports, prefer the dedicated public types entry:
+
+```ts
+import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
+```
+
+### `createPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
+
+Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered. The optional `options` configure execution, hydration and tracing.
+
+### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
+
+Deprecated. Use `createPlugin()` with hydration options instead. This helper remains available for compatibility.
+
+```typescript
+import { createPlugin } from 'pinia-plugin-subscription'
+
+pinia.use(createPlugin([
+  persistedStateSubscriber
+], {
+  hydrationScheduler: (run) => {
+    nextTick(() => run())
+  }
+}))
+```
+
+### SSR / Nuxt hydration control
+
+The source of truth for hydration policy stays on the subscriber itself. For example, a client-only plugin should declare its execution directly:
+
+```typescript
+export const persistedStateSubscriber: PluginSubscriberInterface = {
+  name: 'persisted-state',
+  execution: {
+    environment: 'client',
+    hydration: 'defer',
+  },
+  hydrationScheduler: (run) => {
+    nextTick(() => run())
+  },
+  invoke: (context) => {
+    // ...
+    return true
+  }
+}
+```
+
+Available execution options:
+
+- `environment: 'both' | 'client' | 'server'` — controls where the subscriber is allowed to run.
+- `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules execution after hydration.
+- `hydrationScheduler` can be provided on a subscriber or through `createPlugin()` options to override execution timing when needed.
+
+See [SSR / Nuxt best practices](#ssr--nuxt-best-practices) for guidance on matching the runtime policy to the app lifecycle.
+
+## Development
+
+The example above shows the recommended pattern for SSR / Nuxt-safe plugins:
+
+- `execution.environment` restricts the subscriber to `'both'`, `'client'`, or `'server'`
+- `execution.hydration` is `'immediate'` by default and can be set to `'defer'` when the plugin must wait for client hydration
+- `hydrationScheduler` lets you override the runtime scheduling behavior, for example with Nuxt/Vue `nextTick()`
+- `hydrate()` / `afterHydration()` are optional lifecycle hooks for browser-only initialization and post-hydration work; they help keep SSR-sensitive logic out of constructors
+
+## The `Store` Class — Summary
+
+The `Store` class (see [src/core/Store.ts](../src/core/Store.ts)) is a wrapper around a `PiniaStore` providing:
+
+- **Properties:** `options`, `state`, `store`.
+- **Useful methods:**
+  - `addToState(name, value?)` — adds a property to store state and exposes it as a `Ref` when appropriate.
+  - `addSubscription(pluginName, subscription)` — registers a plugin-specific subscription function.
+  - `getSubscriptions()` — returns registered subscriptions.
+  - `storeSubscribe` (getter/setter) — factory for `store.$subscribe` ({ store, callback }).
+  - `onAction` (getter/setter) — factory for `onAction` ({ store, callback }).
+  - `static customizeStore(store, options)` — recommended factory for class instantiation.
+  - `trace(label, scope?, payload?, namespace?)` — emits a structured trace event, scoped to the store by default.
+  - `traceError(label, error, scope?, payload?, namespace?)` — emits an error event, or reports it with `console.error` when no listener matches.
+  - Helpers: `stateHas()`, `storeHas()`, `getValue()`.
+
+`trace()` and `traceError()` come from the abstract `TraceEmitter` class that `Store` shares with `PluginSubscription`.
+
+## Testing
+
+- `npm run dev` — runs the dedicated demo app in [`demo/`](../demo/). The library build remains `npm run build` and is intentionally kept separate from the demo entry.
+- `npm test` — runs the Vitest suite, including typecheck tests (`*.test-d.ts`) validating type-level contracts such as `StoreOptionsExtensions` merging. Coverage reports are available in `coverage/`.
+- `npm run bundle:check` — measures the emitted bundle size.
+
+### Dependency leak guard
+
+Published artifacts must only reference **peer dependencies** (`pinia`, `vue`) and Node builtins. A `devDependency` referenced from `src/` does not fail the local build, but it breaks consumers: Vite inlines runtime imports, while `tsc` keeps bare `import type` specifiers in the emitted `.d.ts`, which consumers cannot resolve.
+
+`npm run check:leaks` scans every built `.js` and `.d.ts` file and fails the build when a non-peer package appears:
+
+```bash
+npm run check:leaks
+```
+
+It runs automatically as part of `npm run build` and in CI. If it reports a leak, either remove the import from `src/`, or duplicate the required type into `src/types/`.
 
 ## Reference implementation
 

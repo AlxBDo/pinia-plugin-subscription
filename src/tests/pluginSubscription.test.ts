@@ -52,6 +52,69 @@ describe('PluginSubscription', () => {
         expect((pluginSub as any).console).toBeUndefined()
     })
 
+    describe('trace group lifecycle', () => {
+        function setup(callback: (params: any) => void) {
+            const startGroup = vi.fn()
+            const closeGroup = vi.fn()
+            let fireAction!: (params: any) => void
+            const store = {
+                $id: 'cart',
+                $state: {},
+                $patch: vi.fn(),
+                $dispose: vi.fn(),
+                $onAction: vi.fn((handler: (params: any) => void) => { fireAction = handler })
+            } as unknown as Store
+            const sub = new PluginSubscription([{
+                name: 'subscriber',
+                invoke: vi.fn().mockReturnValue(true),
+                storeOnActionSubscription: () => ({ store, callback })
+            }], { tracerHandler: { closeGroup, createTracer, startGroup } })
+
+            sub.plugin(createContext(store))
+            const closedAfterPlugin = closeGroup.mock.calls.length
+
+            return { closeGroup, closedAfterPlugin, fireAction, startGroup }
+        }
+
+        it('closes the action group when the action fails', () => {
+            let failure!: (error: unknown) => void
+            const { closeGroup, closedAfterPlugin, fireAction } = setup(({ after }) => after(() => { }))
+
+            fireAction({ name: 'act', args: [], after: vi.fn(), onError: (cb: typeof failure) => { failure = cb } })
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin)
+
+            failure(new Error('action failed'))
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
+        })
+
+        it('closes the action group once when the action succeeds', () => {
+            let success!: (result: unknown) => void
+            let failure!: (error: unknown) => void
+            const { closeGroup, closedAfterPlugin, fireAction } = setup(({ after }) => after(() => { }))
+
+            fireAction({
+                name: 'act',
+                args: [],
+                after: (cb: typeof success) => { success = cb },
+                onError: (cb: typeof failure) => { failure = cb }
+            })
+            success(undefined)
+            failure(new Error('late'))
+
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
+        })
+
+        it('closes the action group when a subscriber callback throws', () => {
+            const { closeGroup, closedAfterPlugin, fireAction, startGroup } = setup(() => { throw new Error('boom') })
+            const startedAfterPlugin = startGroup.mock.calls.length
+
+            expect(() => fireAction({ name: 'act', args: [], after: vi.fn(), onError: vi.fn() })).toThrow('boom')
+
+            expect(startGroup).toHaveBeenCalledTimes(startedAfterPlugin + 1)
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
+        })
+    })
+
     describe('structured tracing', () => {
         function createTracedStore(): Store {
             return {

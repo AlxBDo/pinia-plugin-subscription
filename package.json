@@ -1,6 +1,6 @@
 {
   "name": "pinia-plugin-subscription",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "description": "Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a Store base class for store helpers.",
   "type": "module",
   "sideEffects": false,
@@ -93,8 +93,7 @@
     "@vitest/coverage-v8": "^4.0.15",
     "@vue/tsconfig": "^0.8.1",
     "pinia": "^3.0.2",
-    "pinia-plugin-action-flow": "^0.1.1",
-    "pinia-plugin-extending-store": "^0.1.6-beta.0",
+    "pinia-plugin-extending-store": "^0.1.6-beta.2",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vitest": "^4.0.15",
