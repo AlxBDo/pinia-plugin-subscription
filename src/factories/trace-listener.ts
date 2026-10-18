@@ -1,8 +1,9 @@
 import { createConsoleGroupTraceListener } from "./console-trace-listener"
-import { pluginName } from "../utils/constants"
+import { pluginName, pluginSubscriptionNamespace } from "../utils/constants"
 
 import type {
     TraceEventMetadata,
+    TraceFilter,
     TraceFilterFactoryCriterion,
     TraceFilterFactoryParam,
     TraceGroupListener
@@ -68,20 +69,20 @@ function createTraceFilter(
     listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
     context: boolean = true,
     filterMode: 'every' | 'some' = 'every'
-) {
+): TraceFilterFactoryParam & { filter: TraceFilter } {
     if (Array.isArray(listenerDef)) {
-        listenerDef = {
-            filter: createFilter(listenerDef, context, filterMode)
-        }
+        return { filter: createFilter(listenerDef, context, filterMode) }
     }
 
-    if (listenerDef.filter && Array.isArray(listenerDef.filter)) {
-        listenerDef.filter = createFilter(listenerDef.filter, context, filterMode)
+    // Copy: the caller's definition must never be mutated.
+    return {
+        ...listenerDef,
+        filter: Array.isArray(listenerDef.filter)
+            ? createFilter(listenerDef.filter, context, filterMode)
+            : listenerDef.filter
     }
-
-    return listenerDef
 }
 
 function isPluginSubscription(event: TraceEventMetadata): boolean {
-    return event?.source === pluginName && (!event?.namespace || event.namespace.startsWith('pluginsubscription'))
+    return event?.source === pluginName && (!event?.namespace || event.namespace.startsWith(pluginSubscriptionNamespace))
 }

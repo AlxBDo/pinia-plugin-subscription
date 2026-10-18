@@ -1,13 +1,13 @@
 import { pluginName } from '../utils/constants'
 import type { Console, LogType, StyleDefinition, StyleDefinitions } from '../types/log'
-import type { ConsoleTraceEvent, ConsoleTraceEventArgs } from '../types/trace'
-import { Store } from 'pinia'
+import type { ConsoleTraceEvent, ConsoleTraceEventArgs, TraceEvent } from '../types/trace'
+import type { Store } from 'pinia'
 
 
 const style = (bgColor: string, color: string = 'white') =>
     `background-color: ${bgColor}; color: ${color}; padding: 1px; margin-right: 5px; font-size: 12px`
 
-export function printObject(label: string, payload: object) {
+export function printObject(label: string, payload: object, groupCollapsed: boolean = true) {
     const isArray = Array.isArray(payload)
     const isEmpty = isArray ? payload.length === 0 : Object.keys(payload).length === 0
     if (isEmpty) {
@@ -19,10 +19,24 @@ export function printObject(label: string, payload: object) {
         return
     }
 
-    console.groupCollapsed(
-        '%c%s',
-        'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
-        `[ ${label} ]`)
+    const styles: Record<string, string> = {
+        options: '📚 ',
+        store: '🏪 ',
+        subscribers: '🧩 '
+    }
+    const icon = styles[label] ?? ''
+
+    if (groupCollapsed) {
+        console.groupCollapsed(
+            '%c%s',
+            'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
+            `[ ${icon}${label} ]`)
+    } else {
+        console.group(
+            '%c%s',
+            'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
+            `[ ${icon} ${label} ]`)
+    }
 
     if (Array.isArray(payload)) {
         if (typeof payload[0] === 'object') {
@@ -51,14 +65,14 @@ export function printObject(label: string, payload: object) {
             if (typeof value === 'object') {
                 if (Array.isArray(value)) {
                     if (typeof value[0] === 'object') {
-                        printObject(key, value)
+                        printObject(key, value, false)
                     } else {
-                        console.groupCollapsed(key)
+                        console.group(key)
                         console.log(value)
                         console.groupEnd()
                     }
                 } else {
-                    printObject(key, Object.assign({}, value))
+                    printObject(key, Object.assign({}, value), false)
                 }
             } else {
                 if (!value) {
@@ -81,6 +95,18 @@ export function printObject(label: string, payload: object) {
         }
     }
     console.groupEnd()
+}
+
+function printTrace(trace: TraceEvent) {
+    if (trace.payload) {
+        printObject(trace.label, trace.payload)
+        return
+    }
+    console.log(
+        '%c%s',
+        'color: #f8f89f; padding: 1px; margin-right: 5px; font-size: 11px',
+        trace.label, trace.source,
+    )
 }
 
 function printTracePayload(tracePayload: Record<string, unknown>) {
@@ -204,15 +230,7 @@ export function logTrace(logStyle: string, args: any, pluginName: string) {
         }
     })
 
-    /**
-     console.groupCollapsed(
-        '%c%s',
-        'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 10px',
-        `[ trace ]`
-    )
-    console.trace()
-    console.groupEnd()
-     */
+
 
     console.groupEnd()
 }
@@ -259,29 +277,25 @@ export abstract class CustomConsole implements Console {
         )
     }
 
-    protected rebuildArgs(args: string | any[], icon: string) {
+    protected rebuildArgs(args: string | any[]): any[] {
         if (typeof args === 'string') {
             return [args]
         }
 
         if (Array.isArray(args)) {
-            return [args.shift(), ...(args ?? [])]
+            return [args.shift(), ...args]
         }
+
+        return [args]
     }
 
     protected useLog(styleDefinition: StyleDefinition, args: any) {
         log(
             this.generateStyle(styleDefinition),
-            this.rebuildArgs(args, styleDefinition.icon)
+            this.rebuildArgs(args)
         )
     }
 }
-
-class PluginConsoleClass extends CustomConsole {
-    protected _pluginName: string = pluginName
-}
-
-export const PluginConsole = new PluginConsoleClass()
 
 export class TraceConsole extends CustomConsole {
     protected _pluginName: string = pluginName
@@ -309,9 +323,9 @@ export class TraceConsole extends CustomConsole {
         console.groupCollapsed(
             '%c%s',
             'color: #f1f6b7; padding: 1px; margin-right: 5px; font-size: 11px',
-            `[ traces ]`
+            `[ ✨ traces ]`
         )
-        groups.forEach(group => this.log(...group))
+        groups.forEach(group => printTrace(group[1] as TraceEvent))
         console.groupEnd()
         console.groupEnd()
     }
@@ -319,7 +333,7 @@ export class TraceConsole extends CustomConsole {
     protected useLog(styleDefinition: StyleDefinition, args: any) {
         logTrace(
             this.generateStyle(styleDefinition),
-            this.rebuildArgs(args, styleDefinition.icon),
+            this.rebuildArgs(args),
             this._pluginName
         )
     }

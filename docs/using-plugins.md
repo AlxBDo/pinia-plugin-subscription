@@ -315,6 +315,10 @@ try {
 
 ## Tracing
 
+See the [Tracing documentation](./tracing.md) for the full guide. Tracing is
+disabled by default in production builds and can mask sensitive payload keys
+with `createTracerRegistry({ redact: true })`.
+
 Register listeners independently from plugin construction:
 
 ```js

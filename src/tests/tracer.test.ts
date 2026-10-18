@@ -207,6 +207,50 @@ describe('Tracer', () => {
             expect(secondRegistry.hasTraceListeners()).toBe(false)
         })
 
+        it('stops delivering to an existing tracer once listeners are cleared', () => {
+            const collector = createCollector()
+            const tracer = createTracer('Source')
+            addListener(collector)
+
+            tracer.debug('Mutation', 'ns')
+            clearTraceListeners()
+            tracer.debug('Mutation', 'ns')
+
+            expect(collector.events).toHaveLength(1)
+            expect(hasTraceListeners()).toBe(false)
+        })
+
+        it('delivers to listeners registered after a tracer was created', () => {
+            const collector = createCollector()
+            const tracer = createTracer('Source')
+            clearTraceListeners()
+            addListener(collector)
+
+            tracer.debug('Mutation', 'ns')
+
+            expect(collector.events).toHaveLength(1)
+        })
+
+        it('does not mutate the listener definition it is given', () => {
+            const definition = { filter: [{ target: 'scope' as const, value: 'cart' }] }
+            const collector = createCollector()
+
+            addListener({ ...definition, handler: collector.handler })
+            addListener(definition)
+
+            expect(Array.isArray(definition.filter)).toBe(true)
+        })
+
+        it('keeps the custom handler of a listener defined with filter criteria', () => {
+            const collector = createCollector()
+            addListener({ filter: [{ target: 'scope', value: 'cart' }], handler: collector.handler })
+
+            createTracer('Source', { scope: 'cart' }).debug('Mutation', 'ns')
+            createTracer('Source', { scope: 'other' }).debug('Mutation', 'ns')
+
+            expect(collector.events).toHaveLength(1)
+        })
+
         it('removes a listener through the returned remover', () => {
             const collector = createCollector()
             const remove = addListener(collector)
@@ -236,6 +280,61 @@ describe('Tracer', () => {
 
             expect(() => (createTracer('Source')).debug('Mutation', 'ns')).not.toThrow()
             expect(collector.events).toHaveLength(1)
+        })
+    })
+
+    describe('production guard', () => {
+        afterEach(() => vi.unstubAllEnvs())
+
+        it('ignores listeners in production by default', () => {
+            vi.stubEnv('NODE_ENV', 'production')
+            const prodRegistry = createTracerRegistry()
+            const collector = createCollector()
+
+            const remove = prodRegistry.addListener(collector)
+            prodRegistry.tracerHandler.createTracer('Source').debug('Mutation', 'ns')
+
+            expect(collector.events).toHaveLength(0)
+            expect(prodRegistry.hasTraceListeners()).toBe(false)
+            expect(() => remove()).not.toThrow()
+        })
+
+        it('still reports errors with console.error in production', () => {
+            vi.stubEnv('NODE_ENV', 'production')
+            const prodRegistry = createTracerRegistry()
+            prodRegistry.addListener(createCollector())
+
+            prodRegistry.tracerHandler.createTracer('Source').error('Failed', 'ns', new Error('boom'))
+
+            expect(consoleSpy).toHaveBeenCalledWith('Unhandled error trace event:', expect.any(Error))
+        })
+
+        it('can be explicitly enabled in production', () => {
+            vi.stubEnv('NODE_ENV', 'production')
+            const prodRegistry = createTracerRegistry({ enabled: true })
+            const collector = createCollector()
+            prodRegistry.addListener(collector)
+
+            prodRegistry.tracerHandler.createTracer('Source').debug('Mutation', 'ns')
+
+            expect(collector.events).toHaveLength(1)
+        })
+
+        it('can be explicitly disabled outside production', () => {
+            const disabledRegistry = createTracerRegistry({ enabled: false })
+
+            disabledRegistry.addListener(createCollector())
+
+            expect(disabledRegistry.hasTraceListeners()).toBe(false)
+        })
+
+        it('is enabled outside production', () => {
+            vi.stubEnv('NODE_ENV', 'development')
+            const devRegistry = createTracerRegistry()
+
+            devRegistry.addListener(createCollector())
+
+            expect(devRegistry.hasTraceListeners()).toBe(true)
         })
     })
 

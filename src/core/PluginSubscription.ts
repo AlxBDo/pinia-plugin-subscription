@@ -1,13 +1,13 @@
 import RollbackStateSnapshotsHandler from "./RollbackStateSnapshotsHandler"
 import { deepClone } from '../utils/deep-clone'
 import { getActionStoreKey } from '../utils/store'
-import Tracer from "../system/Tracer"
+import TraceEmitter from "../system/TraceEmitter"
 import { isEmpty } from "../utils/validation"
-import { pluginName } from "../utils/constants"
+import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
-import type { TracePayload } from "../types/trace"
+import type { TraceEvent, TracePayload } from "../types/trace"
 import type {
     PluginExecutionOptions,
     PluginHydrationScheduler,
@@ -22,7 +22,7 @@ import type {
 } from "../types/plugin"
 
 
-const className = 'PluginSubscription'
+const className = pluginSubscriptionClassName
 const defaultPluginExecution: Required<PluginExecutionOptions> = {
     environment: 'both',
     hydration: 'immediate'
@@ -37,7 +37,7 @@ function defaultHydrationScheduler(callback: () => void): void {
     globalThis.setTimeout(callback, 0)
 }
 
-export default class PluginSubscription {
+export default class PluginSubscription extends TraceEmitter {
     protected _className: string = className
     private _hydrationScheduler: PluginHydrationScheduler
     private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
@@ -54,8 +54,6 @@ export default class PluginSubscription {
     private _subscriptions: PluginSubscriptions[] = []
     private _subscriptionsDelivered: Set<string> = new Set()
     private _subscriptionsScheduled: Set<string> = new Set()
-    private _tracer?: Tracer
-
     set subscribers(subscribers: PluginSubscriber[]) {
         this._subscribers = subscribers
     }
@@ -70,6 +68,7 @@ export default class PluginSubscription {
         subscribers: PluginSubscriber[],
         options?: PluginSubscriptionOptions
     ) {
+        super()
         this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
         this._subscribers = subscribers
@@ -247,40 +246,61 @@ export default class PluginSubscription {
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
             this.traceGroupStart(() => ({ args, name }), store.$id, 'onAction')
-            const storageKey = getActionStoreKey(name, store)
-
-            if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
-                this.createRollbackSnapshot(name, store)
-            }
-
-            const callbacks = this._onActionSubscriptions.get(store)
-            if (callbacks?.size) {
-                callbacks.forEach(callback => callback({
-                    after: this.createOnActionAfterCallbackCollector(name, store),
-                    args,
-                    name,
-                    onError: this.createOnActionOnErrorCallbackCollector(name, store)
-                }))
-            }
-
-            const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
-            const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
-
-            this.clearOnActionCallbacksSubscriptions(storageKey)
-
-            if (afterCallbacks?.length) {
-                after((result) => {
-                    afterCallbacks.forEach(callback => callback(result))
+            // The group must be closed exactly once, whichever way the action ends.
+            let groupClosed = false
+            const closeGroup = () => {
+                if (!groupClosed) {
+                    groupClosed = true
                     this.traceGroupEnd({}, store.$id)
-                })
+                }
             }
-            if (onErrorCallbacks?.length) {
-                onError((error) => {
-                    onErrorCallbacks.forEach(callback => callback(error))
-                })
-            }
-            if (!afterCallbacks?.length) {
-                this.traceGroupEnd({}, store.$id)
+
+            try {
+                const storageKey = getActionStoreKey(name, store)
+
+                if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
+                    this.createRollbackSnapshot(name, store)
+                }
+
+                const callbacks = this._onActionSubscriptions.get(store)
+                if (callbacks?.size) {
+                    callbacks.forEach(callback => callback({
+                        after: this.createOnActionAfterCallbackCollector(name, store),
+                        args,
+                        name,
+                        onError: this.createOnActionOnErrorCallbackCollector(name, store)
+                    }))
+                }
+
+                const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
+                const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
+
+                this.clearOnActionCallbacksSubscriptions(storageKey)
+
+                if (afterCallbacks?.length) {
+                    after((result) => {
+                        try {
+                            afterCallbacks.forEach(callback => callback(result))
+                        } finally {
+                            closeGroup()
+                        }
+                    })
+                }
+                if (onErrorCallbacks?.length || afterCallbacks?.length) {
+                    onError((error) => {
+                        try {
+                            onErrorCallbacks?.forEach(callback => callback(error))
+                        } finally {
+                            closeGroup()
+                        }
+                    })
+                }
+                if (!afterCallbacks?.length) {
+                    closeGroup()
+                }
+            } catch (error) {
+                closeGroup()
+                throw error
             }
         })
     }
@@ -454,9 +474,13 @@ export default class PluginSubscription {
         const safeState = deepClone(initState)
 
         store.$reset = () => {
-            this.trace('store:reset', store.$id, () => ({ initialState: safeState }))
-            this.executeResetStoreCallbacks(store)
-            store.$patch(deepClone(safeState))
+            this.traceGroupStart(() => ({ initialState: safeState }), store.$id, 'store:reset')
+            try {
+                this.executeResetStoreCallbacks(store)
+                store.$patch(deepClone(safeState))
+            } finally {
+                this.traceGroupEnd(() => ({ initialState: safeState }), store.$id)
+            }
         }
     }
 
@@ -489,8 +513,11 @@ export default class PluginSubscription {
 
         store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
             this.traceGroupStart(() => ({ mutation }), store.$id, 'store:mutation')
-            callback(mutation)
-            this.traceGroupEnd({}, store.$id)
+            try {
+                callback(mutation)
+            } finally {
+                this.traceGroupEnd({}, store.$id)
+            }
         })
     }
 
@@ -575,30 +602,6 @@ export default class PluginSubscription {
         }
     }
 
-    /**
-     * Emits a structured trace event.
-     * Prefer the factory form for `payload`: it is only resolved when consumed.
-     */
-    private trace(label: string, scope?: string, payload?: TracePayload): void {
-        if (this._tracer) {
-            label = this._className + ':' + label
-
-            this._tracer.debug(label, label.toLowerCase(), payload, scope)
-        }
-    }
-
-    /**
-     * Emits a structured error event, or rethrows it when no listener matches.
-     */
-    private traceError(label: string, error: unknown, scope?: string, payload?: TracePayload): void {
-        if (this._tracer) {
-            label = this._className + ':' + label
-            this._tracer.error(label, label.toLowerCase(), error, payload, scope)
-        } else {
-            console.error(error)
-        }
-    }
-
     private traceGroupEnd(payload: TracePayload, scope: string): void {
         if (this._options?.tracerHandler) {
             this._options.tracerHandler.closeGroup({
@@ -610,10 +613,11 @@ export default class PluginSubscription {
 
     private traceGroupStart(payload: TracePayload, scope: string, label?: string): void {
         if (this._options?.tracerHandler) {
+            payload = (typeof payload === 'function' ? payload() : (payload ?? {}));
             this._options.tracerHandler.startGroup({
-                ...(typeof payload === 'function' ? payload() : (payload ?? {})),
+                ...payload,
                 scope
-            })
+            } as TraceEvent)
             this.trace(label ?? 'context', scope, payload)
         }
     }

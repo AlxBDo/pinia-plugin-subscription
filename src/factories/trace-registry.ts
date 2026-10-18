@@ -7,12 +7,23 @@ import type {
     TraceFilterFactoryParam,
     TraceGroupListener,
     TraceListenerRemover,
+    TraceRegistry,
     TracerOptions,
+    TracerRegistryOptions,
 } from '../types/trace'
+import { isProductionEnvironment } from '../utils/environment'
+import { createRedactor } from '../utils/redact'
 
 
-export function createTracerRegistry() {
-    let listeners: TraceGroupListener[] = []
+const noop = () => { }
+
+export function createTracerRegistry(
+    { enabled = !isProductionEnvironment(), redact = false }: TracerRegistryOptions = {}
+): TraceRegistry {
+    const redactor = redact ? createRedactor(redact === true ? true : redact) : undefined
+
+    // Shared by reference with every Tracer: it must be mutated in place, never reassigned.
+    const listeners: TraceGroupListener[] = []
 
     /**
      * Registers a trace listener and returns its remover.
@@ -27,6 +38,10 @@ export function createTracerRegistry() {
         listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
         { context = true, filterMode = 'every', groupBy = 'scope' }: AddTraceListenerOptions = {}
     ): TraceListenerRemover {
+        if (!enabled) {
+            return noop
+        }
+
         const listenerGroup = createTraceGroupListener(
             listenerDef, !!context, filterMode ?? 'every', groupBy ?? 'scope')
         listeners.push(listenerGroup)
@@ -44,7 +59,7 @@ export function createTracerRegistry() {
      * Clears all registered trace listeners.
      */
     function clearTraceListeners(): void {
-        listeners = []
+        listeners.length = 0
     }
 
     function getMatchedListener(payload: TraceEvent) {
@@ -74,7 +89,7 @@ export function createTracerRegistry() {
         clearTraceListeners,
         tracerHandler: {
             closeGroup: (payload: TraceEvent) => listenerGroupAction('logGroup', payload),
-            createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, options),
+            createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { redactor, ...options }),
             startGroup: (payload: TraceEvent) => listenerGroupAction('createGroup', payload)
         },
         hasTraceListeners
