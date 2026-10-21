@@ -297,7 +297,7 @@ describe('RollbackStateSnapshotsHandler', () => {
 
             expect((handler as any)._stateSnapshots.size).toBe(1)
             const [remainingKey] = Array.from((handler as any)._stateSnapshots.keys()) as symbol[]
-            expect(remainingKey.description).toBe('other-store:update')
+            expect(remainingKey?.description).toBe('other-store:update')
         })
 
         it('should allow re-registering params after cleanup', () => {

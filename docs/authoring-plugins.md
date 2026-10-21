@@ -53,7 +53,7 @@ export const myStoreSubscriber = {
 ### TypeScript
 
 ```ts
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/helpers'
 
 export const myStoreSubscriber: PluginSubscriberInterface = {
   name: 'my-plugin',
@@ -68,6 +68,26 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
     console.log('store reset:', store.$id)
   }
 }
+```
+
+### With the `createPluginSubscriber()` factory
+
+`createPluginSubscriber(name, invoke, optionalProps?)` builds the same plain object with `name` and `invoke` as positional arguments. `optionalProps` accepts any other `PluginSubscriberInterface` member (`afterHydration`, `execution`, `hydrate`, `hydrationScheduler`, `resetStoreCallback`, `storeOnActionSubscription`, `storeMutationSubscription`, `subscriptions`).
+
+```ts
+import { createPluginSubscriber } from 'pinia-plugin-subscription/helpers'
+
+export const myStoreSubscriber = createPluginSubscriber(
+  'my-plugin',
+  (context, createTracer) => {
+    console.log('store registered', context.store.$id)
+
+    return true
+  },
+  {
+    resetStoreCallback: (store) => console.log('store reset:', store.$id)
+  }
+)
 ```
 
 The host app registers subscribers through `createPlugin()`:
@@ -132,7 +152,7 @@ constructor(pluginName: string, createInstance: CreateInstance)
 ### JavaScript
 
 ```js
-import { PluginSubscriber, Store } from 'pinia-plugin-subscription'
+import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
 
 class MyPlugin extends Store {
   constructor(store, options) {
@@ -157,7 +177,7 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 ### TypeScript
 
 ```ts
-import { PluginSubscriber, Store } from 'pinia-plugin-subscription'
+import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
 
 class MyPlugin extends Store {
   protected override _className: string = 'MyPlugin'
@@ -245,7 +265,7 @@ export const persistedStateSubscriber = {
 
 ```ts
 import { nextTick } from 'vue'
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/helpers'
 
 export const persistedStateSubscriber: PluginSubscriberInterface = {
   name: 'persisted-state',
@@ -277,7 +297,7 @@ overrides the lifecycle hooks:
 
 ```ts
 import { nextTick } from 'vue'
-import { PluginSubscriber } from 'pinia-plugin-subscription'
+import { PluginSubscriber } from 'pinia-plugin-subscription/helpers'
 
 class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
   constructor() {
@@ -294,8 +314,6 @@ class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
     this.hydrationScheduler = (run) => {
       nextTick(() => run())
     }
-
-    this.pluginCreated = addStore
   }
 
   override hydrate() {
@@ -449,6 +467,10 @@ import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
 ### `createPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
 
 Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered. The optional `options` configure execution, hydration and tracing.
+
+### `createPluginSubscriber(name: string, invoke: PluginSubscriberInvoke, optionalProps?: Omit<PluginSubscriber, 'name' | 'invoke'>): PluginSubscriber`
+
+Factory returning a plain-object subscriber `{ name, invoke, ...optionalProps }`. Exported from `pinia-plugin-subscription/helpers`.
 
 ### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
 

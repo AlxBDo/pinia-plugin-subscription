@@ -194,6 +194,7 @@ export default class PluginSubscription extends TraceEmitter {
 
         this.addOnActionAfterCallback(actionName, store, after)
         this.addOnActionOnErrorCallback(actionName, store, onError)
+        this.trace('store:onAction:rollbackSnapshot:created', store.$id)
     }
 
     private defineCurrentEnvironment(): PluginRuntimeEnvironment {
@@ -245,7 +246,13 @@ export default class PluginSubscription extends TraceEmitter {
 
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
-            this.traceGroupStart(() => ({ args, name }), store.$id, 'onAction')
+            const callbacks = this._onActionSubscriptions.get(store)
+            const callbacksLength = callbacks?.size
+            if (!callbacksLength) {
+                return
+            }
+
+            this.traceGroupStart(() => ({ args, callbacks: callbacksLength, name }), store.$id, 'onAction')
             // The group must be closed exactly once, whichever way the action ends.
             let groupClosed = false
             const closeGroup = () => {
@@ -262,47 +269,76 @@ export default class PluginSubscription extends TraceEmitter {
                     this.createRollbackSnapshot(name, store)
                 }
 
-                const callbacks = this._onActionSubscriptions.get(store)
-                if (callbacks?.size) {
-                    callbacks.forEach(callback => callback({
-                        after: this.createOnActionAfterCallbackCollector(name, store),
-                        args,
-                        name,
-                        onError: this.createOnActionOnErrorCallbackCollector(name, store)
-                    }))
-                }
-
-                const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
-                const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
-
+                callbacks.forEach(callback => callback({
+                    after: this.createOnActionAfterCallbackCollector(name, store),
+                    args,
+                    name,
+                    onError: this.createOnActionOnErrorCallbackCollector(name, store)
+                }))
+                closeGroup()
+                this.executeStoreOnActionAfterCallbacks(after, storageKey, store)
+                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
-
-                if (afterCallbacks?.length) {
-                    after((result) => {
-                        try {
-                            afterCallbacks.forEach(callback => callback(result))
-                        } finally {
-                            closeGroup()
-                        }
-                    })
-                }
-                if (onErrorCallbacks?.length || afterCallbacks?.length) {
-                    onError((error) => {
-                        try {
-                            onErrorCallbacks?.forEach(callback => callback(error))
-                        } finally {
-                            closeGroup()
-                        }
-                    })
-                }
-                if (!afterCallbacks?.length) {
-                    closeGroup()
-                }
             } catch (error) {
                 closeGroup()
                 throw error
             }
         })
+    }
+
+    private executeStoreOnActionAfterCallbacks(
+        after: (callback: (result: any) => void) => void,
+        storageKey: string,
+        store: Store
+    ) {
+        const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
+        const afterCallbacksLength = afterCallbacks?.length
+
+        if (afterCallbacksLength) {
+            after((result) => {
+                this.traceGroupStart(() => ({
+                    callbacks: afterCallbacksLength,
+                    result
+                }), store.$id, 'execute:store:onAction:after:callbacks')
+
+                afterCallbacks.forEach(callback => {
+                    try {
+                        callback(result)
+                    } catch (error) {
+                        this.traceError('executeStoreOnActionAfterCallbacks', error, store.$id)
+                    }
+                })
+
+                this.traceGroupEnd(() => ({}), store.$id)
+            })
+        }
+    }
+
+    private executeStoreOnActionOnErrorCallbacks(
+        onError: (callback: (error: any) => void) => void,
+        storageKey: string,
+        store: Store
+    ) {
+        const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
+
+        if (onErrorCallbacks?.length) {
+            onError((error) => {
+                this.traceGroupStart(() => ({
+                    callbacks: onErrorCallbacks.length,
+                    error
+                }), store.$id, 'execute:store:onAction:onError:callbacks')
+
+                onErrorCallbacks.forEach(callback => {
+                    try {
+                        callback(error)
+                    } catch (err) {
+                        this.traceError('execute:store:onAction:onError:callbacks:error', err, store.$id)
+                    }
+                })
+
+                this.traceGroupEnd(() => ({}), store.$id)
+            })
+        }
     }
 
     private executeSubscriber(context: PiniaPluginContext, subscriber: PluginSubscriber): void {
@@ -391,6 +427,7 @@ export default class PluginSubscription extends TraceEmitter {
         }
 
         this.traceGroupStart(() => ({
+            environment: this.defineCurrentEnvironment(),
             subscribers: this._subscribers,
             store,
             options

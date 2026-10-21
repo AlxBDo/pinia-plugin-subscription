@@ -1,6 +1,5 @@
 import Store from "./Store";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
-import type { AnyObject } from "../types";
 import type {
     PluginExecutionOptions,
     PluginHydrationScheduler,
@@ -92,7 +91,7 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
      * @param context The Pinia plugin context containing the store and options.
      * @returns A promise that resolves when the post-hydration process is complete, or void if synchronous.
      */
-    public afterHydration(context: PiniaPluginContext): void | Promise<void> {
+    public afterHydration(_context: PiniaPluginContext): void | Promise<void> {
         return
     }
 
@@ -101,7 +100,7 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
      * @param context The Pinia plugin context containing the store and options.
      * @returns A promise that resolves when the hydration process is complete, or void if synchronous.
      */
-    public hydrate(context: PiniaPluginContext): void | Promise<void> {
+    public hydrate(_context: PiniaPluginContext): void | Promise<void> {
         return
     }
 

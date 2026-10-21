@@ -77,7 +77,6 @@ contactStore.setData({
     id: 2,
     firstname: 'contact',
     email: 'mycontact@mail.com',
-    errors: []
 })
 
 contactStore.addError({ id: 'contact-error', message: 'Contact error' })

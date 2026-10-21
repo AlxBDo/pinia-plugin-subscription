@@ -18,10 +18,6 @@ export interface AnyObject {
     [key: number | string | symbol]: any
 }
 
-export interface SearchCollectionCriteria {
-    [key: number | string | symbol]: boolean | number | string
-}
-
 export interface Console {
     log(...args: any): void
     error(...args: any): void
@@ -50,7 +46,17 @@ export type {
     TracerOptions,
     TracerRegistryOptions
 } from './trace'
-export type { CustomStore, DefineAStoreSetupContext, DefineAStoreSetupExtensions, EmptyExtensions, StatePropertyValue, StoreOptions, StoreOptionsPropertyValue } from './store'
+export type {
+    CustomStore,
+    DefineAStoreSetupContext,
+    DefineAStoreSetupExtensions,
+    EmptyExtensions,
+    RollbackActionParams,
+    RollbackAfterFailureParams,
+    StatePropertyValue,
+    StoreOptions,
+    StoreOptionsPropertyValue
+} from './store'
 export type {
     NativePiniaSubscription,
     NativePiniaSubscriptionReturn,

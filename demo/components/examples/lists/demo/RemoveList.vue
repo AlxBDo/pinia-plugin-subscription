@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { PropType, ref } from 'vue'
+import { ref, type PropType } from 'vue'
 import MethodDemoForm from '../../../shared/form/MethodDemoForm.vue'
-import { List } from '../../../../models/liste'
+import type { List } from '../../../../models/liste'
 
 const props = defineProps({
     lists: { type: Array as PropType<List[]> },

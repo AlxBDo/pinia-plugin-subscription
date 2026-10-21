@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, type PropType } from 'vue'
 import MethodDemoForm from '../../../shared/form/MethodDemoForm.vue'
-import type { CustomStore } from '../../../../types/store'
-import { ListStoreMethods } from '../../../../stores/list'
-import { ListsState } from '../../../../stores/lists'
+import type { ListsStore } from '../../../../stores/lists'
 
 const props = defineProps({
     listTypeLabels: {
@@ -11,7 +9,7 @@ const props = defineProps({
         required: true
     },
     listsStore: {
-        type: Object as PropType<CustomStore<ListStoreMethods, ListsState>>,
+        type: Object as PropType<ListsStore>,
         required: true
     }
 })

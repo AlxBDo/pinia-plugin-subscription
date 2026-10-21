@@ -94,10 +94,13 @@ export default class RollbackStateSnapshotsHandler {
         const rollbackSnapshotParams = options?.storeOptions?.rollbackAfterFailure as Record<string, CreateStateSnapshotKeys>
         if (rollbackSnapshotParams && !this._storeHasRollbackSnapshots.has(store.$id)) {
             Object.keys(rollbackSnapshotParams).forEach(key => {
-                this._storeRollbackSnapshotsParams.set(
-                    getActionStoreKey(key, store),
-                    rollbackSnapshotParams[key]
-                )
+                const stateKeys = rollbackSnapshotParams[key]
+                if (stateKeys) {
+                    this._storeRollbackSnapshotsParams.set(
+                        getActionStoreKey(key, store),
+                        stateKeys
+                    )
+                }
             })
             this._storeHasRollbackSnapshots.add(store.$id)
         }

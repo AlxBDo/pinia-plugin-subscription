@@ -24,3 +24,5 @@ export const useListsStore = (id?: string) => defineAStore<ListsStoreMethods, Li
         ]
     }
 )()
+
+export type ListsStore = ReturnType<typeof useListsStore>

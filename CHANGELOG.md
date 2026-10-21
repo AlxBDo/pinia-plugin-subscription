@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `createPluginSubscriber(name, invoke, optionalProps?)` factory, exported from `pinia-plugin-subscription/helpers`, to build plain-object subscribers; documented in `docs/authoring-plugins.md` and used by the demo plugin
 - Added a dedicated tracing guide, `docs/tracing.md`; the README now only presents tracing and links to it
 - Moved the API reference, import subpaths, development, `Store` summary and testing sections from `README.md` to `docs/authoring-plugins.md`
 - `createTracerRegistry({ redact })`: opt-in redaction of event payloads before they reach listeners. `true` masks a default list of sensitive keys (`password`, `token`, `secret`, `authorization`, API/private keys, `credential`, `cookie`, `cipher`...); an object adds custom `keys`, a `replacement`, or drops the defaults with `includeDefaults: false`. It works on a copy, covers arrays/`Map`/`Set`, handles circular references, and replaces the payload by `__traceRedactionError` if redaction fails. `defaultRedactedKeys` and `TraceRedactOptions` are exported

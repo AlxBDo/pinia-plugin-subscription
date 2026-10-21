@@ -1,8 +1,9 @@
-import { Tracer } from 'pinia-plugin-subscription/helpers'
+//import { createPluginSubscriber, Tracer } from 'pinia-plugin-subscription/helpers'
 import { createPluginSubscriber } from '../../src/factories/plugin-subscriber'
+import Tracer from '../../src/system/Tracer'
 
 import type { Store } from 'pinia'
-import type { PluginStoreOptions, StoreOnActionCallbackParameters, StoreOnActionSubscription } from 'pinia-plugin-subscription'
+import type { PluginStoreOptions, StoreOnActionCallbackParameters } from 'pinia-plugin-subscription/types'
 
 
 const pluginName = 'demo-plugin-object'
