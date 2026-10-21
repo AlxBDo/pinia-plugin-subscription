@@ -61,54 +61,6 @@ app.use(pinia)
 app.mount('#app')
 ```
 
-## Usage — Examples
-
-**1) Subscriber using a `Store` subclass:**
-
-```typescript
-import PluginSubscriber from 'pinia-plugin-subscription'
-import { Store } from 'pinia-plugin-subscription'
-
-class MyPlugin extends Store {
-  protected override _className: string = 'MyPlugin'
-  protected static override _requiredKeys?: string[] | undefined = ['my-plugin-option']
-
-  constructor(store, options) {
-    super(store, options)
-    this.doSomething()
-  }
-}
-
-class MyPluginSubscriber extends PluginSubscriber<MyPlugin> {
-  constructor() {
-    super('my-plugin', MyPlugin.customizeStore.bind(MyPlugin))
-  }
-}
-
-export const myStoreSubscriber = new MyPluginSubscriber()
-```
-
-**2) Simple subscriber implementing `PluginSubscriberInterface`:**
-
-```typescript
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
-
-export const myStoreSubscriber: PluginSubscriberInterface = {
-  name: 'my-plugin',
-
-  invoke: (context) => {
-    // context contains `store`, `options`, `pinia`
-    console.log('store registered', context.store.$id)
-
-    return true
-  },
-
-  resetStoreCallback: (store) => {
-    console.log('store reset:', store.$id)
-  }
-}
-```
-
 ## Advanced Features
 
 - **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace — see [Tracing](#tracing).

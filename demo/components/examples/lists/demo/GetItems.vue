@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { ref, type PropType } from 'vue'
 import MethodDemoForm from '../../../shared/form/MethodDemoForm.vue'
-import type { } from '../../../../stores/collection'
-import type { CollectionState, CollectionStoreMethods, ExtendedStore } from '../../../../types/store'
-import type { List } from '../../../../models/liste'
-import { ListsStoreMethods } from '../../../../stores/lists'
+import type { ListsStore } from '../../../../stores/lists'
 
 const props = defineProps({
     listsStore: {
-        type: Object as PropType<ExtendedStore<ListsStoreMethods, CollectionState<List>>>,
+        type: Object as PropType<ListsStore>,
         required: true
     }
 })

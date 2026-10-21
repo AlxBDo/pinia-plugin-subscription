@@ -8,6 +8,11 @@ const style = (bgColor: string, color: string = 'white') =>
     `background-color: ${bgColor}; color: ${color}; padding: 1px; margin-right: 5px; font-size: 12px`
 
 export function printObject(label: string, payload: object, groupCollapsed: boolean = true) {
+    if (payload instanceof Error) {
+        console.error(`[ ${label} ]`, payload)
+        return
+    }
+
     const isArray = Array.isArray(payload)
     const isEmpty = isArray ? payload.length === 0 : Object.keys(payload).length === 0
     if (isEmpty) {
@@ -71,6 +76,8 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
                         console.log(value)
                         console.groupEnd()
                     }
+                } else if (value instanceof Error) {
+                    console.log(key, value)
                 } else {
                     printObject(key, Object.assign({}, value), false)
                 }

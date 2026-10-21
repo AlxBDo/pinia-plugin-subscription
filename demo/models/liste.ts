@@ -1,4 +1,4 @@
-import type { ListTypes, ListTypesMap } from "../types/list";
+import type { ListTypes, ListTypesMap } from "pinia-plugin-subscription/types";
 import type { Item } from "./item";
 
 

@@ -6,10 +6,10 @@ import { createConsoleGroupTraceListener } from '../factories/console-trace-list
 import { createTracerRegistry } from '../factories/trace-registry'
 import type { TraceEvent } from '../types/trace'
 
-function createContext(store: Store): PiniaPluginContext {
+function createContext(store: Store, options: Partial<PiniaPluginContext['options']> = {}): PiniaPluginContext {
     return {
         store,
-        options: {},
+        options,
     } as unknown as PiniaPluginContext
 }
 
@@ -594,17 +594,16 @@ describe('PluginSubscription', () => {
                 $patch: vi.fn((state: { count: number }) => { store.$state.count = state.count }),
                 $onAction: vi.fn((handler: (params: any) => void) => { onActionCallback = handler }),
                 $dispose: vi.fn()
-            } as unknown as Store
+            } as unknown as Store & { $state: { count: number } }
             pluginSub.subscribers = [{
                 name: 'immediate',
                 invoke: vi.fn().mockReturnValue(true),
                 storeOnActionSubscription: () => ({ store, callback })
             }]
 
-            pluginSub.plugin({
-                store,
-                options: { storeOptions: { rollbackAfterFailure: { fail: [] } } }
-            } as PiniaPluginContext)
+            pluginSub.plugin(createContext(store, {
+                storeOptions: { rollbackAfterFailure: { fail: [] } }
+            }))
             const onError = vi.fn()
             onActionCallback!({ name: 'fail', args: [], after: vi.fn(), onError })
             store.$state.count = 10

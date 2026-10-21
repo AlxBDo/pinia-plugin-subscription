@@ -113,7 +113,7 @@ describe('defineAStore setup context', () => {
     })
 
     it('sets and retrieves enhanced store with extending backward compatibility', () => {
-        const useStore = defineAStoreCtx<{ addItem: () => void }, {}>('enhancedStore', (ctx) => {
+        const useStore = defineAStoreCtx('enhancedStore', (ctx) => {
             const enhancedStore = { addItem: vi.fn() }
             setEnhancedStore(ctx, enhancedStore)
 
@@ -173,7 +173,7 @@ describe('defineAStore setup context', () => {
     })
 
     it('reuses setup context for duplicated store ids', () => {
-        const storesById = new Map<string, { $id: string }>()
+        const storesById = new Map<string, { $id: string; $dispose: ReturnType<typeof vi.fn<() => void>> }>()
 
         defineStoreMock.mockImplementation((id: string, storeDefinition: unknown) => {
             const useStore = vi.fn(() => {
@@ -182,8 +182,9 @@ describe('defineAStore setup context', () => {
                 if (!store) {
                     store = {
                         $id: id,
+                        $dispose: vi.fn<() => void>(),
                         ...((typeof storeDefinition === 'function' ? storeDefinition() : {}) as object)
-                    } as { $id: string }
+                    } as { $id: string; $dispose: ReturnType<typeof vi.fn<() => void>> }
                     storesById.set(id, store)
                 }
 

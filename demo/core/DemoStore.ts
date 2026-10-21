@@ -1,8 +1,14 @@
+//import { Store } from 'pinia-plugin-subscription/helpers'
 import Store from '../../src/core/Store'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from "pinia"
-import type { PluginStoreOptions, PluginSubscriptionOptions, StoreOnActionCallbackParameters } from 'pinia-plugin-subscription'
+import type {
+    PluginStoreOptions,
+    PluginSubscriptionOptions,
+    StoreOnActionCallbackParameters
+} from 'pinia-plugin-subscription/types'
 import type { DemoPluginClassOptions } from '../types/plugin'
+
 
 export default class DemoStore extends Store {
     protected _className = 'DemoStore'
@@ -50,7 +56,7 @@ export default class DemoStore extends Store {
         this.storeSubscribe = this.onMutationCallback.bind(this)
     }
 
-    private onActionCallback({ after, args, name, onError }: StoreOnActionCallbackParameters) {
+    private onActionCallback({ after, name, onError }: StoreOnActionCallbackParameters) {
         // Handle the mutation here
         this.trace(`onAction:before:${name}`, this.store.$id)
 
@@ -67,7 +73,7 @@ export default class DemoStore extends Store {
         })
     }
 
-    private onMutationCallback(mutation: SubscriptionCallbackMutation<StateTree>) {
+    private onMutationCallback(_mutation: SubscriptionCallbackMutation<StateTree>) {
         // Handle the mutation here
         this.trace(`onMutation`, this.store.$id)
     }

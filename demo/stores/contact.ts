@@ -1,14 +1,15 @@
-import { ParentStore, useContactInformationStore, useErrorsStore, useResourceIdStore } from "pinia-plugin-extending-store"
+import { ParentStore, useErrorsStore, useResourceIdStore } from "pinia-plugin-extending-store"
 import { defineAStoreCtx, getEnhancedStore } from "pinia-plugin-subscription";
 import { computed, ref } from "vue";
 import { isEmpty } from "../../src/utils/validation";
 
 import type { Contact } from "../models/contact"
-import type { ContactInformationState, ContactInformationStore, ErrorsStore, ResourceIdStore, ResourceId } from "pinia-plugin-extending-store"
+import type { ErrorsStore, ResourceId, ResourceIdStore } from "pinia-plugin-extending-store"
 
 
-export interface ContactStore extends ErrorsStore, ResourceIdStore {
+export interface ContactStore extends ErrorsStore, Omit<ResourceIdStore, 'setData'> {
     contact: Contact
+    setData: (data: ContactState) => void
 }
 
 export interface ContactState extends Omit<Contact, 'id'>, ResourceId {

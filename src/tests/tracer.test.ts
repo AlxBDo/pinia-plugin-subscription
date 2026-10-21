@@ -92,7 +92,7 @@ describe('Tracer', () => {
                 ; (createTracer('Source')).debug('Mutation', 'store:mutation', payload)
 
             expect(payload).toHaveBeenCalledTimes(1)
-            expect(collector.events[0].payload).toEqual({ heavy: true })
+            expect(collector.events[0]!.payload).toEqual({ heavy: true })
         })
 
         it('accepts a plain object payload', () => {
@@ -101,7 +101,7 @@ describe('Tracer', () => {
 
                 ; (createTracer('Source')).debug('Mutation', 'store:mutation', { direct: 1 })
 
-            expect(collector.events[0].payload).toEqual({ direct: 1 })
+            expect(collector.events[0]!.payload).toEqual({ direct: 1 })
         })
 
         it('never lets a throwing payload factory break the caller', () => {
@@ -109,7 +109,7 @@ describe('Tracer', () => {
             addListener(collector)
 
             expect(() => (createTracer('Source')).debug('Mutation', 'ns', () => { throw new Error('boom') })).not.toThrow()
-            expect(collector.events[0].payload).toHaveProperty('__tracePayloadError')
+            expect(collector.events[0]!.payload).toHaveProperty('__tracePayloadError')
         })
     })
 
@@ -120,14 +120,14 @@ describe('Tracer', () => {
 
                 ; (createTracer('PluginSubscription')).debug('Subscription:delivery', 'subscription:delivery', undefined, 'cart')
 
-            expect(collector.events[0]).toMatchObject({
+            expect(collector.events[0]!).toMatchObject({
                 level: 'debug',
                 label: 'Subscription:delivery',
                 namespace: 'subscription:delivery',
                 scope: 'cart',
                 source: 'PluginSubscription'
             })
-            expect(typeof collector.events[0].timestamp).toBe('number')
+            expect(typeof collector.events[0]!.timestamp).toBe('number')
         })
 
         it('falls back to the tracer scope when none is given', () => {
@@ -136,7 +136,7 @@ describe('Tracer', () => {
 
                 ; (createTracer('Store', { scope: 'user' })).debug('Mutation', 'ns')
 
-            expect(collector.events[0].scope).toBe('user')
+            expect(collector.events[0]!.scope).toBe('user')
         })
 
         it('lets an explicit scope override the tracer scope', () => {
@@ -145,7 +145,7 @@ describe('Tracer', () => {
 
                 ; (createTracer('Store', { scope: 'user' })).debug('Mutation', 'ns', undefined, 'cart')
 
-            expect(collector.events[0].scope).toBe('cart')
+            expect(collector.events[0]!.scope).toBe('cart')
         })
     })
 
@@ -173,7 +173,7 @@ describe('Tracer', () => {
             tracer.debug('Mutation', 'ns', undefined, 'user')
 
             expect(collector.events).toHaveLength(1)
-            expect(collector.events[0].scope).toBe('cart')
+            expect(collector.events[0]!.scope).toBe('cart')
         })
 
         it('treats a throwing filter as non matching', () => {
@@ -345,8 +345,8 @@ describe('Tracer', () => {
 
                 ; (createTracer('Source')).error('Failure', 'ns', new Error('boom'))
 
-            expect(collector.events[0].level).toBe('error')
-            expect(collector.events[0].error).toBeInstanceOf(Error)
+            expect(collector.events[0]!.level).toBe('error')
+            expect(collector.events[0]!.error).toBeInstanceOf(Error)
         })
 
         it('log error when no listener is registered', () => {

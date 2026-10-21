@@ -15,11 +15,10 @@ describe('StoreOptionsExtensions', () => {
 
         const subscriber: PluginSubscriber = {
             name: 'ext-subscriber',
-            console: console,
             invoke: vi.fn().mockReturnValue(true),
             subscriptions: {
                 'ext-subscriber': {
-                    subscription: { console: console, invoke: subscriptionInvoke, name: 'ext-plugin' },
+                    subscription: { invoke: subscriptionInvoke, name: 'ext-plugin' },
                     subscriptionOptions: { testExtension: 'from-subscription', subOnly: true },
                 },
             },
@@ -63,11 +62,10 @@ describe('StoreOptionsExtensions', () => {
 
         const subscriber: PluginSubscriber = {
             name: 'ext-subscriber-empty',
-            console: console,
             invoke: vi.fn().mockReturnValue(true),
             subscriptions: {
                 'ext-subscriber-empty': {
-                    subscription: { console: console, invoke: subscriptionInvoke, name: 'ext-plugin' },
+                    subscription: { invoke: subscriptionInvoke, name: 'ext-plugin' },
                 },
             },
         }

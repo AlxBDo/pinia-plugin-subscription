@@ -29,7 +29,7 @@ vi.mock('pinia', async () => {
 
 import Store from '../core/Store'
 import type { Store as PiniaStore } from 'pinia'
-import type { PluginStoreOptions, StoreOptions } from '../types'
+import type { PluginStoreOptions, StoreClassConstructorParams, StoreOptions } from '../types'
 import type { TraceEvent } from '../types/trace'
 import { defineAStore, defineAStoreCtx, getDefineAStoreSetupContext } from '../utils/store'
 
@@ -39,17 +39,17 @@ const createTracer = traceRegistry.tracerHandler.createTracer
 
 class StoreChild extends Store {
     protected static override _requiredKeys?: string[] | undefined = ['test']
-}
 
-class NamedStoreChild extends Store {
-    protected override _className = 'NamedStoreChild'
+    public hasDeniedFirstCharPublic(value: string): boolean {
+        return this.hasDeniedFirstChar(value)
+    }
 }
 
 describe('Store', () => {
     let mockPiniaStore: PiniaStore
-    let mockOptions: PluginStoreOptions
+    let mockOptions: StoreClassConstructorParams
     let storeInstance: Store
-    let childInstance: StoreChild
+    let childStore: StoreChild
 
     beforeEach(() => {
         defineStoreMock.mockClear()
@@ -72,10 +72,11 @@ describe('Store', () => {
             storeOptions: {
                 customOptions: {}
             } as StoreOptions,
-            createTracer
+            createTracer: () => createTracer('Store')
         }
 
         storeInstance = new Store(mockPiniaStore, mockOptions)
+        childStore = new StoreChild(mockPiniaStore, mockOptions)
     })
 
     describe('Constructor', () => {
@@ -261,7 +262,7 @@ describe('Store', () => {
                 namespace: 'store:store:hydrate',
                 payload: { done: true },
                 scope: mockPiniaStore.$id,
-                source: undefined
+                source: 'Store'
             })
         })
 
@@ -281,7 +282,7 @@ describe('Store', () => {
             remove()
 
             expect(collector).toHaveLength(1)
-            expect(collector[0].level).toBe('error')
+            expect(collector[0]!.level).toBe('error')
         })
     })
 
@@ -296,23 +297,23 @@ describe('Store', () => {
 
     describe('hasDeniedFirstChar', () => {
         it('should return true for properties starting with _', () => {
-            expect(storeInstance.hasDeniedFirstChar('_private')).toBe(true)
+            expect(childStore.hasDeniedFirstCharPublic('_private')).toBe(true)
         })
 
         it('should return true for properties starting with $', () => {
-            expect(storeInstance.hasDeniedFirstChar('$public')).toBe(true)
+            expect(childStore.hasDeniedFirstCharPublic('$public')).toBe(true)
         })
 
         it('should return false for normal properties', () => {
-            expect(storeInstance.hasDeniedFirstChar('normal')).toBe(false)
+            expect(childStore.hasDeniedFirstCharPublic('normal')).toBe(false)
         })
 
         it('should return false for properties starting with numbers', () => {
-            expect(storeInstance.hasDeniedFirstChar('123')).toBe(false)
+            expect(childStore.hasDeniedFirstCharPublic('123')).toBe(false)
         })
 
         it('should return false for properties starting with letters', () => {
-            expect(storeInstance.hasDeniedFirstChar('abc')).toBe(false)
+            expect(childStore.hasDeniedFirstCharPublic('abc')).toBe(false)
         })
     })
 
@@ -383,17 +384,17 @@ describe('Store', () => {
         })
 
         it('should add and retrieve plugin subscriptions', () => {
-            const pluginSub = vi.fn((s?: any) => [s])
+            const pluginSub = {
+                name: 'myPlugin',
+                invoke: vi.fn(() => true)
+            }
 
             storeInstance.addSubscription('myPlugin', pluginSub)
 
             const subs = storeInstance.getSubscriptions()
 
             expect(subs).toBeDefined()
-            expect(typeof subs!.myPlugin.subscription).toBe('function')
-            // invoking stored subscription should return array as pluginSub does
-            const res = subs!.myPlugin.subscription(storeInstance.store as any)
-            expect(res).toEqual([storeInstance.store])
+            expect(subs!.myPlugin?.subscription).toBe(pluginSub)
         })
     })
 

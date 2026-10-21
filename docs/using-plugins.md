@@ -66,7 +66,7 @@ requires no generics:
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription'
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/helpers'
 
 const subscribers: PluginSubscriberInterface[] = [myStoreSubscriber]
 
@@ -397,16 +397,16 @@ register it through the dedicated hydration helper:
 
 ```js
 import { nextTick } from 'vue'
-import { createHydrationPlugin } from 'pinia-plugin-subscription'
+import { createPlugin } from 'pinia-plugin-subscription'
 
-pinia.use(createHydrationPlugin([persistedStateSubscriber], {
+pinia.use(createPlugin([persistedStateSubscriber], {
   hydrationScheduler: (run) => {
     nextTick(() => run())
   }
 }))
 ```
 
-`createHydrationPlugin(subscribers, options?)` accepts
+`createPlugin(subscribers, options?)` accepts
 `PluginSubscriptionOptions`:
 
 | Option | Type | Description |

@@ -42,8 +42,8 @@ describe('PluginSubscriber (abstract)', () => {
             constructor() { super('my-plugin', createInstance) }
         })()
 
-        subscriber.pluginOptions = { optionA: 'valueA' }
-        expect(subscriber.pluginOptions).toEqual({ optionA: 'valueA' })
+        subscriber.pluginOptions = { storeOptions: { optionA: 'valueA' } }
+        expect(subscriber.pluginOptions).toEqual({ storeOptions: { optionA: 'valueA' } })
     })
 
     it('should set and get subscriptions', () => {
@@ -53,10 +53,14 @@ describe('PluginSubscriber (abstract)', () => {
             constructor() { super('my-plugin', createInstance) }
         })()
 
-        const pluginAFn = vi.fn()
-        subscriber.subscriptions = { pluginA: pluginAFn }
+        const pluginAInvoke = vi.fn(() => true)
+        subscriber.subscriptions = {
+            pluginA: {
+                subscription: { name: 'pluginA', invoke: pluginAInvoke }
+            }
+        }
         const subscriptions = subscriber.subscriptions
-        expect(typeof subscriptions?.pluginA).toEqual('function')
+        expect(typeof subscriptions?.pluginA?.subscription.invoke).toEqual('function')
     })
 
     it('should do nothing when createInstance returns undefined', () => {
@@ -81,7 +85,7 @@ describe('PluginSubscriber (abstract)', () => {
 
         const instance = {
             getSubscriptions: vi.fn().mockReturnValue(subscriptions),
-            resetCallback: (s?: any) => { /* noop */ },
+            resetCallback: (_s?: any) => { /* noop */ },
             storeSubscribe: 'storeSubscribeValue',
             onAction: 'onActionValue',
         }
@@ -93,7 +97,7 @@ describe('PluginSubscriber (abstract)', () => {
             constructor() {
                 super('ext', createInstance)
                 this.pluginCreated = pluginCreated
-                this._resetStoreCallback = (s?: any) => { /* noop */ }
+                this._resetStoreCallback = (_s?: any) => { /* noop */ }
             }
         })()
 
