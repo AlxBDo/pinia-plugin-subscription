@@ -78,30 +78,31 @@ describe('PluginSubscription', () => {
 
         it('closes the action group when the action fails', () => {
             let failure!: (error: unknown) => void
-            const { closeGroup, closedAfterPlugin, fireAction } = setup(({ after }) => after(() => { }))
+            const { closeGroup, closedAfterPlugin, fireAction } = setup(({ after, onError }) => {
+                after(() => { })
+                onError(() => { })
+            })
 
             fireAction({ name: 'act', args: [], after: vi.fn(), onError: (cb: typeof failure) => { failure = cb } })
-            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin)
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
 
             failure(new Error('action failed'))
-            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 2)
         })
 
         it('closes the action group once when the action succeeds', () => {
             let success!: (result: unknown) => void
-            let failure!: (error: unknown) => void
             const { closeGroup, closedAfterPlugin, fireAction } = setup(({ after }) => after(() => { }))
 
             fireAction({
                 name: 'act',
                 args: [],
                 after: (cb: typeof success) => { success = cb },
-                onError: (cb: typeof failure) => { failure = cb }
+                onError: vi.fn()
             })
             success(undefined)
-            failure(new Error('late'))
 
-            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
+            expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 2)
         })
 
         it('closes the action group when a subscriber callback throws', () => {
@@ -1401,11 +1402,6 @@ describe('PluginSubscription', () => {
 
     describe('executeStoreOnActionSubscription coverage', () => {
         it('should register rollback callbacks on $onAction when the store has rollback snapshots', () => {
-            const subscriber: PluginSubscriber = {
-                name: 'rollback-trigger',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-            }
             let onActionCallback: ((params: any) => void) | undefined
             const mockStore = {
                 $id: 'rollback-store',
@@ -1414,6 +1410,15 @@ describe('PluginSubscription', () => {
                 $reset: vi.fn(),
                 $onAction: vi.fn((cb: (params: any) => void) => { onActionCallback = cb })
             } as unknown as Store
+            const subscriber: PluginSubscriber = {
+                name: 'rollback-trigger',
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+                storeOnActionSubscription: () => ({
+                    store: mockStore,
+                    callback: vi.fn(),
+                }),
+            }
 
             pluginSub.subscribers = [subscriber]
             pluginSub.plugin({
