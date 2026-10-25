@@ -54,9 +54,7 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
             target.error(`No group found for key "${key}"`)
             return
         }
-
         if (group.length) { target.logGroup(group) }
-
         groups.delete(key)
     }
 
@@ -64,7 +62,7 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
         createGroup,
         logGroup,
         handler(event): void {
-            const groupKey = event[groupBy] as string
+            const groupKey = (event?.payload?.groupId ?? event[groupBy]) as string
             if (!groups.has(groupKey)) {
                 log(target, event)
                 return

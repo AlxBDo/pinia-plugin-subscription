@@ -29,6 +29,8 @@ export type TraceLevel = 'debug' | 'error'
  * Filters receive this object so that discarded events never allocate a payload.
  */
 export interface TraceEventMetadata {
+    /** Identifier for the group this event belongs to. */
+    groupId?: string
     /** Label describing the event, e.g. `Subscription:Delivery`. */
     label: string
     /** Severity of the trace event. */
@@ -49,6 +51,9 @@ export interface TraceEvent extends TraceEventMetadata {
     payload?: AnyObject
     timestamp: number
 }
+
+/** Names of the trace groups emitted by `PluginSubscription`, see `traceGroups`. */
+export type TraceGroupId = 'onActionAfter' | 'onActionError' | 'onMutation' | 'reset'
 
 type TraceFilterCriterionComparator = 'equals' | 'contains' | 'startsWith' | 'endsWith'
 

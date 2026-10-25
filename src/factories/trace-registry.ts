@@ -78,7 +78,7 @@ export function createTracerRegistry(
         if (!listeners.length) return
 
         getMatchedListener(payload).forEach(listener => {
-            const groupLabel = payload[listener.groupBy]
+            const groupLabel = payload.groupId ?? payload[listener.groupBy]
             if (typeof groupLabel === 'string') { listener[actionName](groupLabel) }
         })
     }
