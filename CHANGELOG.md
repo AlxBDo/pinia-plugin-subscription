@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `traceGroups` glossary, exported from `pinia-plugin-subscription/helpers`, building the `groupId` emitted by `PluginSubscription` (`onActionAfter`, `onActionError`, `onMutation`, `reset`); documented in `docs/tracing.md`
 - `createPluginSubscriber(name, invoke, optionalProps?)` factory, exported from `pinia-plugin-subscription/helpers`, to build plain-object subscribers; documented in `docs/authoring-plugins.md` and used by the demo plugin
 - Added a dedicated tracing guide, `docs/tracing.md`; the README now only presents tracing and links to it
 - Moved the API reference, import subpaths, development, `Store` summary and testing sections from `README.md` to `docs/authoring-plugins.md`

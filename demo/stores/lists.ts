@@ -16,6 +16,8 @@ export const useListsStore = (id?: string) => defineAStore<ListsStoreMethods, Li
     id ?? 'lists',
     () => ({}),
     {
+        active: true,
+        demo: true,
         parentsStores: [
             new ParentStore('listsCollection', useCollectionStore, {
                 actionsToRename: { getItems: 'getLists' },

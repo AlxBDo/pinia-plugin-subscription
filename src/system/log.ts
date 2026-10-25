@@ -4,13 +4,30 @@ import type { ConsoleTraceEvent, ConsoleTraceEventArgs, TraceEvent } from '../ty
 import type { Store } from 'pinia'
 
 
+const errorColor = '#f86f63'
 const style = (bgColor: string, color: string = 'white') =>
     `background-color: ${bgColor}; color: ${color}; padding: 1px; margin-right: 5px; font-size: 12px`
 
 export function printObject(label: string, payload: object, groupCollapsed: boolean = true) {
     if (payload instanceof Error) {
-        console.error(`[ ${label} ]`, payload)
-        return
+        console.groupCollapsed(
+            '%c%s',
+            `color: ${errorColor}; padding: 1px; margin-right: 5px; font-size: 11px`,
+            `[ ${payload.name} ] ${payload.message}`,
+        )
+        if (payload.cause) {
+            console.log('cause:', payload.cause)
+        }
+        const stack = payload.stack?.split('\n')
+        if (stack) {
+            stack.forEach(line => {
+                const trace = line.split('@')
+                if (Array.isArray(trace)) {
+                    console.log(trace[0], trace[1])
+                }
+            })
+        }
+        console.groupEnd()
     }
 
     const isArray = Array.isArray(payload)
@@ -18,7 +35,7 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
     if (isEmpty) {
         console.log(
             '%c%s',
-            'color: #f86f63; padding: 1px; margin-right: 5px; font-size: 10px',
+            `color: ${errorColor}; padding: 1px; margin-right: 5px; font-size: 10px`,
             `[ ${label} ] Empty`
         )
         return
@@ -66,6 +83,10 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
     } else {
         let emptyKeys: string[] = []
         Object.keys(payload).forEach(key => {
+            if (key === 'groupId') {
+                return
+            }
+
             const value = (payload as Record<string, unknown>)[key]
             if (typeof value === 'object') {
                 if (Array.isArray(value)) {
@@ -77,7 +98,7 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
                         console.groupEnd()
                     }
                 } else if (value instanceof Error) {
-                    console.log(key, value)
+                    console.log(key, { name: value.name, message: value.message, stack: value.stack })
                 } else {
                     printObject(key, Object.assign({}, value), false)
                 }
@@ -118,7 +139,7 @@ function printTrace(trace: TraceEvent) {
 
 function printTracePayload(tracePayload: Record<string, unknown>) {
     Object.keys(tracePayload).forEach((key: string) => {
-        if (['label', 'namespace', 'scope', 'source'].includes(key)) {
+        if (['groupId', 'label', 'namespace', 'scope', 'source'].includes(key)) {
             return
         }
         const arg = tracePayload[key]

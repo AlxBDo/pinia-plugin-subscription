@@ -102,6 +102,23 @@ Listener definitions passed to `addListener()` are never mutated.
 
 By default, `Store` prefixes its class name to labels and derived namespaces. Library events use `PluginSubscription` as their prefix (for example, `pluginsubscription:store:mutation` and `pluginsubscription:subscription:delivery`). Set `classNameAddedToTraceNamespace = false` on a `Store` subclass to omit its class prefix, or provide an explicit namespace as the fourth argument to `trace()` / `traceError()`.
 
+## Trace groups glossary
+
+Events emitted within the same hook for the same store share a `groupId`. The `traceGroups` helper, exported from `pinia-plugin-subscription/helpers`, builds these identifiers from a store ID:
+
+| Builder | `groupId` | Hook |
+| --- | --- | --- |
+| `traceGroups.onActionAfter(id)` | `store:onAction:after:<id>` | `$onAction` `after` |
+| `traceGroups.onActionError(id)` | `store:onAction:onError:<id>` | `$onAction` `onError` |
+| `traceGroups.onMutation(id)` | `store:onMutation:<id>` | `$subscribe` |
+| `traceGroups.reset(id)` | `store:reset:<id>` | `$reset` |
+
+```ts
+import { traceGroups } from 'pinia-plugin-subscription/helpers'
+
+registry.addListener([{ target: 'groupId', value: traceGroups.onActionAfter('cart') }])
+```
+
 ## Emitting your own events
 
 ```ts

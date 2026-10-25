@@ -35,7 +35,7 @@ export const demoPluginObject = createPluginSubscriber(
                     tracer?.debug(
                         `demoPluginObject:onAction:${name}:after`,
                         `demo-plugin-object:on-action:after`,
-                        undefined,
+                        () => ({ groupId: `store:onAction:after:${store.$id}` }),
                         store.$id
                     )
                 })

@@ -8,6 +8,7 @@ import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
 import type { TraceEvent, TracePayload } from "../types/trace"
+import { traceGroups } from "../utils/traceGroups"
 import type {
     PluginExecutionOptions,
     PluginHydrationScheduler,
@@ -296,20 +297,25 @@ export default class PluginSubscription extends TraceEmitter {
 
         if (afterCallbacksLength) {
             after((result) => {
-                this.traceGroupStart(() => ({
-                    callbacks: afterCallbacksLength,
-                    result
-                }), store.$id, 'execute:store:onAction:after:callbacks')
+                this.traceGroupStart(
+                    () => ({
+                        callbacks: afterCallbacksLength,
+                        groupId: traceGroups.onActionAfter(store.$id),
+                        result
+                    }),
+                    store.$id,
+                    'store:onAction:after'
+                )
 
                 afterCallbacks.forEach(callback => {
                     try {
                         callback(result)
                     } catch (error) {
-                        this.traceError('executeStoreOnActionAfterCallbacks', error, store.$id)
+                        this.traceError('storeOnActionAfterCallbacks', error, store.$id)
                     }
                 })
 
-                this.traceGroupEnd(() => ({}), store.$id)
+                this.traceGroupEnd(() => ({ groupId: traceGroups.onActionAfter(store.$id) }), store.$id)
             })
         }
     }
@@ -325,18 +331,21 @@ export default class PluginSubscription extends TraceEmitter {
             onError((error) => {
                 this.traceGroupStart(() => ({
                     callbacks: onErrorCallbacks.length,
-                    error
-                }), store.$id, 'execute:store:onAction:onError:callbacks')
+                    error,
+                    groupId: traceGroups.onActionError(store.$id)
+                }), store.$id,
+                    'store:onAction:onError'
+                )
 
                 onErrorCallbacks.forEach(callback => {
                     try {
                         callback(error)
                     } catch (err) {
-                        this.traceError('execute:store:onAction:onError:callbacks:error', err, store.$id)
+                        this.traceError('store:onAction:onError:error', err, store.$id)
                     }
                 })
 
-                this.traceGroupEnd(() => ({}), store.$id)
+                this.traceGroupEnd(() => ({ groupId: traceGroups.onActionError(store.$id) }), store.$id)
             })
         }
     }
@@ -511,12 +520,12 @@ export default class PluginSubscription extends TraceEmitter {
         const safeState = deepClone(initState)
 
         store.$reset = () => {
-            this.traceGroupStart(() => ({ initialState: safeState }), store.$id, 'store:reset')
+            this.traceGroupStart(() => ({ initialState: safeState, groupId: traceGroups.reset(store.$id) }), store.$id, 'store:reset')
             try {
                 this.executeResetStoreCallbacks(store)
                 store.$patch(deepClone(safeState))
             } finally {
-                this.traceGroupEnd(() => ({ initialState: safeState }), store.$id)
+                this.traceGroupEnd(() => ({ initialState: safeState, groupId: traceGroups.reset(store.$id) }), store.$id)
             }
         }
     }
@@ -549,11 +558,11 @@ export default class PluginSubscription extends TraceEmitter {
         const { store, callback } = subscription()
 
         store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
-            this.traceGroupStart(() => ({ mutation }), store.$id, 'store:mutation')
+            this.traceGroupStart(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id, 'store:onMutation')
             try {
                 callback(mutation)
             } finally {
-                this.traceGroupEnd({}, store.$id)
+                this.traceGroupEnd(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id)
             }
         })
     }

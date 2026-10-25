@@ -8,7 +8,7 @@ import User from './components/examples/user/User.vue';
 <template>
   <Header />
   <main>
-    <User />
+    <!-- <User /> -->
     <Lists />
   </main>
 </template>

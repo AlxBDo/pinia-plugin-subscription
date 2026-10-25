@@ -1,20 +1,26 @@
 <script setup lang="ts">
-import { useOptionApiStore } from '../../../stores/optionApi'
-import { useContactStore } from '../../../stores/contact';
 import { useErrorsStore } from 'pinia-plugin-extending-store';
+import { useContactStore } from '../../../stores/contact';
+import { useOptionApiStore } from '../../../stores/optionApi'
 import { useRollbackSnapshotStore } from '../../../stores/rollback-snapshot'
 
 
 const rollbackSnapshotStoreWithRollback = useRollbackSnapshotStore(true)
 rollbackSnapshotStoreWithRollback.increment()
 setTimeout(() => {
-    rollbackSnapshotStoreWithRollback.codeError('rollbackSnapshotStore', 'WithRollback', 25)
+    try {
+        rollbackSnapshotStoreWithRollback.codeError('rollbackSnapshotStore', 'WithRollback', 25)
+    } catch (error) {
+    }
     console.log('rollbackSnapshotStoreWithRollback - after codeError - count:', rollbackSnapshotStoreWithRollback.count)
 }, 1000)
 setTimeout(() => {
     rollbackSnapshotStoreWithRollback.increment()
     console.log('rollbackSnapshotStoreWithRollback - after increment - count:', rollbackSnapshotStoreWithRollback.count)
-    rollbackSnapshotStoreWithRollback.throwError()
+    try {
+        rollbackSnapshotStoreWithRollback.throwError()
+    } catch (error) {
+    }
     console.log('rollbackSnapshotStoreWithRollback - after throwError - count:', rollbackSnapshotStoreWithRollback.count)
 }, 2000)
 

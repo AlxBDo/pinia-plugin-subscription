@@ -14,7 +14,7 @@ export default class DemoStore extends Store {
     protected _className = 'DemoStore'
     protected static _requiredKeys?: string[] = ['active']
 
-    constructor(store: PiniaStore, options: { storeOptions: DemoPluginClassOptions }) {
+    constructor(store: PiniaStore, options: { storeOptions: DemoPluginClassOptions } & PluginStoreOptions) {
         super(store, options)
         this.initialize()
     }
@@ -58,23 +58,27 @@ export default class DemoStore extends Store {
 
     private onActionCallback({ after, name, onError }: StoreOnActionCallbackParameters) {
         // Handle the mutation here
-        this.trace(`onAction:before:${name}`, this.store.$id)
+        this.trace(`onAction:${name}`, this.store.$id)
 
         after((result) => {
             this.trace(`onAction:after:${name}`, this.store.$id, () => ({
-                actionResult: result
+                actionResult: result,
+                groupId: `store:onAction:after:${this.store.$id}`
             }))
         })
 
         onError((error) => {
             this.trace(`onAction:error:${name}`, this.store.$id, () => ({
-                actionError: error
+                actionError: error,
+                groupId: `store:onAction:onError:${this.store.$id}`
             }))
         })
     }
 
     private onMutationCallback(_mutation: SubscriptionCallbackMutation<StateTree>) {
         // Handle the mutation here
-        this.trace(`onMutation`, this.store.$id)
+        this.trace(`onMutation`, this.store.$id, () => ({
+            groupId: `store:onMutation:${this.store.$id}`
+        }))
     }
 }
