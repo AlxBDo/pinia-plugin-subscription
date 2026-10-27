@@ -99,6 +99,24 @@ describe('createConsoleGroupTraceListener', () => {
         )
     })
 
+    it('keeps overlapping groups open until each group is closed', () => {
+        const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
+        const listener = createConsoleGroupTraceListener()
+
+        listener.createGroup('cart')
+        listener.createGroup('cart')
+        listener.handler(createEvent({
+            payload: { mutation: 'direct' },
+            scope: 'cart'
+        }))
+
+        listener.logGroup('cart')
+        expect(groupSpy).not.toHaveBeenCalled()
+
+        listener.logGroup('cart')
+        expect(groupSpy).toHaveBeenCalled()
+    })
+
     it.each([
         ['equals', 'store:mutation', true],
         ['equals', 'store:action', false],
