@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Console trace groups now prefer `payload.groupId` over the configured `groupBy` key; events sharing a key across overlapping groups are buffered until all those groups close, while events without an open group are printed immediately. See `docs/tracing.md`
 - `storeMutationSubscription` now supports several subscribers per store, like `storeOnActionSubscription`: a single `$subscribe` is registered per store and dispatches to every callback. A failing callback is reported through `traceError` without blocking the others, subscriber names are tracked, and the hook is unsubscribed when the store is disposed
 - `storeOnActionSubscription` now receives the Pinia plugin context; action trace labels include the invoked action name
 
