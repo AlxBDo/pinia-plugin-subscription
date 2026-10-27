@@ -1,6 +1,6 @@
 import RollbackStateSnapshotsHandler from "./RollbackStateSnapshotsHandler"
 import { deepClone } from '../utils/deep-clone'
-import { getActionStoreKey } from '../utils/store'
+import { getActionStoreKey, getStoreKeyPrefix, getStoreScopedKey } from '../utils/store'
 import TraceEmitter from "../system/TraceEmitter"
 import { isEmpty } from "../utils/validation"
 import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
@@ -18,6 +18,7 @@ import type {
     PluginSubscriptionOptions,
     PluginSubscriptions,
     StoreMutationSubscription,
+    StoreMutationSubscriptionCallback,
     StoreOnActionAfterCallbackParameter,
     StoreOnActionSubscriptionCallback
 } from "../types/plugin"
@@ -42,9 +43,13 @@ export default class PluginSubscription extends TraceEmitter {
     protected _className: string = className
     private _hydrationScheduler: PluginHydrationScheduler
     private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
+    private _onActionSubscriptionsTraces: Map<string, string[]> = new Map()
     private _onActionStores: Set<Store> = new Set()
     private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
     private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
+    private _onMutationSubscriptions: Map<Store, Set<StoreMutationSubscriptionCallback>> = new Map()
+    private _onMutationSubscriptionsTraces: Map<string, string[]> = new Map()
+    private _onMutationUnsubscribes: Map<Store, () => void> = new Map()
     private _options?: PluginSubscriptionOptions
     private _resetStoreCallback: Map<Store, Set<NonNullable<PluginSubscriber['resetStoreCallback']>>> = new Map()
     private _disposedStores: WeakSet<Store> = new WeakSet()
@@ -107,41 +112,46 @@ export default class PluginSubscription extends TraceEmitter {
     private clearStoreTracking(store: Store): void {
         this._onActionSubscriptions.delete(store)
         this._onActionStores.delete(store)
+        this._onMutationUnsubscribes.get(store)?.()
+        this._onMutationUnsubscribes.delete(store)
+        this._onMutationSubscriptions.delete(store)
         this._resetStoreCallback.delete(store)
-        const suffix = `-${store.$id}`
+        this._onActionSubscriptionsTraces.delete(store.$id)
+        this._onMutationSubscriptionsTraces.delete(store.$id)
+        const keyPrefix = getStoreKeyPrefix(store)
 
         for (const key of Array.from(this._subscribersDelivered)) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 this._subscribersDelivered.delete(key)
             }
         }
 
         for (const key of Array.from(this._subscribersScheduled)) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 this._subscribersScheduled.delete(key)
             }
         }
 
         for (const key of Array.from(this._subscriptionsDelivered)) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 this._subscriptionsDelivered.delete(key)
             }
         }
 
         for (const key of Array.from(this._subscriptionsScheduled)) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 this._subscriptionsScheduled.delete(key)
             }
         }
 
         for (const key of Object.keys(this._onActionAfterSubscriptions)) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 delete this._onActionAfterSubscriptions[key]
             }
         }
 
         for (const key of Object.keys(this._onActionOnErrorSubscriptions)) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 delete this._onActionOnErrorSubscriptions[key]
             }
         }
@@ -217,11 +227,11 @@ export default class PluginSubscription extends TraceEmitter {
     }
 
     private defineSubscriberKey(subscriber: PluginSubscriber, store: Store): string {
-        return `${subscriber.name}-${store.$id}`
+        return getStoreScopedKey(subscriber.name, store)
     }
 
     private defineSubscriptionKey(pluginName: string, store: Store): string {
-        return `${pluginName}-${store.$id}`
+        return getStoreScopedKey(pluginName, store)
     }
 
     private executeResetStoreCallbacks(store: Store): void {
@@ -248,12 +258,11 @@ export default class PluginSubscription extends TraceEmitter {
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
             const callbacks = this._onActionSubscriptions.get(store)
-            const callbacksLength = callbacks?.size
-            if (!callbacksLength) {
+            if (!callbacks?.size) {
                 return
             }
 
-            this.traceGroupStart(() => ({ args, callbacks: callbacksLength, name }), store.$id, 'onAction')
+            this.traceGroupStart(() => ({ args }), store.$id, `store:onAction:${name}`)
             // The group must be closed exactly once, whichever way the action ends.
             let groupClosed = false
             const closeGroup = () => {
@@ -277,8 +286,8 @@ export default class PluginSubscription extends TraceEmitter {
                     onError: this.createOnActionOnErrorCallbackCollector(name, store)
                 }))
                 closeGroup()
-                this.executeStoreOnActionAfterCallbacks(after, storageKey, store)
-                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store)
+                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name)
+                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
             } catch (error) {
                 closeGroup()
@@ -290,28 +299,26 @@ export default class PluginSubscription extends TraceEmitter {
     private executeStoreOnActionAfterCallbacks(
         after: (callback: (result: any) => void) => void,
         storageKey: string,
-        store: Store
+        store: Store,
+        name: string
     ) {
         const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
-        const afterCallbacksLength = afterCallbacks?.length
-
-        if (afterCallbacksLength) {
+        if (afterCallbacks?.length) {
             after((result) => {
                 this.traceGroupStart(
                     () => ({
-                        callbacks: afterCallbacksLength,
                         groupId: traceGroups.onActionAfter(store.$id),
                         result
                     }),
                     store.$id,
-                    'store:onAction:after'
+                    `store:onAction:after:${name}`
                 )
 
                 afterCallbacks.forEach(callback => {
                     try {
                         callback(result)
                     } catch (error) {
-                        this.traceError('storeOnActionAfterCallbacks', error, store.$id)
+                        this.traceError('storeOnActionAfterCallbacks', error, store.$id, () => ({ 'action name': name }))
                     }
                 })
 
@@ -323,25 +330,26 @@ export default class PluginSubscription extends TraceEmitter {
     private executeStoreOnActionOnErrorCallbacks(
         onError: (callback: (error: any) => void) => void,
         storageKey: string,
-        store: Store
+        store: Store,
+        name: string
     ) {
         const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
 
         if (onErrorCallbacks?.length) {
             onError((error) => {
                 this.traceGroupStart(() => ({
-                    callbacks: onErrorCallbacks.length,
+                    'action name': name,
                     error,
                     groupId: traceGroups.onActionError(store.$id)
                 }), store.$id,
-                    'store:onAction:onError'
+                    `store:onAction:onError:${name}`
                 )
 
                 onErrorCallbacks.forEach(callback => {
                     try {
                         callback(error)
                     } catch (err) {
-                        this.traceError('store:onAction:onError:error', err, store.$id)
+                        this.traceError('store:onAction:onError:error', err, store.$id, () => ({ groupId: traceGroups.onActionError(store.$id) }))
                     }
                 })
 
@@ -399,10 +407,10 @@ export default class PluginSubscription extends TraceEmitter {
         }
 
         if (subscriber.storeMutationSubscription) {
-            this.storeMutationSubscription(subscriber.storeMutationSubscription)
+            this.storeMutationSubscription(subscriber, subscriber.storeMutationSubscription)
         }
 
-        this.storeOnActionSubscription(subscriber)
+        this.storeOnActionSubscription(subscriber, context)
 
         if (subscriber.resetStoreCallback) {
             this.addResetStoreCallback(context.store, subscriber.resetStoreCallback)
@@ -435,12 +443,24 @@ export default class PluginSubscription extends TraceEmitter {
             return
         }
 
+        const subscribtions = {
+            $onAction: [],
+            $subscribe: [],
+        }
         this.traceGroupStart(() => ({
-            environment: this.defineCurrentEnvironment(),
+            environment: {
+                current: this.defineCurrentEnvironment(),
+                ...this._options?.execution ?? {}
+
+            },
             subscribers: this._subscribers,
+            'hooks subscriptions': subscribtions,
             store,
             options
         }), store.$id)
+
+        this._onActionSubscriptionsTraces.set(store.$id, subscribtions.$onAction)
+        this._onMutationSubscriptionsTraces.set(store.$id, subscribtions.$subscribe)
 
         try {
             this._subscribers.forEach(
@@ -540,8 +560,8 @@ export default class PluginSubscription extends TraceEmitter {
         return this.defineCurrentEnvironment() === 'client' && execution.hydration === 'defer'
     }
 
-    private storeOnActionSubscription(subscriber: PluginSubscriber): void {
-        const { store, callback } = subscriber?.storeOnActionSubscription?.() ?? {}
+    private storeOnActionSubscription(subscriber: PluginSubscriber, context: PiniaPluginContext): void {
+        const { store, callback } = subscriber?.storeOnActionSubscription?.(context) ?? {}
 
         if (!store || !callback) {
             return
@@ -551,20 +571,47 @@ export default class PluginSubscription extends TraceEmitter {
             this._onActionSubscriptions.set(store, new Set())
         }
         this._onActionSubscriptions.get(store)!.add(callback)
-        this.executeStoreOnActionSubscription(store)
+        this._onActionSubscriptionsTraces.get(store.$id)?.push(subscriber.name)
     }
 
-    private storeMutationSubscription(subscription: StoreMutationSubscription): void {
+    private storeMutationSubscription(subscriber: PluginSubscriber, subscription: StoreMutationSubscription): void {
         const { store, callback } = subscription()
 
-        store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
+        if (!store || !callback) {
+            return
+        }
+
+        if (!this._onMutationSubscriptions.has(store)) {
+            this._onMutationSubscriptions.set(store, new Set())
+        }
+        this._onMutationSubscriptions.get(store)!.add(callback)
+        this._onMutationSubscriptionsTraces.get(store.$id)?.push(subscriber.name)
+
+        if (this._onMutationUnsubscribes.has(store)) {
+            return
+        }
+
+        const unsubscribe = store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
+            const callbacks = this._onMutationSubscriptions.get(store)
+            if (!callbacks?.size) {
+                return
+            }
+
             this.traceGroupStart(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id, 'store:onMutation')
             try {
-                callback(mutation)
+                callbacks.forEach(mutationCallback => {
+                    try {
+                        mutationCallback(mutation)
+                    } catch (error) {
+                        this.traceError('store:onMutation', error, store.$id)
+                    }
+                })
             } finally {
                 this.traceGroupEnd(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id)
             }
         })
+
+        this._onMutationUnsubscribes.set(store, unsubscribe)
     }
 
     private subscriptionDelivery(
@@ -649,8 +696,9 @@ export default class PluginSubscription extends TraceEmitter {
     }
 
     private traceGroupEnd(payload: TracePayload, scope: string): void {
-        if (this._options?.tracerHandler) {
-            this._options.tracerHandler.closeGroup({
+        const tracerHandler = this._options?.tracerHandler
+        if (tracerHandler && (tracerHandler.hasTraceListeners?.() ?? true)) {
+            tracerHandler.closeGroup({
                 ...(typeof payload === 'function' ? payload() : (payload ?? {})),
                 scope
             })
@@ -658,9 +706,10 @@ export default class PluginSubscription extends TraceEmitter {
     }
 
     private traceGroupStart(payload: TracePayload, scope: string, label?: string): void {
-        if (this._options?.tracerHandler) {
+        const tracerHandler = this._options?.tracerHandler
+        if (tracerHandler && (tracerHandler.hasTraceListeners?.() ?? true)) {
             payload = (typeof payload === 'function' ? payload() : (payload ?? {}));
-            this._options.tracerHandler.startGroup({
+            tracerHandler.startGroup({
                 ...payload,
                 scope
             } as TraceEvent)

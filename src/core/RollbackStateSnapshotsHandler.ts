@@ -1,5 +1,5 @@
 import { createStateSnapshot } from "../factories/state-snapshot"
-import { getActionStoreKey, hasDeniedFirstChar } from '../utils/store'
+import { getActionStoreKey, getStoreKeyPrefix, hasDeniedFirstChar } from '../utils/store'
 
 import type { PiniaPluginContext, StateTree, Store } from 'pinia'
 import type { AnyObject } from '../types'
@@ -114,10 +114,10 @@ export default class RollbackStateSnapshotsHandler {
      * @returns void
      */
     clearStoreTracking(store: Store): void {
-        const suffix = `-${store.$id}`
+        const keyPrefix = getStoreKeyPrefix(store)
 
         for (const key of Array.from(this._storeRollbackSnapshotsParams.keys())) {
-            if (key.endsWith(suffix)) {
+            if (key.startsWith(keyPrefix)) {
                 this._storeRollbackSnapshotsParams.delete(key)
             }
         }
@@ -125,7 +125,7 @@ export default class RollbackStateSnapshotsHandler {
         this._storeHasRollbackSnapshots.delete(store.$id)
 
         for (const snapshotKey of Array.from(this._stateSnapshots.keys())) {
-            if (snapshotKey.description?.startsWith(`${store.$id}:`)) {
+            if (snapshotKey.description?.startsWith(keyPrefix)) {
                 this._stateSnapshots.delete(snapshotKey)
             }
         }
@@ -170,7 +170,7 @@ export default class RollbackStateSnapshotsHandler {
             stateKeys
         )
 
-        const snapshotKey = Symbol(`${store.$id}:${actionName}`)
+        const snapshotKey = Symbol(getActionStoreKey(actionName, store))
         this._stateSnapshots.set(snapshotKey, stateSnapshot)
         return snapshotKey
     }

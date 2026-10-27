@@ -61,6 +61,21 @@ describe('redaction', () => {
             expect(original).toEqual({ state: { token: 'abc' }, list: [{ secret: 's' }] })
         })
 
+        it('copies an own __proto__ key without changing the result prototype', () => {
+            const original = Object.defineProperty({}, '__proto__', {
+                configurable: true,
+                enumerable: true,
+                value: { token: 'secret' },
+                writable: true
+            })
+
+            const result = createRedactor()(original)
+
+            expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+            expect(Object.prototype.hasOwnProperty.call(result, '__proto__')).toBe(true)
+            expect((result as Record<string, unknown>)['__proto__']).toEqual({ token: DEFAULT_REDACTED_VALUE })
+        })
+
         it('handles circular references, null and non-plain values', () => {
             const circular: Record<string, unknown> = { name: 'loop', value: null }
             circular.self = circular

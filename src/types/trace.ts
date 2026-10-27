@@ -124,6 +124,14 @@ export type TraceRegistry = {
     ) => TraceListenerRemover
 
     /**
+     * Registers a listener for the specified scopes and returns its remover.
+     * @param scopes The scopes to listen for.
+     * @param context Whether to print the plugin context to the console. Defaults to true.
+     * @returns A function that removes the registered listener when called.
+     */
+    addScopesListener: (scopes: string[], context?: boolean) => TraceListenerRemover
+
+    /**
      * Clears all registered trace listeners.
      */
     clearTraceListeners: () => void
@@ -147,6 +155,8 @@ export interface TracerHandler {
      * @param options Optional tracer options.
      */
     createTracer: (source: string, options?: TracerOptions) => Tracer
+    /** Reports whether this handler currently has any registered trace listeners. */
+    hasTraceListeners?: () => boolean
     /** Opens a group for the event's group key on the matching listeners. */
     startGroup: (payload: TraceEvent) => void
 }

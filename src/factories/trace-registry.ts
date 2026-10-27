@@ -56,6 +56,19 @@ export function createTracerRegistry(
     }
 
     /**
+     * Adds a trace listener for specific scopes.
+     * @param scopes The scopes to listen for.
+     * @param context Print the plugin context (subscribers, store, options, and traces) to the console.. Defaults to true.
+     * @returns A function that removes the registered trace group listener when called.
+     */
+    function addScopesListener(scopes: string[], context = true): TraceListenerRemover {
+        return addListener(
+            scopes.map(scope => ({ target: 'scope', value: scope })),
+            { context, filterMode: 'some', groupBy: 'scope' }
+        )
+    }
+
+    /**
      * Clears all registered trace listeners.
      */
     function clearTraceListeners(): void {
@@ -63,7 +76,16 @@ export function createTracerRegistry(
     }
 
     function getMatchedListener(payload: TraceEvent) {
-        return listeners.filter(listener => listener.filter(payload))
+        const metadata = {
+            groupId: payload.groupId,
+            label: payload.label,
+            level: payload.level,
+            namespace: payload.namespace,
+            scope: payload.scope,
+            source: payload.source
+        }
+
+        return listeners.filter(listener => listener.filter(metadata))
     }
 
     /**
@@ -86,10 +108,12 @@ export function createTracerRegistry(
 
     return {
         addListener,
+        addScopesListener,
         clearTraceListeners,
         tracerHandler: {
             closeGroup: (payload: TraceEvent) => listenerGroupAction('logGroup', payload),
             createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { redactor, ...options }),
+            hasTraceListeners,
             startGroup: (payload: TraceEvent) => listenerGroupAction('createGroup', payload)
         },
         hasTraceListeners

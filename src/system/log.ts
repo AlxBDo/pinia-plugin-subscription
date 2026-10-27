@@ -8,7 +8,20 @@ const errorColor = '#f86f63'
 const style = (bgColor: string, color: string = 'white') =>
     `background-color: ${bgColor}; color: ${color}; padding: 1px; margin-right: 5px; font-size: 12px`
 
-export function printObject(label: string, payload: object, groupCollapsed: boolean = true) {
+function getPrintablePayload(trace: TraceEvent) {
+    const { payload } = trace
+    if (payload && Object.keys(payload).length > 0) {
+        return Object.keys(payload).reduce((acc, key) => {
+            if (!['groupId', 'label', 'namespace', 'scope', 'source'].includes(key)) {
+                acc[key] = payload[key]
+            }
+            return acc
+        }, {} as Record<string, unknown>)
+    }
+    return undefined
+}
+
+export function printObject(label: string, payload: object, groupCollapsed: boolean = true, source?: string) {
     if (payload instanceof Error) {
         console.groupCollapsed(
             '%c%s',
@@ -44,15 +57,23 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
     const styles: Record<string, string> = {
         options: '📚 ',
         store: '🏪 ',
-        subscribers: '🧩 '
+        subscribers: '🧩 ',
+        'hooks subscriptions': '🔗 '
     }
     const icon = styles[label] ?? ''
 
     if (groupCollapsed) {
-        console.groupCollapsed(
-            '%c%s',
-            'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
-            `[ ${icon}${label} ]`)
+        if (source) {
+            console.groupCollapsed(
+                '%c%s',
+                'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
+                `${icon} ${label}`, source)
+        } else {
+            console.groupCollapsed(
+                '%c%s',
+                'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
+                `[ ${icon}${label} ]`)
+        }
     } else {
         console.group(
             '%c%s',
@@ -126,8 +147,9 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
 }
 
 function printTrace(trace: TraceEvent) {
-    if (trace.payload) {
-        printObject(trace.label, trace.payload)
+    const payload = getPrintablePayload(trace)
+    if (payload && Object.keys(payload).length > 0) {
+        printObject(trace.label, payload, true, trace.source)
         return
     }
     console.log(
@@ -153,7 +175,7 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
         }
 
         switch (typeof arg) {
-            case 'string':
+            case 'string': case 'number':
                 console.log(
                     '%c%s',
                     'color: #fafa05; padding: 1px; margin-right: 5px; font-size: 10px',
@@ -194,7 +216,7 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
                 console.dir(arg)
                 break;
             default:
-                console.info(arg)
+                console.info(key, arg)
         }
     })
 }
@@ -343,7 +365,7 @@ export class TraceConsole extends CustomConsole {
         console.groupCollapsed(
             '%c%s',
             'color: #87e47f; padding: 1px; margin-right: 5px; font-size: 11px; font-family: arial',
-            `[ 🍍 ${context?.label ?? context?.namespace} ]`, context?.scope
+            `🍍 ${context?.label ?? context?.namespace}`, `[${context?.scope}]`
         )
         if (context?.payload) {
             printTracePayload(context.payload)

@@ -87,6 +87,21 @@ traceGroupsRegistry.addListener([
 
 Listener definitions passed to `addListener()` are never mutated.
 
+Trace filters, including custom filters used when starting or closing groups, receive event metadata only. They never receive payloads or error objects. The built-in registry also avoids resolving group payload factories when it has no registered listeners; custom `TracerHandler` implementations may expose the optional `hasTraceListeners()` capability to enable the same optimization.
+
+For the common case of selecting several store scopes, use `addScopesListener(scopes, context?)`. It registers one listener that matches events whose `scope` equals **any** of the supplied strings, groups them by scope, and returns a remover just like `addListener()`. The optional `context` flag controls whether the plugin context is printed and defaults to `true`:
+
+```ts
+const removeStoreListeners = traceGroupsRegistry.addScopesListener(
+  ['cart', 'checkout'],
+  false
+)
+
+removeStoreListeners() // unsubscribe
+```
+
+Use `addListener()` when you need other metadata criteria, a different grouping field, or custom filter logic.
+
 ## Event shape
 
 | Field | Description |
@@ -118,6 +133,8 @@ import { traceGroups } from 'pinia-plugin-subscription/helpers'
 
 registry.addListener([{ target: 'groupId', value: traceGroups.onActionAfter('cart') }])
 ```
+
+The plugin's action trace labels include the invoked action name (`store:onAction:<name>`). The `after` and `onError` callback trace labels also include that name, making activity from different actions distinguishable; their group IDs remain scoped to the store as shown above.
 
 ## Emitting your own events
 

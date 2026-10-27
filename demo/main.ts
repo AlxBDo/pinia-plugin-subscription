@@ -23,50 +23,7 @@ pinia.use(
     )
 )
 
-
-/**
- tracerRegistry.addListener({
-    filter: event => {
-        const namespaceArray = event.namespace?.split(':') ?? []
-        return event.scope === 'rollbackSnapshotStoreWithRollback' && (
-            namespaceArray[0] === 'demostore'
-            || namespaceArray[0] === 'pluginsubscription'
-            || namespaceArray[0] === 'store'
-            || !namespaceArray[0]
-        )
-    }
-})
- */
-
-
-tracerRegistry.addListener(
-    [
-        {
-            target: 'scope',
-            value: 'rollbackSnapshotStoreWithRollback',
-        },
-        //{ target: 'namespace', value: 'demostore', comparator: 'startsWith' },
-        { target: 'scope', value: 'lists' }
-    ],
-    { filterMode: 'some' }
-)
-
-/**
-
-tracerRegistry.addTraceListener({
-    filter: [{
-        target: 'scope',
-        value: 'rollbackSnapshotStoreWithRollback'
-    }]
-})
-
-tracerRegistry.addTraceListener({
-    ...createConsoleTraceListener(),
-    filter: event => {
-        return event.scope === 'rollbackSnapshotStoreWithRollback'
-    }
-})
-*/
+tracerRegistry.addScopesListener(['rollbackSnapshotStoreWithRollback', 'lists'])
 
 app.use(pinia)
 app.mount('#app')

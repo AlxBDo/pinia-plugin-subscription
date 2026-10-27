@@ -1,10 +1,11 @@
-﻿import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
 import { createConsoleGroupTraceListener } from '../factories/console-trace-listener'
 import { createTracerRegistry } from '../factories/trace-registry'
 import type { TraceEvent } from '../types/trace'
+import { getStoreScopedKey } from '../utils/store'
 
 function createContext(store: Store, options: Partial<PiniaPluginContext['options']> = {}): PiniaPluginContext {
     return {
@@ -174,6 +175,23 @@ describe('PluginSubscription', () => {
             expect(failure).toBeDefined()
             expect(failure?.error).toBeInstanceOf(Error)
         })
+
+        it('does not resolve group payloads when the tracer handler has no listeners', () => {
+            const payload = vi.fn(() => ({ heavy: true }))
+            const subscription = new PluginSubscription([], {
+                tracerHandler: {
+                    closeGroup: vi.fn(),
+                    createTracer,
+                    hasTraceListeners: () => false,
+                    startGroup: vi.fn()
+                }
+            })
+
+            ;(subscription as any).traceGroupStart(payload, 'cart')
+            ;(subscription as any).traceGroupEnd(payload, 'cart')
+
+            expect(payload).not.toHaveBeenCalled()
+        })
     })
 
     describe('subscribers setter', () => {
@@ -282,6 +300,36 @@ describe('PluginSubscription', () => {
 
 
     describe('edge cases', () => {
+        it('keeps subscriber delivery and cleanup keys distinct when names and store ids contain separators', () => {
+            const firstInvoke = vi.fn().mockReturnValue(true)
+            const secondInvoke = vi.fn().mockReturnValue(true)
+            pluginSub.subscribers = [
+                { name: 'x-y', invoke: firstInvoke },
+                { name: 'x', invoke: secondInvoke }
+            ]
+
+            const makeStore = (id: string) => ({
+                $id: id,
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: vi.fn()
+            } as unknown as Store)
+            const firstStore = makeStore('z')
+            const secondStore = makeStore('y-z')
+
+            pluginSub.plugin(createContext(firstStore))
+            pluginSub.plugin(createContext(secondStore))
+
+            expect(firstInvoke).toHaveBeenCalledTimes(2)
+            expect(secondInvoke).toHaveBeenCalledTimes(2)
+
+            firstStore.$dispose!()
+            expect((pluginSub as any)._subscribersDelivered.has(getStoreScopedKey('x', secondStore))).toBe(true)
+            pluginSub.plugin(createContext(secondStore))
+            expect(secondInvoke).toHaveBeenCalledTimes(2)
+        })
+
         it('should clone Map and Set values when $reset is executed', () => {
             const subscriber: PluginSubscriber = {
                 name: 'map-set-reset',
@@ -514,26 +562,29 @@ describe('PluginSubscription', () => {
             expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
 
-        it('should scope immediate and deferred action callbacks to their stores across disposal and recreation', () => {
+        it('should scope deferred action callbacks to their stores across disposal and recreation', () => {
             const scheduled: Array<() => void> = []
             const actionCallbacks = new Map<Store, (params: any) => void>()
             const received: Array<{ store: Store, name: string, result?: unknown, error?: unknown }> = []
             const subscriber: PluginSubscriber = {
                 name: 'actions',
                 execution: { hydration: 'defer' },
-                invoke: vi.fn(({ store }: PiniaPluginContext) => {
-                    subscriber.storeOnActionSubscription = () => ({
-                        store,
-                        callback: ({ name, after, onError }) => {
-                            received.push({ store, name })
-                            after(result => received.push({ store, name, result }))
-                            onError?.(error => received.push({ store, name, error }))
-                        }
-                    })
-                    return true
+                invoke: vi.fn().mockReturnValue(true),
+                storeOnActionSubscription: ({ store }: PiniaPluginContext) => ({
+                    store,
+                    callback: ({ name, after, onError }) => {
+                        received.push({ store, name })
+                        after(result => received.push({ store, name, result }))
+                        onError?.(error => received.push({ store, name, error }))
+                    }
                 })
             }
-            pluginSub = getPluginSubscription([subscriber], {
+            const actionListener: PluginSubscriber = {
+                name: 'action-listener',
+                invoke: vi.fn().mockReturnValue(true),
+                storeOnActionSubscription: ({ store }) => ({ store, callback: () => { } })
+            }
+            pluginSub = getPluginSubscription([actionListener, subscriber], {
                 runtimeEnvironment: 'client',
                 hydrationScheduler: run => { scheduled.push(run) }
             })
@@ -553,7 +604,8 @@ describe('PluginSubscription', () => {
             const storeB = makeStore('b')
             pluginSub.plugin(createContext(storeA))
             pluginSub.plugin(createContext(storeB))
-            expect(storeA.$onAction).not.toHaveBeenCalled()
+            expect(storeA.$onAction).toHaveBeenCalledTimes(1)
+            expect(storeB.$onAction).toHaveBeenCalledTimes(1)
             scheduled[1]!()
             scheduled[0]!()
             expect(storeA.$onAction).toHaveBeenCalledTimes(1)
@@ -833,6 +885,54 @@ describe('PluginSubscription', () => {
             expect(onActionCb).toHaveBeenCalled()
         })
 
+        it('should register a single $subscribe per store for multiple subscribers and isolate callback errors', () => {
+            let mutationHandler: Function = () => { }
+            const unsubscribe = vi.fn()
+            const store: any = {
+                $id: 'multi-mut',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $subscribe: vi.fn((cb: Function) => { mutationHandler = cb; return unsubscribe })
+            }
+            const failing = vi.fn(() => { throw new Error('boom') })
+            const healthy = vi.fn()
+
+            pluginSub.subscribers = [
+                { name: 'a', invoke: () => true, storeMutationSubscription: () => ({ store, callback: failing }) } as any,
+                { name: 'b', invoke: () => true, storeMutationSubscription: () => ({ store, callback: healthy }) } as any
+            ]
+            pluginSub.plugin({ store, options: {} } as any)
+
+            expect(store.$subscribe).toHaveBeenCalledTimes(1)
+
+            expect(() => mutationHandler({ type: 'direct' })).not.toThrow()
+            expect(failing).toHaveBeenCalledTimes(1)
+            expect(healthy).toHaveBeenCalledTimes(1)
+
+            store.$dispose?.()
+        })
+
+        it('should unsubscribe the mutation hook when the store is disposed', () => {
+            const unsubscribe = vi.fn()
+            const store: any = {
+                $id: 'dispose-mut',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $dispose: vi.fn(),
+                $subscribe: vi.fn(() => unsubscribe)
+            }
+
+            pluginSub.subscribers = [
+                { name: 'a', invoke: () => true, storeMutationSubscription: () => ({ store, callback: vi.fn() }) } as any
+            ]
+            pluginSub.plugin({ store, options: {} } as any)
+            store.$dispose()
+
+            expect(unsubscribe).toHaveBeenCalledTimes(1)
+        })
+
         it('subscriptionDelivery should invoke subscription for each provided store and merge options correctly', () => {
             const subscriber: any = {
                 name: 'foo',
@@ -996,7 +1096,7 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin({ store: mockStore, options: {} } as any)
 
-            const subscriberKey = 'dispose-tracker-tracked-store'
+            const subscriberKey = getStoreScopedKey('dispose-tracker', mockStore)
             expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(true)
 
             mockStore.$dispose = vi.fn(() => {
@@ -1391,12 +1491,13 @@ describe('PluginSubscription', () => {
 
             expect(nestedInvoke).not.toHaveBeenCalled()
             expect(subscriberScheduler).toHaveBeenCalledTimes(1)
-            expect((pluginSub as any)._subscriptionsScheduled.has('child-subscriber-scheduler-store')).toBe(true)
+            const subscriptionKey = getStoreScopedKey('child', mockStore)
+            expect((pluginSub as any)._subscriptionsScheduled.has(subscriptionKey)).toBe(true)
 
             scheduledCallbacks[0]!()
 
             expect(nestedInvoke).toHaveBeenCalledTimes(1)
-            expect((pluginSub as any)._subscriptionsScheduled.has('child-subscriber-scheduler-store')).toBe(false)
+            expect((pluginSub as any)._subscriptionsScheduled.has(subscriptionKey)).toBe(false)
         })
     })
 

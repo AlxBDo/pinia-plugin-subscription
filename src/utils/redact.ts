@@ -105,9 +105,15 @@ export function createRedactor(options: TraceRedactOptions | true = true): (payl
         const copy: Record<string, unknown> = {}
         seen.set(value, copy)
         for (const key of Object.keys(value)) {
-            copy[key] = isSensitive(key)
+            const redactedValue = isSensitive(key)
                 ? replacement
                 : redact((value as Record<string, unknown>)[key], seen, depth + 1)
+            Object.defineProperty(copy, key, {
+                configurable: true,
+                enumerable: true,
+                value: redactedValue,
+                writable: true
+            })
         }
         return copy
     }

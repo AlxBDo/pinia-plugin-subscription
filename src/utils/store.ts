@@ -303,5 +303,14 @@ export function getExtendingStore<TEnhancedStore>(
  * @returns The storage key for the action and store combination.
  */
 export function getActionStoreKey(actionName: string, store: Store): string {
-    return `${actionName}-${store.$id}`
+    return getStoreScopedKey(actionName, store)
+}
+
+export function getStoreKeyPrefix(store: Pick<Store, '$id'>): string {
+    const storeId = String(store.$id)
+    return `${storeId.length}:${storeId}:`
+}
+
+export function getStoreScopedKey(value: string, store: Pick<Store, '$id'>): string {
+    return `${getStoreKeyPrefix(store)}${value.length}:${value}`
 }

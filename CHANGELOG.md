@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `storeMutationSubscription` now supports several subscribers per store, like `storeOnActionSubscription`: a single `$subscribe` is registered per store and dispatches to every callback. A failing callback is reported through `traceError` without blocking the others, subscriber names are tracked, and the hook is unsubscribed when the store is disposed
+- `storeOnActionSubscription` now receives the Pinia plugin context; action trace labels include the invoked action name
+
 ### Added
+- Added `addScopesListener(scopes, context?)` to `createTracerRegistry()` for grouping events from selected store scopes; documented in `docs/tracing.md`
 - `traceGroups` glossary, exported from `pinia-plugin-subscription/helpers`, building the `groupId` emitted by `PluginSubscription` (`onActionAfter`, `onActionError`, `onMutation`, `reset`); documented in `docs/tracing.md`
 - `createPluginSubscriber(name, invoke, optionalProps?)` factory, exported from `pinia-plugin-subscription/helpers`, to build plain-object subscribers; documented in `docs/authoring-plugins.md` and used by the demo plugin
 - Added a dedicated tracing guide, `docs/tracing.md`; the README now only presents tracing and links to it
@@ -43,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `pluginsubscription` namespace prefix is now a shared constant (`pluginSubscriptionNamespace`) instead of a hard-coded string
 
 ### Fixed
+- Group listener filters receive only trace metadata, redaction safely copies own `__proto__` keys, and registry group payload factories are skipped when no listeners are registered
+- Subscriber, subscription, action and rollback tracking keys now encode store IDs and names without delimiter collisions; disposing a store removes only its own tracking entries
 - Trace groups opened by `onAction`, `$subscribe` and `$reset` are now always closed (also when the action fails or a callback throws), so grouped events no longer stay buffered forever
 - Listener definitions passed to `addListener()` are no longer mutated when their `filter` is an array of criteria
 - `TracerHandler` and `TraceRegistry` types now match the implementation (`createTracer(source, options?)`, `void` group callbacks, `addListener()` with options, `tracerHandler`); `createTracerRegistry()` is explicitly typed as `TraceRegistry`
