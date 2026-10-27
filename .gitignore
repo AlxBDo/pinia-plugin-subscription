@@ -24,3 +24,6 @@ dist-demo
 *.njsproj
 *.sln
 *.sw?
+
+# demo
+**/experiment

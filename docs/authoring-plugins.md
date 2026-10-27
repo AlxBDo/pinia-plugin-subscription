@@ -109,8 +109,8 @@ pinia.use(createPlugin([myStoreSubscriber]))
 | `hydrate` | `(context) => void \| Promise<void>` | SSR-safe initialization hook; guaranteed to run before `afterHydration`. |
 | `afterHydration` | `(context) => void \| Promise<void>` | Post-hydration lifecycle hook. |
 | `resetStoreCallback` | `(store?: Store) => void` | Custom logic executed when a registered store is reset. |
-| `storeOnActionSubscription` | `{ store, callback }` (getter) | Action subscription forwarded to the returned store's `$onAction`, including after deferred hydration; removed on store disposal. |
-| `storeMutationSubscription` | `{ store, callback }` (getter) | Mutation subscription forwarded to pinia's `$subscribe`. |
+| `storeOnActionSubscription` | `(context: PiniaPluginContext) => { store, callback }` | Receives the Pinia plugin context and returns an action subscription forwarded to the store's `$onAction`. Multiple subscribers can target the same store through a single `$onAction` hook; subscriptions are attached after deferred hydration and removed on store disposal. |
+| `storeMutationSubscription` | `() => { store, callback }` | Returns a mutation subscription forwarded to pinia's `$subscribe`. Several subscribers can target the same store through a single `$subscribe` hook; callback errors are isolated and traced, and the hook is unsubscribed on store disposal. |
 | `subscriptions` | `Record<string, PluginSubscription>` | Plugin-specific subscription functions exposed to other plugins. |
 
 All members except `name` and `invoke` are optional.

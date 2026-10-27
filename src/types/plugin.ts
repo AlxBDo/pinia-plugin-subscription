@@ -207,7 +207,7 @@ export type StoreOnActionSubscriptionCallback = (params: StoreOnActionCallbackPa
 
 export type StoreOnActionSubscriptionReturn = NativePiniaSubscriptionReturn<StoreOnActionSubscriptionCallback>
 
-export type StoreOnActionSubscription = NativePiniaSubscription<StoreOnActionSubscriptionCallback>
+export type StoreOnActionSubscription = (context: PiniaPluginContext) => StoreOnActionSubscriptionReturn
 
 export type StoreMutationSubscriptionCallback = (mutation: SubscriptionCallbackMutation<StateTree>) => void
 

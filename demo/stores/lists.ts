@@ -1,7 +1,8 @@
 import { defineAStore } from "../../src/utils/store"
-import { ParentStore, useCollectionStore } from "pinia-plugin-extending-store"
+import { ParentStore } from "pinia-plugin-extending-store"
+import { useCollectionStore } from "pinia-plugin-extending-store/stores"
 
-import type { CollectionStoreMethods, SearchCollectionCriteria } from "pinia-plugin-extending-store"
+import type { CollectionStoreMethods, SearchCollectionCriteria } from "pinia-plugin-extending-store/types"
 import type { List } from "../models/liste"
 
 

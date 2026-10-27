@@ -1,7 +1,7 @@
 <script setup>
 import Header from './components/header/Header.vue'
 import Lists from './components/examples/lists/Lists.vue';
-import User from './components/examples/user/User.vue';
+import User from './components/examples/experiment/user/User.vue';
 
 </script>
 

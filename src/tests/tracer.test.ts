@@ -38,7 +38,12 @@ describe('Tracer', () => {
             registry.tracerHandler.closeGroup({ scope: 'cart' } as TraceEvent)
 
             expect(groupSpy).toHaveBeenCalled()
-            expect(logSpy).not.toHaveBeenCalled()
+            expect(logSpy).toHaveBeenCalledWith(
+                '%c%s',
+                expect.any(String),
+                '[ count ]',
+                1
+            )
             groupSpy.mockRestore()
             logSpy.mockRestore()
         })
@@ -60,6 +65,32 @@ describe('Tracer', () => {
             expect(logSpy).not.toHaveBeenCalled()
             groupSpy.mockRestore()
             logSpy.mockRestore()
+        })
+
+        it('passes metadata only to group filters', () => {
+            const registry = createTracerRegistry()
+            const filter = vi.fn(() => true)
+            registry.addListener({ filter, handler: () => { } })
+
+            registry.tracerHandler.startGroup({
+                groupId: 'group',
+                label: 'context',
+                level: 'debug',
+                namespace: 'context',
+                payload: { token: 'secret' },
+                scope: 'cart',
+                source: 'PluginSubscription',
+                timestamp: 1
+            })
+
+            expect(filter).toHaveBeenCalledWith({
+                groupId: 'group',
+                label: 'context',
+                level: 'debug',
+                namespace: 'context',
+                scope: 'cart',
+                source: 'PluginSubscription'
+            })
         })
     })
 

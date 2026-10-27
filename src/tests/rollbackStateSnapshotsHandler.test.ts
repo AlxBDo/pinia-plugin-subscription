@@ -3,6 +3,7 @@ import type { PiniaPluginContext, Store } from 'pinia'
 import type { AnyObject } from '../types'
 import type { RollbackAfterFailureParams } from '../types/store'
 import RollbackStateSnapshotsHandler from '../core/RollbackStateSnapshotsHandler'
+import { getActionStoreKey } from '../utils/store'
 
 function createMockStore(id = 'test-store', state: AnyObject = { count: 0, name: 'initial' }): Store {
     const store: AnyObject = {
@@ -243,8 +244,8 @@ describe('RollbackStateSnapshotsHandler', () => {
         it('should register rollback params for each declared action', () => {
             handler.initFromPluginContext(createContext(store, { update: ['count'], destroy: 'all' }))
 
-            expect((handler as any)._storeRollbackSnapshotsParams.get('update-test-store')).toEqual(['count'])
-            expect((handler as any)._storeRollbackSnapshotsParams.get('destroy-test-store')).toBe('all')
+            expect((handler as any)._storeRollbackSnapshotsParams.get(getActionStoreKey('update', store))).toEqual(['count'])
+            expect((handler as any)._storeRollbackSnapshotsParams.get(getActionStoreKey('destroy', store))).toBe('all')
             expect(handler.storeHasRollbackSnapshots(store)).toBe(true)
         })
 
@@ -253,8 +254,8 @@ describe('RollbackStateSnapshotsHandler', () => {
 
             handler.initFromPluginContext(createContext(store, { update: ['name'], other: 'all' }))
 
-            expect((handler as any)._storeRollbackSnapshotsParams.get('update-test-store')).toEqual(['count'])
-            expect((handler as any)._storeRollbackSnapshotsParams.get('other-test-store')).toBeUndefined()
+            expect((handler as any)._storeRollbackSnapshotsParams.get(getActionStoreKey('update', store))).toEqual(['count'])
+            expect((handler as any)._storeRollbackSnapshotsParams.get(getActionStoreKey('other', store))).toBeUndefined()
         })
 
         it('should still add the rollback action when no params are declared', () => {
@@ -276,18 +277,18 @@ describe('RollbackStateSnapshotsHandler', () => {
         })
 
         it('should not remove params of other stores', () => {
-            const otherStore = createMockStore('other-store')
+            const otherStore = createMockStore('store')
             handler.initFromPluginContext(createContext(store, { update: ['count'] }))
-            handler.initFromPluginContext(createContext(otherStore, { update: ['count'] }))
+            handler.initFromPluginContext(createContext(otherStore, { 'update-test': ['name'] }))
 
             handler.clearStoreTracking(store)
 
             expect(handler.storeHasRollbackSnapshots(otherStore)).toBe(true)
-            expect(handler.createOnActionCallbacks('update', otherStore)).toBeDefined()
+            expect(handler.createOnActionCallbacks('update-test', otherStore)).toBeDefined()
         })
 
         it('should remove pending snapshots of the disposed store only', () => {
-            const otherStore = createMockStore('other-store')
+            const otherStore = createMockStore('test-store:other')
             handler.initFromPluginContext(createContext(store, { update: ['count'] }))
             handler.initFromPluginContext(createContext(otherStore, { update: ['count'] }))
             handler.createOnActionCallbacks('update', store)
@@ -297,7 +298,7 @@ describe('RollbackStateSnapshotsHandler', () => {
 
             expect((handler as any)._stateSnapshots.size).toBe(1)
             const [remainingKey] = Array.from((handler as any)._stateSnapshots.keys()) as symbol[]
-            expect(remainingKey?.description).toBe('other-store:update')
+            expect(remainingKey?.description).toBe(getActionStoreKey('update', otherStore))
         })
 
         it('should allow re-registering params after cleanup', () => {
@@ -307,7 +308,7 @@ describe('RollbackStateSnapshotsHandler', () => {
             handler.initFromPluginContext(createContext(store, { update: ['name'] }))
 
             expect(handler.storeHasRollbackSnapshots(store)).toBe(true)
-            expect((handler as any)._storeRollbackSnapshotsParams.get('update-test-store')).toEqual(['name'])
+            expect((handler as any)._storeRollbackSnapshotsParams.get(getActionStoreKey('update', store))).toEqual(['name'])
         })
     })
 

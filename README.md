@@ -63,7 +63,8 @@ app.mount('#app')
 
 ## Advanced Features
 
-- **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace — see [Tracing](#tracing).
+- **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace. Group filters receive metadata only, and the built-in registry avoids preparing group payloads when it has no listeners — see [Tracing](#tracing).
+- **Scope-based trace listeners:** Use `addScopesListener()` to group events from selected stores — see [Tracing](docs/tracing.md#filtering-events).
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
