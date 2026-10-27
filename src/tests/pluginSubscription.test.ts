@@ -110,7 +110,7 @@ describe('PluginSubscription', () => {
             const { closeGroup, closedAfterPlugin, fireAction, startGroup } = setup(() => { throw new Error('boom') })
             const startedAfterPlugin = startGroup.mock.calls.length
 
-            expect(() => fireAction({ name: 'act', args: [], after: vi.fn(), onError: vi.fn() })).toThrow('boom')
+            expect(() => fireAction({ name: 'act', args: [], after: vi.fn(), onError: vi.fn() })).not.toThrow()
 
             expect(startGroup).toHaveBeenCalledTimes(startedAfterPlugin + 1)
             expect(closeGroup).toHaveBeenCalledTimes(closedAfterPlugin + 1)
@@ -1535,6 +1535,42 @@ describe('PluginSubscription', () => {
 
             expect(after).toHaveBeenCalledTimes(1)
             expect(onError).toHaveBeenCalledTimes(1)
+        })
+
+        it('should trace async callback rejections and still register after callbacks', async () => {
+            let onActionCallback: ((params: any) => void) | undefined
+            const mockStore = {
+                $id: 'async-action-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $onAction: vi.fn((cb: (params: any) => void) => { onActionCallback = cb })
+            } as unknown as Store
+            const traceError = vi.spyOn(pluginSub as any, 'traceError').mockImplementation(() => { })
+            const subscriber: PluginSubscriber = {
+                name: 'async-action',
+                invoke: vi.fn().mockReturnValue(true),
+                subscriptions: undefined,
+                storeOnActionSubscription: () => ({
+                    store: mockStore,
+                    callback: async ({ after }: any) => {
+                        after(() => { })
+                        throw new Error('async failure')
+                    },
+                }),
+            }
+
+            pluginSub.subscribers = [subscriber]
+            pluginSub.plugin({ store: mockStore, options: {} } as any)
+
+            const after = vi.fn()
+            expect(() => onActionCallback!({ after, args: [], name: 'act', onError: vi.fn() })).not.toThrow()
+            expect(after).toHaveBeenCalledTimes(1)
+
+            await new Promise(resolve => setTimeout(resolve, 0))
+            expect(traceError).toHaveBeenCalledWith(
+                'store:onAction:callback:error', expect.any(Error), 'async-action-store', undefined
+            )
         })
 
         it('should skip $onAction wiring when there are no subscriptions and no rollback snapshots', () => {

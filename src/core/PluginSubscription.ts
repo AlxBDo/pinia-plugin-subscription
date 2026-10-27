@@ -279,13 +279,25 @@ export default class PluginSubscription extends TraceEmitter {
                     this.createRollbackSnapshot(name, store)
                 }
 
-                callbacks.forEach(callback => callback({
-                    after: this.createOnActionAfterCallbackCollector(name, store),
-                    args,
-                    name,
-                    onError: this.createOnActionOnErrorCallbackCollector(name, store)
-                }))
-                closeGroup()
+                // Callbacks are invoked synchronously so that their after/onError collectors are filled before Pinia runs the action.
+                const pending: Promise<void>[] = []
+                callbacks.forEach(callback => {
+                    const result = this.runCallbackSafely(
+                        () => callback({
+                            after: this.createOnActionAfterCallbackCollector(name, store),
+                            args,
+                            name,
+                            onError: this.createOnActionOnErrorCallbackCollector(name, store)
+                        }),
+                        'store:onAction:callback:error',
+                        store.$id
+                    )
+                    if (result) {
+                        pending.push(result)
+                    }
+                })
+
+                this.endGroupAfter(pending, closeGroup)
                 this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name)
                 this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
@@ -294,6 +306,39 @@ export default class PluginSubscription extends TraceEmitter {
                 throw error
             }
         })
+    }
+
+    /**
+     * Runs a callback, tracing sync errors and async rejections.
+     * @returns a never-rejecting promise when the callback is asynchronous, undefined otherwise.
+     */
+    private runCallbackSafely(
+        callback: () => unknown,
+        errorLabel: string,
+        storeId: string,
+        extra?: () => Record<string, unknown>
+    ): Promise<void> | undefined {
+        try {
+            const result = callback()
+            if (result && typeof (result as Promise<unknown>).then === 'function') {
+                return Promise.resolve(result).then(
+                    () => undefined,
+                    error => this.traceError(errorLabel, error, storeId, extra)
+                )
+            }
+        } catch (error) {
+            this.traceError(errorLabel, error, storeId, extra)
+        }
+    }
+
+    /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
+    private endGroupAfter(pending: (Promise<void> | undefined)[], end: () => void): void {
+        const promises = pending.filter((p): p is Promise<void> => !!p)
+        if (promises.length) {
+            Promise.all(promises).then(end)
+        } else {
+            end()
+        }
     }
 
     private executeStoreOnActionAfterCallbacks(
@@ -314,15 +359,15 @@ export default class PluginSubscription extends TraceEmitter {
                     `store:onAction:after:${name}`
                 )
 
-                afterCallbacks.forEach(callback => {
-                    try {
-                        callback(result)
-                    } catch (error) {
-                        this.traceError('storeOnActionAfterCallbacks', error, store.$id, () => ({ 'action name': name }))
-                    }
-                })
+                const pending = afterCallbacks.map(callback => this.runCallbackSafely(
+                    () => callback(result),
+                    'storeOnActionAfterCallbacks',
+                    store.$id,
+                    () => ({ 'action name': name })
+                ))
 
-                this.traceGroupEnd(() => ({ groupId: traceGroups.onActionAfter(store.$id) }), store.$id)
+                this.endGroupAfter(pending, () =>
+                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionAfter(store.$id) }), store.$id))
             })
         }
     }
@@ -345,15 +390,15 @@ export default class PluginSubscription extends TraceEmitter {
                     `store:onAction:onError:${name}`
                 )
 
-                onErrorCallbacks.forEach(callback => {
-                    try {
-                        callback(error)
-                    } catch (err) {
-                        this.traceError('store:onAction:onError:error', err, store.$id, () => ({ groupId: traceGroups.onActionError(store.$id) }))
-                    }
-                })
+                const pending = onErrorCallbacks.map(callback => this.runCallbackSafely(
+                    () => callback(error),
+                    'store:onAction:onError:error',
+                    store.$id,
+                    () => ({ groupId: traceGroups.onActionError(store.$id) })
+                ))
 
-                this.traceGroupEnd(() => ({ groupId: traceGroups.onActionError(store.$id) }), store.$id)
+                this.endGroupAfter(pending, () =>
+                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionError(store.$id) }), store.$id))
             })
         }
     }
@@ -591,7 +636,7 @@ export default class PluginSubscription extends TraceEmitter {
             return
         }
 
-        const unsubscribe = store.$subscribe((mutation: SubscriptionCallbackMutation<StateTree>) => {
+        const unsubscribe = store.$subscribe(async (mutation: SubscriptionCallbackMutation<StateTree>) => {
             const callbacks = this._onMutationSubscriptions.get(store)
             if (!callbacks?.size) {
                 return
@@ -599,13 +644,13 @@ export default class PluginSubscription extends TraceEmitter {
 
             this.traceGroupStart(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id, 'store:onMutation')
             try {
-                callbacks.forEach(mutationCallback => {
+                await Promise.all([...callbacks].map(async (mutationCallback) => {
                     try {
-                        mutationCallback(mutation)
+                        await mutationCallback(mutation)
                     } catch (error) {
                         this.traceError('store:onMutation', error, store.$id)
                     }
-                })
+                }))
             } finally {
                 this.traceGroupEnd(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id)
             }

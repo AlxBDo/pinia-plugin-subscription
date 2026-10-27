@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `pluginsubscription` namespace prefix is now a shared constant (`pluginSubscriptionNamespace`) instead of a hard-coded string
 
 ### Fixed
+- `onAction`, `after` and `onError` subscription callbacks may now be asynchronous: rejections are traced instead of becoming unhandled, and their trace groups are closed once all async callbacks have settled
 - Group listener filters receive only trace metadata, redaction safely copies own `__proto__` keys, and registry group payload factories are skipped when no listeners are registered
 - Subscriber, subscription, action and rollback tracking keys now encode store IDs and names without delimiter collisions; disposing a store removes only its own tracking entries
 - Trace groups opened by `onAction`, `$subscribe` and `$reset` are now always closed (also when the action fails or a callback throws), so grouped events no longer stay buffered forever
