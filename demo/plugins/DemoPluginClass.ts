@@ -1,5 +1,5 @@
-//import { PluginSubscriber } from 'pinia-plugin-subscription/helpers'
-import PluginSubscriber from '../../src/core/PluginSubscriber'
+import { PluginSubscriber } from 'pinia-plugin-subscription/helpers'
+//import PluginSubscriber from '../../src/core/PluginSubscriber'
 import DemoStore from '../core/DemoStore'
 
 
