@@ -156,6 +156,8 @@ Trace groups opened by `onAction`, `$subscribe` and `$reset` are always closed, 
 
 Normal trace events do not write to a console. The registry created by `createTracerRegistry()` uses the console's grouped output for the events matching its listeners: register listeners as shown in the [quick start](#quick-start) and pass `tracerHandler` to the plugin. Groups default to the `scope` metadata field; use the `groupBy` option of `addListener()` to group by another field.
 
+When an event has a `payload.groupId`, that value takes precedence over the configured `groupBy` field as its console-group key. Events without an open group for their key are printed immediately outside a group. If multiple groups with the same key are opened concurrently, their events share one buffer; the buffered group is printed only after every matching open has been closed.
+
 `CustomConsole` remains exported from `pinia-plugin-subscription/helpers` for plugins not yet migrated to the tracer.
 
 ## Error reporting

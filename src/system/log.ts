@@ -2,6 +2,7 @@ import { pluginName } from '../utils/constants'
 import type { Console, LogType, StyleDefinition, StyleDefinitions } from '../types/log'
 import type { ConsoleTraceEvent, ConsoleTraceEventArgs, TraceEvent } from '../types/trace'
 import type { Store } from 'pinia'
+import { isRef } from 'vue'
 
 
 const errorColor = '#f86f63'
@@ -13,7 +14,7 @@ function getPrintablePayload(trace: TraceEvent) {
     if (payload && Object.keys(payload).length > 0) {
         return Object.keys(payload).reduce((acc, key) => {
             if (!['groupId', 'label', 'namespace', 'scope', 'source'].includes(key)) {
-                acc[key] = payload[key]
+                acc[key] = isRef(payload[key]) ? payload[key].value : payload[key]
             }
             return acc
         }, {} as Record<string, unknown>)
@@ -21,7 +22,7 @@ function getPrintablePayload(trace: TraceEvent) {
     return undefined
 }
 
-export function printObject(label: string, payload: object, groupCollapsed: boolean = true, source?: string) {
+export function printObject(label: string, payload: object, groupType: 'collapsed' | 'expanded' | 'none' = 'collapsed', source?: string) {
     if (payload instanceof Error) {
         console.groupCollapsed(
             '%c%s',
@@ -53,6 +54,14 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
         )
         return
     }
+    if (groupType === 'none' || (isArray && typeof payload[0] !== 'object')) {
+        console.log(
+            '%c%s',
+            'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
+            `[ ${label} ]`, payload
+        )
+        return
+    }
 
     const styles: Record<string, string> = {
         options: '📚 ',
@@ -62,7 +71,7 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
     }
     const icon = styles[label] ?? ''
 
-    if (groupCollapsed) {
+    if (groupType === 'collapsed') {
         if (source) {
             console.groupCollapsed(
                 '%c%s',
@@ -74,33 +83,23 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
                 'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
                 `[ ${icon}${label} ]`)
         }
-    } else {
+    } else if (groupType === 'expanded') {
         console.group(
             '%c%s',
             'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
             `[ ${icon} ${label} ]`)
     }
 
-    if (Array.isArray(payload)) {
-        if (typeof payload[0] === 'object') {
-            payload.forEach((item: any) => {
-                if (item.name) {
-                    printObject(item.name, item)
-                } else if (item._id) {
-                    printObject(item._id, item)
-                } else {
-                    console.dir(item)
-                }
-            })
-        } else {
-            payload.forEach((item: any, index: number) => {
-                console.log(
-                    '%c%s',
-                    'color: #cae38f; padding: 1px; margin-right: 5px; font-size: 10px',
-                    `[ ${index} ]`, item
-                )
-            })
-        }
+    if (isArray && typeof payload[0] === 'object') {
+        payload.forEach((item: any) => {
+            if (item.name) {
+                printObject(item.name, item)
+            } else if (item._id) {
+                printObject(item._id, item)
+            } else {
+                console.dir(item)
+            }
+        })
     } else {
         let emptyKeys: string[] = []
         Object.keys(payload).forEach(key => {
@@ -112,25 +111,27 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
             if (typeof value === 'object') {
                 if (Array.isArray(value)) {
                     if (typeof value[0] === 'object') {
-                        printObject(key, value, false)
+                        printObject(key, value, 'expanded')
                     } else {
-                        console.group(key)
-                        console.log(value)
-                        console.groupEnd()
+                        console.log(
+                            '%c%s',
+                            'color: #cae38f; padding: 1px; margin-right: 5px; font-size: 10px',
+                            `[ ${key} ]`, isRef(value) ? value.value : value)
                     }
                 } else if (value instanceof Error) {
                     console.log(key, { name: value.name, message: value.message, stack: value.stack })
                 } else {
-                    printObject(key, Object.assign({}, value), false)
+                    printObject(key, Object.assign({}, value), 'expanded')
                 }
             } else {
                 if (!value) {
                     emptyKeys.push(key)
                 } else {
+                    const typeOfValue = typeof value
                     console.log(
                         '%c%s',
                         'color: #b0fa05; padding: 1px; margin-right: 5px; font-size: 10px',
-                        `[ ${key} ]`, value
+                        `[ ${key} ]`, typeOfValue === 'function' ? typeOfValue : value
                     )
                 }
             }
@@ -149,7 +150,7 @@ export function printObject(label: string, payload: object, groupCollapsed: bool
 function printTrace(trace: TraceEvent) {
     const payload = getPrintablePayload(trace)
     if (payload && Object.keys(payload).length > 0) {
-        printObject(trace.label, payload, true, trace.source)
+        printObject(trace.label, payload, 'collapsed', trace.source)
         return
     }
     console.log(
@@ -203,7 +204,18 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
                                     return acc
                                 }
 
-                                acc[curr] = (arg as Record<string, unknown>)[curr]
+                                const value = (arg as Record<string, unknown>)[curr]
+
+                                if (typeof value !== 'function') {
+                                    if (!acc['computed']) {
+                                        acc['computed'] = []
+                                    }
+                                    (acc['computed'] as string[]).push(curr)
+
+                                } else {
+                                    acc[curr] = (arg as Record<string, unknown>)[curr]
+                                }
+
                                 return acc
                             }, {} as Record<string, unknown>)
                         })

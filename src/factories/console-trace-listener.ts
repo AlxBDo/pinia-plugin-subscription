@@ -41,10 +41,15 @@ function log(target: Console, event: TraceEvent): void {
 export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 'scope'): ConsoleTraceGroupListener {
     const target = new TraceConsole()
     const groups = new Map<string, ConsoleTraceEvent[]>()
+    // Overlapping starts for the same key (e.g. concurrent async mutations of a store) share one group
+    const openCounts = new Map<string, number>()
 
 
     function createGroup(key: string) {
-        groups.set(key, [])
+        if (!groups.has(key)) {
+            groups.set(key, [])
+        }
+        openCounts.set(key, (openCounts.get(key) ?? 0) + 1)
     }
 
     function logGroup(key: string): void {
@@ -54,8 +59,16 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
             target.error(`No group found for key "${key}"`)
             return
         }
+
+        const remaining = (openCounts.get(key) ?? 1) - 1
+        if (remaining > 0) {
+            openCounts.set(key, remaining)
+            return
+        }
+
         if (group.length) { target.logGroup(group) }
         groups.delete(key)
+        openCounts.delete(key)
     }
 
     return {
