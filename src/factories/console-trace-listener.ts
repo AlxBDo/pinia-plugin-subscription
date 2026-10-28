@@ -81,6 +81,9 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
                 return
             }
 
+            const group = groups.get(groupKey)
+            if (group?.[0]?.[0] === formatTraceLabel(event)) { return }
+
             groups.get(groupKey)?.push(buildConsoleArgsFromEvent(event))
         }
     }
