@@ -1,8 +1,9 @@
+import { isRef } from 'vue'
+import { hasDeniedFirstChar } from '../utils/store'
 import { pluginName } from '../utils/constants'
 import type { Console, LogType, StyleDefinition, StyleDefinitions } from '../types/log'
 import type { ConsoleTraceEvent, ConsoleTraceEventArgs, TraceEvent } from '../types/trace'
 import type { Store } from 'pinia'
-import { isRef } from 'vue'
 
 
 const errorColor = '#f86f63'
@@ -54,14 +55,6 @@ export function printObject(label: string, payload: object, groupType: 'collapse
         )
         return
     }
-    if (groupType === 'none' || (isArray && typeof payload[0] !== 'object')) {
-        console.log(
-            '%c%s',
-            'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
-            `[ ${label} ]`, payload
-        )
-        return
-    }
 
     const styles: Record<string, string> = {
         options: '📚 ',
@@ -71,12 +64,21 @@ export function printObject(label: string, payload: object, groupType: 'collapse
     }
     const icon = styles[label] ?? ''
 
+    if (groupType === 'none' || (isArray && typeof payload[0] !== 'object')) {
+        console.log(
+            '%c%s',
+            'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
+            `[ ${icon}${label} ]`, (isArray && typeof payload[0] === 'string') ? payload.join(', ') : payload
+        )
+        return
+    }
+
     if (groupType === 'collapsed') {
         if (source) {
             console.groupCollapsed(
                 '%c%s',
                 'color: #f7f7b0; padding: 1px; margin-right: 5px; font-size: 11px',
-                `${icon} ${label}`, source)
+                `${icon}${label}`, source)
         } else {
             console.groupCollapsed(
                 '%c%s',
@@ -91,15 +93,29 @@ export function printObject(label: string, payload: object, groupType: 'collapse
     }
 
     if (isArray && typeof payload[0] === 'object') {
-        payload.forEach((item: any) => {
-            if (item.name) {
-                printObject(item.name, item)
-            } else if (item._id) {
-                printObject(item._id, item)
-            } else {
-                console.dir(item)
-            }
-        })
+        if (payload[0]?.name) {
+            console.log(payload.reduce((acc, item) => {
+                if (acc) { acc += '\r\n' }
+                acc += `- ${item.name}`
+                return acc
+            }, ''))
+        } else if (payload[0]?._id) {
+            console.log(payload.reduce((acc, item) => {
+                if (acc) { acc += '\r\n' }
+                acc += `- ${item._id}`
+                return acc
+            }, ''))
+        } else {
+            payload.forEach((item: any) => {
+                if (item.name) {
+                    printObject(item.name, item)
+                } else if (item._id) {
+                    printObject(item._id, item)
+                } else {
+                    console.dir(item)
+                }
+            })
+        }
     } else {
         let emptyKeys: string[] = []
         Object.keys(payload).forEach(key => {
@@ -112,6 +128,8 @@ export function printObject(label: string, payload: object, groupType: 'collapse
                 if (Array.isArray(value)) {
                     if (typeof value[0] === 'object') {
                         printObject(key, value, 'expanded')
+                    } else if (typeof value[0] === 'string') {
+                        printObject(key, value.map((item: string) => `\r\n - ${item}`), 'expanded')
                     } else {
                         console.log(
                             '%c%s',
@@ -219,6 +237,9 @@ function printTracePayload(tracePayload: Record<string, unknown>) {
                                 return acc
                             }, {} as Record<string, unknown>)
                         })
+                        break;
+                    case 'subscribers':
+                        printObject(key, (arg as { name: string }[]).map((item) => `\r\n - ${item.name}`))
                         break;
                     default:
                         printObject(key, arg)
