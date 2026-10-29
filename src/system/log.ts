@@ -107,13 +107,7 @@ export function printObject(label: string, payload: object, groupType: 'collapse
             }, ''))
         } else {
             payload.forEach((item: any) => {
-                if (item.name) {
-                    printObject(item.name, item)
-                } else if (item._id) {
-                    printObject(item._id, item)
-                } else {
-                    console.dir(item)
-                }
+                console.dir(item)
             })
         }
     } else {
@@ -134,11 +128,19 @@ export function printObject(label: string, payload: object, groupType: 'collapse
                         console.log(
                             '%c%s',
                             'color: #cae38f; padding: 1px; margin-right: 5px; font-size: 10px',
-                            `[ ${key} ]`, isRef(value) ? value.value : value)
+                            `[ ${key} ]`, isRef(value) ? value.value : value
+                        )
                     }
                 } else if (value instanceof Error) {
                     console.log(key, { name: value.name, message: value.message, stack: value.stack })
                 } else {
+                    if (isRef(value)) {
+                        console.log(
+                            '%c%s',
+                            'color: #cae38f; padding: 1px; margin-right: 5px; font-size: 10px',
+                            `[ ${key} ]`, isRef(value) ? value.value : value
+                        )
+                    }
                     printObject(key, Object.assign({}, value), 'expanded')
                 }
             } else {
