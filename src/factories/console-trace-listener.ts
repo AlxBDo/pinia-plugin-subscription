@@ -1,4 +1,4 @@
-import { TraceConsole } from '../system/log'
+import { TraceConsole } from '../system/log/trace-console'
 
 import type { Console } from '../types/log'
 import type {

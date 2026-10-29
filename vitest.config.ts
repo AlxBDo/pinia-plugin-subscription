@@ -18,7 +18,7 @@ export default defineConfig({
                 '**/utils/defineStoreId.ts',
                 'scripts/**',
                 '**/demo/**',
-                '**/log.ts'
+                '**/log/**'
             ],
             thresholds: {
                 lines: 80,

@@ -73,25 +73,45 @@ setTimeout(() => {
             The console displays the logs from the useRollbackSnapshotStore store.<br />
         </p>
 
-        <article>
-            <h3>Store with rollback</h3>
-            <p>$state.count: {{ rollbackSnapshotStoreWithRollback.count }}</p>
-            <div>
-                <p>Actions history:</p>
-                <ul>
-                    <li v-for="(entry, index) in rollbackSnapshotStoreHistory" :key="index">{{ entry }}</li>
-                </ul>
-            </div>
-        </article>
-        <article v-if="withoutRollbackSnapshotStoreHistory.length > 0">
-            <h3>Store without rollback</h3>
-            <p>$state.count: {{ rollbackSnapshotStoreWithoutRollback.count }}</p>
-            <div>
-                <p>Actions history:</p>
-                <ul>
-                    <li v-for="(entry, index) in withoutRollbackSnapshotStoreHistory" :key="index">{{ entry }}</li>
-                </ul>
-            </div>
-        </article>
+        <div id="stores">
+            <article>
+                <h3>Store with rollback</h3>
+                <p>$state.count: {{ rollbackSnapshotStoreWithRollback.count }}</p>
+                <div>
+                    <p>Actions history:</p>
+                    <ul>
+                        <li v-for="(entry, index) in rollbackSnapshotStoreHistory" :key="index">{{ entry }}</li>
+                    </ul>
+                </div>
+            </article>
+            <article>
+                <h3>Store without rollback</h3>
+                <p>$state.count: {{ rollbackSnapshotStoreWithoutRollback.count }}</p>
+                <div>
+                    <p>Actions history:</p>
+                    <ul>
+                        <li v-for="(entry, index) in withoutRollbackSnapshotStoreHistory" :key="index">{{ entry }}</li>
+                    </ul>
+                </div>
+            </article>
+        </div>
     </div>
 </template>
+
+<style scoped>
+#stores {
+    display: flex;
+    justify-content: space-between;
+}
+
+article {
+    padding: 1rem;
+}
+
+h3 {
+    width: 100%;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+</style>
