@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { pluginName } from '../../../src/utils/constants'
+const pluginName = 'pinia-plugin-subscription'
 </script>
 
 <template>

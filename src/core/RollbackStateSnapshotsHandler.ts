@@ -72,7 +72,7 @@ export default class RollbackStateSnapshotsHandler {
             return
         }
 
-        const keys: CreateStateSnapshotKeys = stateKeys.length === 0 ? 'all' : stateKeys
+        const keys: CreateStateSnapshotKeys = (stateKeys.length === 0 || stateKeys[0] === 'all') ? 'all' : stateKeys
         const snapshotKey = this.saveStateSnapshot(store, actionName, keys)
 
         return {

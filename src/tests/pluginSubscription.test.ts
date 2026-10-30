@@ -562,6 +562,132 @@ describe('PluginSubscription', () => {
             expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
         })
 
+        it('should wrap a deferred subscriber execution in its own trace group', () => {
+            const order: string[] = []
+            const startGroup = vi.fn(() => order.push('start'))
+            const closeGroup = vi.fn(() => order.push('close'))
+            const scheduled: Array<() => void> = []
+            const subscriber: PluginSubscriber = {
+                name: 'deferred',
+                invoke: vi.fn(() => { order.push('invoke'); return true }),
+                subscriptions: undefined,
+            }
+
+            pluginSub = new PluginSubscription([subscriber], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: (callback) => { scheduled.push(callback) },
+                subscriberExecution: { deferred: { hydration: 'defer' } },
+                tracerHandler: { closeGroup, createTracer, startGroup }
+            })
+
+            pluginSub.plugin(createContext({
+                $id: 'client-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store))
+            order.length = 0
+
+            scheduled[0]!()
+
+            expect(order).toEqual(['start', 'invoke', 'close'])
+            expect(startGroup).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'client-store' }))
+        })
+
+        it('should keep the deferred trace group open until async hydration settles', async () => {
+            const order: string[] = []
+            const scheduled: Array<() => void> = []
+            let release!: () => void
+            const subscriber: PluginSubscriber = {
+                name: 'deferred-async',
+                invoke: vi.fn(() => true),
+                hydrate: () => new Promise<void>(resolve => {
+                    release = () => { order.push('hydrated'); resolve() }
+                }),
+                subscriptions: undefined,
+            }
+
+            pluginSub = new PluginSubscription([subscriber], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: (callback) => { scheduled.push(callback) },
+                subscriberExecution: { 'deferred-async': { hydration: 'defer' } },
+                tracerHandler: {
+                    closeGroup: vi.fn(() => order.push('close')),
+                    createTracer,
+                    startGroup: vi.fn(() => order.push('start'))
+                }
+            })
+
+            pluginSub.plugin(createContext({
+                $id: 'client-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+            } as unknown as Store))
+            order.length = 0
+
+            scheduled[0]!()
+            expect(order).toEqual(['start'])
+
+            release()
+            await new Promise(resolve => setTimeout(resolve, 0))
+
+            expect(order).toEqual(['start', 'hydrated', 'close'])
+        })
+
+        it('should close the deferred trace group after the timeout when hydration never settles', () => {
+            vi.useFakeTimers()
+            try {
+                const order: string[] = []
+                const scheduled: Array<() => void> = []
+                const subscriber: PluginSubscriber = {
+                    name: 'stuck',
+                    invoke: vi.fn(() => true),
+                    hydrate: () => new Promise<void>(() => { }),
+                    subscriptions: undefined,
+                }
+                const tracer = createTracer('stuck')
+                const errorSpy = vi.spyOn(tracer, 'error').mockImplementation(() => { })
+                const customTracer = vi.fn(() => tracer) as unknown as typeof createTracer
+
+                const sub = new PluginSubscription([subscriber], {
+                    runtimeEnvironment: 'client',
+                    deferredTraceGroupTimeout: 100,
+                    hydrationScheduler: (callback) => { scheduled.push(callback) },
+                    subscriberExecution: { stuck: { hydration: 'defer' } },
+                    tracerHandler: {
+                        closeGroup: vi.fn(() => order.push('close')),
+                        createTracer: customTracer,
+                        startGroup: vi.fn(() => order.push('start'))
+                    }
+                })
+
+                sub.plugin(createContext({
+                    $id: 'client-store',
+                    $state: {},
+                    $patch: vi.fn(),
+                    $reset: vi.fn(),
+                } as unknown as Store))
+                order.length = 0
+
+                scheduled[0]!()
+                vi.advanceTimersByTime(99)
+                expect(order).toEqual(['start'])
+
+                vi.advanceTimersByTime(1)
+                expect(order).toEqual(['start', 'close'])
+                expect(errorSpy).toHaveBeenCalledWith(
+                    expect.stringContaining('subscriber:deferred:timeout'),
+                    expect.any(String),
+                    expect.any(Error),
+                    undefined,
+                    'client-store'
+                )
+            } finally {
+                vi.useRealTimers()
+            }
+        })
+
         it('should scope deferred action callbacks to their stores across disposal and recreation', () => {
             const scheduled: Array<() => void> = []
             const actionCallbacks = new Map<Store, (params: any) => void>()

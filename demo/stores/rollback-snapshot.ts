@@ -1,7 +1,5 @@
 import { ref } from 'vue'
-import { defineAStore } from '../../src/utils/store'
-import { useItemStore } from './experiment/item'
-import { ParentStore } from "pinia-plugin-extending-store"
+import { defineAStore } from 'pinia-plugin-subscription'
 
 export const useRollbackSnapshotStore = (rollback = false) => defineAStore(
     'rollbackSnapshotStore' + (rollback ? 'WithRollback' : ''),
@@ -12,9 +10,10 @@ export const useRollbackSnapshotStore = (rollback = false) => defineAStore(
         function codeError(arg1: string, arg2: string, i: number = 100) {
             increment(i)
             if (arg1 || arg2) {
-                anotherRef.value = arg1 ?? "" + arg2 ? ` - ${arg2}` : ''
+                anotherRef.value = `${arg1 ?? ''}${arg2 ? ` - ${arg2}` : ''}`
             }
-            return error
+            // Voluntary runtime failure: triggers the rollback of `count`
+            throw new ReferenceError('codeError: undefined variable')
         }
 
         function increment(i: number = 1) {
@@ -37,7 +36,6 @@ export const useRollbackSnapshotStore = (rollback = false) => defineAStore(
     }, {
     active: true,
     demo: true,
-    parentsStores: [new ParentStore('rollbackItem', useItemStore)],
     rollbackAfterFailure: rollback ? {
         codeError: ['count'],
         throwError: ['all']

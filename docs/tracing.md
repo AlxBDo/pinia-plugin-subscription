@@ -136,6 +136,8 @@ registry.addListener([{ target: 'groupId', value: traceGroups.onActionAfter('car
 
 The plugin's action trace labels include the invoked action name (`store:onAction:<name>`). The `after` and `onError` callback trace labels also include that name, making activity from different actions distinguishable; their group IDs remain scoped to the store as shown above.
 
+Subscribers declared with `hydration: 'defer'` run after `plugin()` has closed its `PluginSubscription:context` group. Each deferred run opens its own group (label `subscriber:deferred`, no `groupId`, so it is keyed by the store scope like the `context` group); traces emitted by the subscriber during that run, such as those of a `Store` subclass, are printed inside it. The group stays open until asynchronous `hydrate()` / `afterHydration()` promises settle (fulfilled or rejected). While it is open, console listeners buffer every trace of that store scope, so a promise that never settles would hide them: after `deferredTraceGroupTimeout` milliseconds (plugin option, default `2500`) the group is closed anyway and a `subscriber:deferred:timeout` error is traced inside it.
+
 ## Emitting your own events
 
 ```ts

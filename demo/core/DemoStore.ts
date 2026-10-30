@@ -20,8 +20,7 @@ export default class DemoStore extends Store {
     }
 
     private augmentState() {
-        // Augment the store state here if needed
-        this.state.pluginIsActive = true
+        this.addToState('pluginIsActive', true)
     }
 
     private augmentStore() {

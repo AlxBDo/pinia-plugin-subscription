@@ -1,8 +1,8 @@
 <script setup>
 import Example from './components/Example.vue'
+import EnhancedExample from './components/EnhancedExample.vue'
+import HydrationEnvironmentExample from './components/HydrationEnvironmentExample.vue'
 import Header from './components/header/Header.vue'
-import Lists from './components/experiment/examples/lists/Lists.vue';
-import User from './components/experiment/examples/user/User.vue';
 
 </script>
 
@@ -10,8 +10,8 @@ import User from './components/experiment/examples/user/User.vue';
   <Header />
   <main>
     <Example />
-    <!-- <User /> -->
-    <!-- <Lists /> -->
+    <EnhancedExample />
+    <HydrationEnvironmentExample />
   </main>
 </template>
 

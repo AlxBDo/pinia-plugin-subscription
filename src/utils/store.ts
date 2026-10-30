@@ -145,7 +145,7 @@ export function defineAStore(
  */
 export function defineAStoreCtx<Id extends string, SS, TExtraExtensions extends Record<string, unknown> = EmptyExtensions>(
     id: Id,
-    storeDefinition: (ctx: DefineAStoreSetupContext<AnyObject, TExtraExtensions>) => SS,
+    storeDefinition: (ctx: DefineAStoreSetupContext<unknown, TExtraExtensions>) => SS,
     options?: StoreOptions
 ): SetupStoreDefinition<Id, SS>
 /**
@@ -185,29 +185,32 @@ export function defineAStoreSetup<Id extends string, SS>(
     storeDefinition: DefineAStoreSetup<SS>,
     options: PluginStoreOptions
 ): SetupStoreDefinition<Id, SS> {
-    const setupContext: DefineAStoreSetupContext<SS> = {
-        id,
-        extensions: {}
-    }
-
+    let setupContext: DefineAStoreSetupContext<SS> | undefined
     const shouldStoreSetupContext = options?.storeOptions?.enhancedStore === true
 
     // `storeOptions` augments pinia's DefineStoreOptionsBase (see createPlugin.ts);
     // the assertion stays valid in compilation units where the augmentation is not loaded.
     const useStore = defineStore(
         id,
-        () => storeDefinition(setupContext),
+        () => {
+            setupContext = {
+                id,
+                extensions: {}
+            }
+
+            if (shouldStoreSetupContext) {
+                defineAStoreSetupContextsById.set(id, setupContext as DefineAStoreSetupContext<AnyObject>)
+            }
+
+            return storeDefinition(setupContext)
+        },
         options as unknown as DefineAStoreSetupOptions<Id, SS>
     )
 
     return Object.assign(((...args: Parameters<typeof useStore>) => {
-        if (shouldStoreSetupContext) {
-            defineAStoreSetupContextsById.set(id, setupContext as DefineAStoreSetupContext<AnyObject>)
-        }
-
         const store = useStore(...args)
 
-        if (shouldStoreSetupContext) {
+        if (shouldStoreSetupContext && setupContext) {
             defineAStoreSetupContexts.set(store, setupContext as DefineAStoreSetupContext<AnyObject>)
             defineAStoreSetupContextsById.delete(id)
             registerSetupContextCleanupOnDispose(store as AnyObject, id)
@@ -262,6 +265,12 @@ export function getDefineAStoreSetupContext(store: object): DefineAStoreSetupCon
  */
 export function getEnhancedStore<TEnhancedStore>(
     ctx: DefineAStoreSetupContext<TEnhancedStore>
+): TEnhancedStore
+export function getEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<unknown>
+): TEnhancedStore
+export function getEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<unknown>
 ): TEnhancedStore {
     const enhancedStore = ctx.extensions.enhancedStore ?? ctx.extensions.extending
 
@@ -269,7 +278,7 @@ export function getEnhancedStore<TEnhancedStore>(
         throw new Error(`${ctx.id}Store - getEnhancedStore - Error: enhanced store is required`)
     }
 
-    return enhancedStore
+    return enhancedStore as TEnhancedStore
 }
 
 /**
@@ -281,6 +290,14 @@ export function getEnhancedStore<TEnhancedStore>(
 export function setEnhancedStore<TEnhancedStore>(
     ctx: DefineAStoreSetupContext<TEnhancedStore>,
     store: TEnhancedStore
+): void
+export function setEnhancedStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<unknown>,
+    store: TEnhancedStore
+): void
+export function setEnhancedStore(
+    ctx: DefineAStoreSetupContext<unknown>,
+    store: unknown
 ): void {
     ctx.extensions.enhancedStore = store
     ctx.extensions.extending = store
@@ -291,6 +308,12 @@ export function setEnhancedStore<TEnhancedStore>(
  */
 export function getExtendingStore<TEnhancedStore>(
     ctx: DefineAStoreSetupContext<TEnhancedStore>
+): TEnhancedStore
+export function getExtendingStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<unknown>
+): TEnhancedStore
+export function getExtendingStore<TEnhancedStore>(
+    ctx: DefineAStoreSetupContext<unknown>
 ): TEnhancedStore {
     console.warn(`${ctx.id}Store - getExtendingStore is deprecated. Use getEnhancedStore instead.`)
     return getEnhancedStore<TEnhancedStore>(ctx)

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 
 import type { StoreDefinition } from 'pinia'
 import type { DefineAStoreDefinition } from '../types/store'
-import { defineAStore, defineAStoreCtx } from '../utils/store'
+import { defineAStore, defineAStoreCtx, getEnhancedStore, setEnhancedStore } from '../utils/store'
 
 interface CounterState {
     count: number
@@ -89,13 +89,19 @@ describe('defineAStore typings', () => {
     })
 
     it('infers store members with defineAStoreCtx', () => {
-        const useCtxStore = defineAStoreCtx('inferredCtx', () => {
+        const useCtxStore = defineAStoreCtx('inferredCtx', (ctx) => {
             const count = ref(0)
 
             function increment(step: number = 1): number {
                 count.value += step
                 return count.value
             }
+
+            expectTypeOf(ctx.extensions.enhancedStore).toBeUnknown()
+            expectTypeOf(getEnhancedStore<{ increment: (step?: number) => number }>(ctx))
+                .toEqualTypeOf<{ increment: (step?: number) => number }>()
+
+            setEnhancedStore(ctx, { increment })
 
             return { count, increment }
         })

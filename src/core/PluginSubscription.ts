@@ -30,6 +30,8 @@ const defaultPluginExecution: Required<PluginExecutionOptions> = {
     hydration: 'immediate'
 }
 
+const defaultDeferredTraceGroupTimeout = 2500
+
 function defaultHydrationScheduler(callback: () => void): void {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
         window.requestAnimationFrame(() => globalThis.setTimeout(callback, 0))
@@ -403,7 +405,10 @@ export default class PluginSubscription extends TraceEmitter {
         }
     }
 
-    private executeSubscriber(context: PiniaPluginContext, subscriber: PluginSubscriber): void {
+    /**
+     * @returns A promise settling once asynchronous hydration hooks are done, undefined when everything ran synchronously.
+     */
+    private executeSubscriber(context: PiniaPluginContext, subscriber: PluginSubscriber): Promise<unknown> | undefined {
         const subscriberKey = this.defineSubscriberKey(subscriber, context.store)
 
         if (this._subscribersDelivered.has(subscriberKey)) {
@@ -426,11 +431,11 @@ export default class PluginSubscription extends TraceEmitter {
             return
         }
 
-        const runAfterHydration = () => {
+        const runAfterHydration = (): Promise<unknown> | undefined => {
             try {
                 const afterHydration = subscriber.afterHydration?.(context)
                 if (afterHydration && typeof (afterHydration as Promise<void>).then === 'function') {
-                    ; (afterHydration as Promise<void>).catch(
+                    return (afterHydration as Promise<void>).catch(
                         error => this.traceError('subscriber:afterHydration', error, context.store.$id)
                     )
                 }
@@ -439,12 +444,14 @@ export default class PluginSubscription extends TraceEmitter {
             }
         }
 
+        let pending: Promise<unknown> | undefined
+
         if (hydrateResult && typeof (hydrateResult as Promise<void>).then === 'function') {
-            ; (hydrateResult as Promise<void>)
+            pending = (hydrateResult as Promise<void>)
                 .then(() => runAfterHydration())
                 .catch(error => this.traceError('subscriber:hydrate', error, context.store.$id))
         } else {
-            runAfterHydration()
+            pending = runAfterHydration()
         }
 
         if (subscriber.subscriptions) {
@@ -460,11 +467,13 @@ export default class PluginSubscription extends TraceEmitter {
         if (subscriber.resetStoreCallback) {
             this.addResetStoreCallback(context.store, subscriber.resetStoreCallback)
         }
+
+        return pending
     }
 
-    private executeSubscriberSafely(context: PiniaPluginContext, subscriber: PluginSubscriber): void {
+    private executeSubscriberSafely(context: PiniaPluginContext, subscriber: PluginSubscriber): Promise<unknown> | undefined {
         try {
-            this.executeSubscriber(context, subscriber)
+            return this.executeSubscriber(context, subscriber)
         } catch (e) {
             this.traceError('subscriber:execute', e, context.store.$id)
         }
@@ -556,8 +565,58 @@ export default class PluginSubscription extends TraceEmitter {
                 return
             }
             this._subscribersScheduled.delete(subscriberKey)
-            this.executeSubscriberSafely(context, subscriber)
+
+            // Deferred runs happen after plugin() closed its group: open one so their traces stay grouped by store
+            const storeId = context.store.$id
+            this.traceGroupStart(() => ({ subscriber: subscriber.name }), storeId, 'subscriber:deferred')
+            const closeGroup = () => this.traceGroupEnd(() => ({}), storeId)
+            let pending: Promise<unknown> | undefined
+            try {
+                pending = this.executeSubscriberSafely(context, subscriber)
+            } finally {
+                // Keep the group open until async hydration hooks settle, so their traces stay inside it
+                if (pending) {
+                    this.closeGroupWhenSettled(pending, closeGroup, storeId, subscriber.name)
+                } else {
+                    closeGroup()
+                }
+            }
         })
+    }
+
+    /**
+     * Closes a trace group once `pending` settles, or after the configured timeout so a promise
+     * that never settles cannot keep buffering the traces of the store scope.
+     */
+    private closeGroupWhenSettled(
+        pending: Promise<unknown>,
+        closeGroup: () => void,
+        storeId: string,
+        subscriberName: string
+    ): void {
+        let closed = false
+        const closeOnce = () => {
+            if (closed) {
+                return
+            }
+            closed = true
+            globalThis.clearTimeout(timer)
+            closeGroup()
+        }
+        const timeout = this._options?.deferredTraceGroupTimeout ?? defaultDeferredTraceGroupTimeout
+        const timer = globalThis.setTimeout(() => {
+            if (closed) {
+                return
+            }
+            this.traceError(
+                'subscriber:deferred:timeout',
+                new Error(`Subscriber "${subscriberName}" hydration still pending after ${timeout}ms`),
+                storeId
+            )
+            closeOnce()
+        }, timeout)
+
+        pending.then(closeOnce, closeOnce)
     }
 
     private registerStoreCleanup(store: Store): void {

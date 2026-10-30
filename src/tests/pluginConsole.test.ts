@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { CustomConsole } from '../system/log'
+import { CustomConsole } from '../system/log/console'
 import { pluginName } from '../utils/constants'
 
 class PluginConsole extends CustomConsole {
