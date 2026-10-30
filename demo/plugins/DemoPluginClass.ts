@@ -13,4 +13,6 @@ class DemoPluginSubscriber extends PluginSubscriber<DemoStore> {
     }
 }
 
-export const DemoPluginClass = new DemoPluginSubscriber()
+export function createDemoPluginClass(): DemoPluginSubscriber {
+    return new DemoPluginSubscriber()
+}

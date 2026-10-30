@@ -152,6 +152,7 @@ describe('defineAStore setup context', () => {
             id: 'repeatTimingStore',
             extensions: {}
         })
+        expect(setupContextFromPluginPhaseByCall[0]).not.toBe(setupContextFromPluginPhaseByCall[1])
     })
 
     it('cleans setup context lookup on store dispose', () => {

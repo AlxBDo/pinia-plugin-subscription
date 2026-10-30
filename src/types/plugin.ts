@@ -63,6 +63,14 @@ export interface PluginSubscriptionOptions {
     hydrationScheduler?: PluginHydrationScheduler
 
     /**
+     * Maximum time (ms) a `hydration: 'defer'` subscriber keeps its trace group open while its
+     * asynchronous hydration hooks are pending. Once elapsed, the group is closed and a
+     * `subscriber:deferred:timeout` error is traced. Defaults to 2500.
+     * @type {number | undefined}
+     */
+    deferredTraceGroupTimeout?: number
+
+    /**
      * Runtime environment for the plugin subscriber.
      * @type {PluginRuntimeEnvironment | undefined}
      */

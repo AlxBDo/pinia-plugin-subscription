@@ -37,6 +37,8 @@ The package serves two audiences:
 | Build your own pinia plugin on top of `pinia-plugin-subscription` (API reference, `Store` class, import subpaths, development and testing) | [Plugin authoring guide](docs/authoring-plugins.md) |
 | Debug stores and plugins with structured trace events | [Tracing](docs/tracing.md) |
 
+A runnable example lives in [`demo/`](demo/) (`npm run dev` for SPA mode or `npm run dev:ssr` for Vite SSR). The SSR example hydrates **one store from two environments**: a server-only subscriber loads request data (awaited before rendering and serializing Pinia state) and a client-only, deferred subscriber fills browser data after hydration, with a visual timeline; see the [reference implementation](docs/authoring-plugins.md#reference-implementation). Plugins built on this package are discoverable through the [`pinia-plugin-subscription` GitHub topic](https://github.com/topics/pinia-plugin-subscription).
+
 ## Installation
 
 ```bash

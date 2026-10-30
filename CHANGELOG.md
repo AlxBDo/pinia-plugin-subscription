@@ -11,8 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Console trace groups now prefer `payload.groupId` over the configured `groupBy` key; events sharing a key across overlapping groups are buffered until all those groups close, while events without an open group are printed immediately. See `docs/tracing.md`
 - `storeMutationSubscription` now supports several subscribers per store, like `storeOnActionSubscription`: a single `$subscribe` is registered per store and dispatches to every callback. A failing callback is reported through `traceError` without blocking the others, subscriber names are tracked, and the hook is unsubscribed when the store is disposed
 - `storeOnActionSubscription` now receives the Pinia plugin context; action trace labels include the invoked action name
+- Subscribers deferred with `hydration: 'defer'` now run inside their own trace group (label `subscriber:deferred`, keyed by store scope), which stays open until their asynchronous `hydrate()` / `afterHydration()` settle, so their traces are no longer emitted outside any group once `plugin()` has closed its `context` group. A hydration that never settles can no longer buffer the store's traces forever: the group is force-closed after `deferredTraceGroupTimeout` ms (new option, default 2500) and a `subscriber:deferred:timeout` error is traced
+
+### Fixed
+- `defineAStoreSetup` now creates a separate setup context for each Pinia store instance, preventing enhanced-store extensions from being shared across SSR requests
+- Demo plugin-added state now uses `Store.addToState()` so `pluginIsActive` is exposed and reactive on the Pinia store
+- `defineAStoreCtx()` now types the inferred setup context's enhanced-store extensions as `unknown` instead of `AnyObject`; explicit types remain available through generics or `getEnhancedStore<T>()`
+- Demo no longer depends on git-ignored `experiment/` files nor on `src/` imports, so it runs from a fresh clone; `codeError` now fails explicitly
+
+### Documentation
+- Added `demo/README.md` mapping each use case to its demo files and docs; documented the `pinia-plugin-subscription` topic in the Ecosystem section
+- Reference implementation section lists the demo files and what each one illustrates; README links the demo and the `pinia-plugin-subscription` topic
 
 ### Added
+- SSR demo subscribers are now class-based (`PluginSubscriber` + a `Store` subclass) and emit traces through the tracer `PluginSubscription` provides (`this.trace()` / `this.traceError()`): hydration start/done, errors, and the `onMutation` trace group, all scoped to the store; the per-request tracer registry also listens on the server, so server traces print in the Node terminal and browser traces in the devtools console
+- SSR demo shows a concrete case of environment-aware hydration: one store filled by a server-only subscriber (request data) and a client-only deferred subscriber (browser data), with a server/browser panel layout and a hydration timeline; the `Accept-Language` header is validated before being serialized
+- Added a Vite SSR demo server (`npm run dev:ssr`) with per-request app/plugin instances, async server-side subscriber hydration, and Pinia state serialization for client hydration
+- Demo: `defineAStoreCtx` enhanced-store example; the demo app now resolves the package to `src/` through Vite aliases (no build needed)
+- Added `pinia-plugin-subscription` to the package `keywords`
 - Added `addScopesListener(scopes, context?)` to `createTracerRegistry()` for grouping events from selected store scopes; documented in `docs/tracing.md`
 - `traceGroups` glossary, exported from `pinia-plugin-subscription/helpers`, building the `groupId` emitted by `PluginSubscription` (`onActionAfter`, `onActionError`, `onMutation`, `reset`); documented in `docs/tracing.md`
 - `createPluginSubscriber(name, invoke, optionalProps?)` factory, exported from `pinia-plugin-subscription/helpers`, to build plain-object subscribers; documented in `docs/authoring-plugins.md` and used by the demo plugin

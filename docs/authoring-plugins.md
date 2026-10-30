@@ -517,7 +517,7 @@ Available execution options:
 
 See [SSR / Nuxt best practices](#ssr--nuxt-best-practices) for guidance on matching the runtime policy to the app lifecycle.
 
-## Development
+## Execution policy recap
 
 The example above shows the recommended pattern for SSR / Nuxt-safe plugins:
 
@@ -564,7 +564,24 @@ It runs automatically as part of `npm run build` and in CI. If it reports a leak
 
 ## Reference implementation
 
-The demo app ships a complete plugin implementation in
-[`demo/`](../demo/): a
-`PluginSubscriber` subclass, a `Store` subclass, option typing and SSR
-guards. Run `npm run dev` to explore it live.
+The demo app in [`demo/`](../demo/) includes class-based, plain-object, and
+SSR-aware subscribers. Run `npm run dev` for client-only rendering or
+`npm run dev:ssr` to run the Vite SSR server and hydrate the rendered page in
+the browser. Its two subscribers hydrate the same store from different environments: a
+server-only one loads request data (the server waits for its async `hydrate()` before
+rendering) and a client-only, deferred one reads browser APIs after hydration. Both modes
+resolve the package to `src/`, so no build is needed. See also
+[`demo/README.md`](../demo/README.md).
+
+| Style | Files | Shows |
+| --- | --- | --- |
+| Class-based | [`demo/plugins/DemoPluginClass.ts`](../demo/plugins/DemoPluginClass.ts), [`demo/core/DemoStore.ts`](../demo/core/DemoStore.ts) | `PluginSubscriber` subclass, `Store` subclass, `hasRequiredKeys` gating, store augmentation (`this.state`, `this.store`), `onAction` / `storeSubscribe`, `trace()` |
+| Plain object | [`demo/plugins/demoPluginObject.ts`](../demo/plugins/demoPluginObject.ts) | `createPluginSubscriber()`, per-store opt-in through `storeOptions`, `createTracer`, `traceGroups` |
+| Environment-aware hydration | [`demo/plugins/demoPluginEnvironmentHydration.ts`](../demo/plugins/demoPluginEnvironmentHydration.ts), [`demo/core/VisitorEnvironmentStore.ts`](../demo/core/VisitorEnvironmentStore.ts), [`demo/stores/visitor-environment.ts`](../demo/stores/visitor-environment.ts), [`demo/entry-server.ts`](../demo/entry-server.ts) | One store hydrated by a server-only subscriber (awaited before render and serialization) and a client-only `hydration: 'defer'` subscriber; each is skipped in the other environment; traces via `Store.trace()` and the `onMutation` group |
+| Enhanced store | [`demo/stores/enhanced-store.ts`](../demo/stores/enhanced-store.ts), [`demo/components/EnhancedExample.vue`](../demo/components/EnhancedExample.vue) | `defineAStoreCtx` + `getEnhancedStore` consuming the `DemoStore` augmentations |
+| Option typing | [`demo/types/plugin.ts`](../demo/types/plugin.ts) | Extending `StoreOptions` with plugin options |
+| Registration & tracing | [`demo/main.ts`](../demo/main.ts) | `createPlugin()` with several subscribers, `createTracerRegistry()`, `addScopesListener()` |
+| Rollback | [`demo/stores/rollback-snapshot.ts`](../demo/stores/rollback-snapshot.ts), [`demo/components/Example.vue`](../demo/components/Example.vue) | `rollbackAfterFailure` option vs manual `$rollbackAfterFailure()` |
+
+Open the browser console to see the trace output of the
+`rollbackSnapshotStoreWithRollback` scope.

@@ -229,9 +229,19 @@ export const useMyStore = defineAStoreCtx('myStore', (ctx) => {
 })
 ```
 
+Without explicit generics, the enhanced-store properties are `unknown`, since
+the type added by a plugin cannot be inferred from this store's setup return.
+Pass the enhanced-store type through `<Sto, Sta>` (with the behavior and state
+interfaces) when it is known, or use `getEnhancedStore<YourEnhancedStore>(ctx)`.
+Provide `TExtraExtensions` as a third generic when adding custom extension keys.
+
 `defineAStoreCtx()` enables the `enhancedStore` store option automatically.
 The internal setup-context lookup is cleaned up as soon as the store is
 associated (and on store dispose), which limits map growth over time.
+
+> The enhanced store is attached once plugins have run, after the setup
+> function returns: call getEnhancedStore() lazily (inside actions), not
+> during setup. See [`demo/stores/enhanced-store.ts`](../demo/stores/enhanced-store.ts).
 
 ## `$reset` on registered stores
 
@@ -428,3 +438,5 @@ Plugins built on `pinia-plugin-subscription`:
 - `pinia-plugin-persist-state`
 
 Check each plugin's own README for its specific store options and behavior.
+
+Browse all compatible plugins through the [`pinia-plugin-subscription` GitHub topic](https://github.com/topics/pinia-plugin-subscription), and add the topic to your own plugin's repository (and `pinia-plugin-subscription` to its `keywords`) so users can find it. A runnable example is available in [`demo/`](../demo/README.md).
