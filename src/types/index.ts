@@ -37,12 +37,16 @@ export type {
     TraceEventMetadata,
     TraceFilter,
     TraceHandler,
+    TraceJournal,
+    TraceJournalListener,
+    TraceJournalOptions,
     TraceLevel,
     TraceListener,
     TraceListenerRemover,
     TracePayload,
     TraceRedactOptions,
     TraceRegistry,
+    TraceSide,
     TracerOptions,
     TracerRegistryOptions
 } from './trace'

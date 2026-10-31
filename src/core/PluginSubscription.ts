@@ -46,6 +46,7 @@ export default class PluginSubscription extends TraceEmitter {
     private _hydrationScheduler: PluginHydrationScheduler
     private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
     private _onActionSubscriptionsTraces: Map<string, string[]> = new Map()
+    private _actionSeq = 0
     private _onActionStores: Set<Store> = new Set()
     private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
     private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
@@ -264,7 +265,8 @@ export default class PluginSubscription extends TraceEmitter {
                 return
             }
 
-            this.traceGroupStart(() => ({ args }), store.$id, `store:onAction:${name}`)
+            const actionId = `${store.$id}#${++this._actionSeq}`
+            this.traceGroupStart(() => ({ actionId, args }), store.$id, `store:onAction:${name}`)
             // The group must be closed exactly once, whichever way the action ends.
             let groupClosed = false
             const closeGroup = () => {
@@ -292,7 +294,8 @@ export default class PluginSubscription extends TraceEmitter {
                             onError: this.createOnActionOnErrorCallbackCollector(name, store)
                         }),
                         'store:onAction:callback:error',
-                        store.$id
+                        store.$id,
+                        () => ({ actionId })
                     )
                     if (result) {
                         pending.push(result)
@@ -300,8 +303,8 @@ export default class PluginSubscription extends TraceEmitter {
                 })
 
                 this.endGroupAfter(pending, closeGroup)
-                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name)
-                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name)
+                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name, actionId)
+                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
             } catch (error) {
                 closeGroup()
@@ -347,13 +350,15 @@ export default class PluginSubscription extends TraceEmitter {
         after: (callback: (result: any) => void) => void,
         storageKey: string,
         store: Store,
-        name: string
+        name: string,
+        actionId: string
     ) {
         const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
         if (afterCallbacks?.length) {
             after((result) => {
                 this.traceGroupStart(
                     () => ({
+                        actionId,
                         groupId: traceGroups.onActionAfter(store.$id),
                         result
                     }),
@@ -365,7 +370,7 @@ export default class PluginSubscription extends TraceEmitter {
                     () => callback(result),
                     'storeOnActionAfterCallbacks',
                     store.$id,
-                    () => ({ 'action name': name })
+                    () => ({ actionId, 'action name': name })
                 ))
 
                 this.endGroupAfter(pending, () =>
@@ -378,13 +383,15 @@ export default class PluginSubscription extends TraceEmitter {
         onError: (callback: (error: any) => void) => void,
         storageKey: string,
         store: Store,
-        name: string
+        name: string,
+        actionId: string
     ) {
         const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
 
         if (onErrorCallbacks?.length) {
             onError((error) => {
                 this.traceGroupStart(() => ({
+                    actionId,
                     'action name': name,
                     error,
                     groupId: traceGroups.onActionError(store.$id)
@@ -396,7 +403,7 @@ export default class PluginSubscription extends TraceEmitter {
                     () => callback(error),
                     'store:onAction:onError:error',
                     store.$id,
-                    () => ({ groupId: traceGroups.onActionError(store.$id) })
+                    () => ({ actionId, groupId: traceGroups.onActionError(store.$id) })
                 ))
 
                 this.endGroupAfter(pending, () =>

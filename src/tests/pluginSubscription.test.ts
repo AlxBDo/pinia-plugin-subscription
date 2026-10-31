@@ -1695,7 +1695,7 @@ describe('PluginSubscription', () => {
 
             await new Promise(resolve => setTimeout(resolve, 0))
             expect(traceError).toHaveBeenCalledWith(
-                'store:onAction:callback:error', expect.any(Error), 'async-action-store', undefined
+                'store:onAction:callback:error', expect.any(Error), 'async-action-store', expect.any(Function)
             )
         })
 

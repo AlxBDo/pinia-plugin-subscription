@@ -29,6 +29,8 @@ export type TraceLevel = 'debug' | 'error'
  * Filters receive this object so that discarded events never allocate a payload.
  */
 export interface TraceEventMetadata {
+    /** Identifier of the store action this event belongs to, shared by every event of the same action. */
+    actionId?: string
     /** Identifier for the group this event belongs to. */
     groupId?: string
     /** Label describing the event, e.g. `Subscription:Delivery`. */
@@ -49,7 +51,67 @@ export interface TraceEventMetadata {
 export interface TraceEvent extends TraceEventMetadata {
     error?: unknown
     payload?: AnyObject
+    /** Monotonic position of the event in its registry. Set when a journal is enabled. */
+    seq?: number
+    /** Environment that emitted the event. Set when a journal is enabled. */
+    side?: TraceSide
     timestamp: number
+}
+
+/** Environment that emitted a trace event. */
+export type TraceSide = 'client' | 'server'
+
+export interface TraceJournalOptions {
+    /**
+     * Maximum number of events kept per store and per side. The oldest ones are evicted first,
+     * except context and error events, which are kept separately under the same cap. Defaults to `1000`.
+     */
+    maxEventsPerStore?: number
+}
+
+export interface ToSerializableOptions {
+    /** Maximum nesting depth. Defaults to `5`. */
+    maxDepth?: number
+    /** Maximum entries kept per object or array. Defaults to `100`. */
+    maxEntries?: number
+    /** Maximum number of objects visited. Defaults to `2000`. */
+    maxNodes?: number
+}
+
+/** JSON-safe copy of a journal, to carry server traces to the browser. */
+export interface TraceJournalSnapshot {
+    events: TraceEvent[]
+    version: 1
+}
+
+export type TraceJournalListener = (event: TraceEvent) => void
+
+/**
+ * Ordered record of every trace event of a registry, grouped by store, readable at any time
+ * and independent of console listeners.
+ */
+export interface TraceJournal {
+    append: (event: TraceEvent) => void
+    /** Clears the events of a store, or of every store when `scope` is omitted. */
+    clear: (scope?: string) => void
+    /** Number of events evicted from a store because of the size cap. */
+    getDropped: (scope: string) => number
+    /** Events of a store ordered by `seq`. */
+    getEvents: (scope: string) => TraceEvent[]
+    /**
+     * Replaces the events imported earlier with those of a snapshot produced by `serialize()`, typically on the server.
+     * Unknown or malformed entries are skipped. Imported events are marked `side: 'server'` and ordered before local ones.
+     * @returns The number of events imported.
+     */
+    import: (snapshot: unknown) => number
+    /** Identifiers of the stores that have events. Events without scope are grouped under `journalGlobalScope`. */
+    getScopes: () => string[]
+    /** JSON-safe, size-bounded copy of every event: payloads and errors are converted with `toSerializable`. */
+    serialize: () => TraceJournalSnapshot
+    /** Next sequence number to assign to an event. */
+    nextSeq: () => number
+    /** Calls `listener` for every appended event. Returns a function removing it. */
+    subscribe: (listener: TraceJournalListener) => TraceListenerRemover
 }
 
 /** Names of the trace groups emitted by `PluginSubscription`, see `traceGroups`. */
@@ -142,6 +204,9 @@ export type TraceRegistry = {
      */
     hasTraceListeners: () => boolean
 
+    /** Journal of every emitted event. Only defined when the `journal` registry option is enabled. */
+    journal?: TraceJournal
+
     /** Handler to pass to the plugin through `PluginSubscriptionOptions.tracerHandler`. */
     tracerHandler: TracerHandler
 }
@@ -172,6 +237,14 @@ export interface TraceRedactOptions {
 
 export interface TracerRegistryOptions {
     /**
+     * Records every event of every store in `registry.journal`, whether a listener matches it or not.
+     * Opt-in: `true` uses the default size cap, an object customizes it. Ignored when `enabled` is `false`.
+     */
+    journal?: boolean | TraceJournalOptions
+    /** Environment reported on events. Defaults to `server` when `window` is undefined, `client` otherwise. */
+    side?: TraceSide
+
+    /**
      * Whether listeners can be registered. When `false`, `addListener()` is a no-op and tracing stays inactive.
      * Defaults to `false` in production builds (`process.env.NODE_ENV === 'production'`), `true` otherwise.
      */
@@ -184,6 +257,8 @@ export interface TracerRegistryOptions {
 }
 
 export interface TracerOptions {
+    journal?: TraceJournal
+    side?: TraceSide
     /** Transforms the resolved payload before it is delivered to listeners. */
     redactor?: (payload: AnyObject) => AnyObject
     scope?: string
