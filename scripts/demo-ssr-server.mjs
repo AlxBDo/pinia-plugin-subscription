@@ -19,18 +19,21 @@ async function renderRequest(request, response) {
         const template = await readFile(resolve(demoRoot, 'index.html'), 'utf-8')
         const transformedTemplate = await vite.transformIndexHtml(url, template)
         const { renderDemo } = await vite.ssrLoadModule('/entry-server.ts')
-        const { html, state } = await renderDemo(pathname, {
+        const { stringifyTraceSnapshot: stringifyForHtml } = await vite.ssrLoadModule('pinia-plugin-subscription/helpers')
+        const { html, state, traces } = await renderDemo(pathname, {
             acceptLanguage: request.headers['accept-language']
         })
-        const serializedState = JSON.stringify(state)
-            .replace(/</g, '\\u003c')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029')
+        const serializedState = stringifyForHtml(state)
+        const serializedTraces = stringifyForHtml(traces ?? null)
         const page = transformedTemplate
-            .replace('<!--ssr-outlet-->', html)
+            .replace('<!--ssr-outlet-->', () => html)
             .replace(
                 '<script type="application/json" id="pinia-state">null</script>',
-                `<script type="application/json" id="pinia-state">${serializedState}</script>`
+                () => `<script type="application/json" id="pinia-state">${serializedState}</script>`
+            )
+            .replace(
+                '<script type="application/json" id="pinia-traces">null</script>',
+                () => `<script type="application/json" id="pinia-traces">${serializedTraces}</script>`
             )
 
         response.statusCode = 200

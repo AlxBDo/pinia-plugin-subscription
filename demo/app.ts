@@ -21,7 +21,7 @@ export function createDemoApp(
         pinia.state.value = initialState
     }
 
-    const tracerRegistry = createTracerRegistry()
+    const tracerRegistry = createTracerRegistry({ journal: true })
     const subscribers: PluginSubscriberInterface[] = [
         createDemoPluginClass(),
         createDemoPluginObject(),
@@ -45,5 +45,5 @@ export function createDemoApp(
     }
 
     app.use(pinia)
-    return { app, pinia }
+    return { app, pinia, tracerRegistry }
 }
