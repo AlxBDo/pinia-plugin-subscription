@@ -155,7 +155,7 @@ describe('environment-aware hydration traces', () => {
         ])
     })
 
-    it('traces mutations in the store mutation group', () => {
+    it('traces mutations', () => {
         const { tracer, createTracer } = stubTracerFactory()
         const subscriber = createBrowserVisitorSubscriber(() => browserData)
 
@@ -163,9 +163,8 @@ describe('environment-aware hydration traces', () => {
         subscriber.storeMutationSubscription?.({} as never)?.callback({} as never, {} as never)
 
         const mutationCall = tracer.debug.mock.calls.find((call) => call[1] === 'visitorenvironmentstore:onmutation')
-        const payload = (mutationCall?.[2] as () => { groupId: string })()
 
-        expect(payload.groupId).toBe('store:onMutation:visitorEnvironmentStore')
+        expect(mutationCall).toBeDefined()
     })
 
 

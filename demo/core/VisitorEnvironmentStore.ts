@@ -1,4 +1,4 @@
-import { Store, traceGroups } from 'pinia-plugin-subscription/helpers'
+import { Store } from 'pinia-plugin-subscription/helpers'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from 'pinia'
 import type { StoreClassConstructorParams } from 'pinia-plugin-subscription/types'
@@ -57,9 +57,7 @@ export default class VisitorEnvironmentStore extends Store {
     }
 
     private onMutationCallback(_mutation: SubscriptionCallbackMutation<StateTree>) {
-        this.trace('onMutation', this.store.$id, () => ({
-            groupId: traceGroups.onMutation(this.store.$id)
-        }))
+        this.trace('onMutation', this.store.$id)
     }
 
     private patchVisitor(

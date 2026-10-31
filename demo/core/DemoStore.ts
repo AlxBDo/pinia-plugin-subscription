@@ -60,24 +60,16 @@ export default class DemoStore extends Store {
         this.trace(`onAction:${name}`, this.store.$id)
 
         after((result) => {
-            this.trace(`onAction:after:${name}`, this.store.$id, () => ({
-                actionResult: result,
-                groupId: `store:onAction:after:${this.store.$id}`
-            }))
+            this.trace(`onAction:after:${name}`, this.store.$id, () => ({ actionResult: result }))
         })
 
         onError((error) => {
-            this.trace(`onAction:error:${name}`, this.store.$id, () => ({
-                actionError: error,
-                groupId: `store:onAction:onError:${this.store.$id}`
-            }))
+            this.trace(`onAction:error:${name}`, this.store.$id, () => ({ actionError: error }))
         })
     }
 
     private onMutationCallback(_mutation: SubscriptionCallbackMutation<StateTree>) {
         // Handle the mutation here
-        this.trace(`onMutation`, this.store.$id, () => ({
-            groupId: `store:onMutation:${this.store.$id}`
-        }))
+        this.trace(`onMutation`, this.store.$id)
     }
 }

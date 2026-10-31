@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added unit tests covering the tracing system and the leak detection logic
 
 ### Changed
+- Trace groups follow the lifecycles of a store: `groupId` is now a `/` separated path (`<storeId>/plugin`, `<storeId>/onAction:<name>#<n>`, with `/after` and `/onError` sub-groups, `<storeId>/onMutation#<n>`, `<storeId>/reset#<n>`, `<storeId>/plugin/deferred:<subscriber>#<n>`). Every trace emitted for a store while a group is open, including those of subscribers and `Store` subclasses, joins the innermost one. `traceGroups` builders take the call counter; `TraceGroupId` is removed, and `groupId` is lifted from the payload to the event like `actionId`
+- Devtools: the timeline nests events by lifecycle instead of by raw `actionId` (no more `#<n>` ids), events without `error` / `payload` are no longer expandable, `P` (payload) and `E` (error) chips flag the events carrying them, the floating button reads `Devtools` with a debug icon, and the Context tab lists subscribers by name (with their execution options) and shows options without `actions`
 - Console trace groups now prefer `payload.groupId` over the configured `groupBy` key; events sharing a key across overlapping groups are buffered until all those groups close, while events without an open group are printed immediately. See `docs/tracing.md`
 - `storeMutationSubscription` now supports several subscribers per store, like `storeOnActionSubscription`: a single `$subscribe` is registered per store and dispatches to every callback. A failing callback is reported through `traceError` without blocking the others, subscriber names are tracked, and the hook is unsubscribed when the store is disposed
 - `storeOnActionSubscription` now receives the Pinia plugin context; action trace labels include the invoked action name
@@ -60,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reference implementation section lists the demo files and what each one illustrates; README links the demo and the `pinia-plugin-subscription` topic
 
 ### Fixed
+- Devtools: the aside body now scrolls inside the aside (its scrollbar was out of reach under the page one)
+- Devtools: traces emitted with the `store:reset:<id>` / `store:onMutation:<id>` group ids of pinia-plugin-extending-store are merged into the plugin `reset` / `onMutation` groups
+- Devtools: the aside no longer sits under the page scrollbar (it keeps a gutter next to it) and the mouse wheel over the aside always scrolls the aside, not the page
+- Devtools: the aside is mounted in the browser top layer (Popover API) so it stays viewport-sized and scrollable even when a page ancestor has a `transform` / `filter`; trace rows show the label first, then time, side and P / E chips on a second line
+- Devtools: calls of a same hook (`onAction · name`, `onMutation`…) are merged into one group per store and side; groups start collapsed; events show their payload content directly (no `payload` key); wheel/touch scroll is no longer swallowed by host-page scroll locks and the scrollbar is always visible
 - `defineAStoreSetup` now creates a separate setup context for each Pinia store instance, preventing enhanced-store extensions from being shared across SSR requests
 - Demo plugin-added state now uses `Store.addToState()` so `pluginIsActive` is exposed and reactive on the Pinia store
 - `defineAStoreCtx()` now types the inferred setup context's enhanced-store extensions as `unknown` instead of `AnyObject`; explicit types remain available through generics or `getEnhancedStore<T>()`

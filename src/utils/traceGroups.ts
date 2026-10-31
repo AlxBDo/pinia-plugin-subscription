@@ -1,13 +1,27 @@
-import type { TraceGroupId } from '../types/trace'
-
 /**
  * Glossary of the `groupId` values emitted by `PluginSubscription`.
- * Each builder returns the group identifier of a store, so listeners can subscribe to it
- * and custom traces can join the same group.
+ * A group id is a `/` separated path: its prefixes are the parent groups (lifecycles), so
+ * `after` and `onError` are sub-groups of their `onAction` call.
+ * Listeners can subscribe to these ids and custom traces can join the same group.
  */
-export const traceGroups: Record<TraceGroupId, (storeId: string) => string> = {
-    onActionAfter: (storeId) => `store:onAction:after:${storeId}`,
-    onActionError: (storeId) => `store:onAction:onError:${storeId}`,
-    onMutation: (storeId) => `store:onMutation:${storeId}`,
-    reset: (storeId) => `store:reset:${storeId}`
+const onAction = (storeId: string, actionName: string, callId: number) => `${storeId}/onAction:${actionName}#${callId}`
+const plugin = (storeId: string) => `${storeId}/plugin`
+
+export const traceGroups = {
+    onAction,
+    onActionAfter: (storeId: string, actionName: string, callId: number) => `${onAction(storeId, actionName, callId)}/after`,
+    onActionError: (storeId: string, actionName: string, callId: number) => `${onAction(storeId, actionName, callId)}/onError`,
+    onMutation: (storeId: string, callId: number) => `${storeId}/onMutation#${callId}`,
+    plugin,
+    pluginDeferred: (storeId: string, subscriberName: string, callId: number) => `${plugin(storeId)}/deferred:${subscriberName}#${callId}`,
+    reset: (storeId: string, callId: number) => `${storeId}/reset#${callId}`
+}
+
+const callIdSuffix = /#\d+$/
+
+/** Human readable name of a group: its last segment, without the call counter. */
+export function getTraceGroupName(groupId: string): string {
+    const segment = groupId.slice(groupId.lastIndexOf('/') + 1)
+    if (segment === 'plugin') { return 'Plugin setup' }
+    return segment.replace(callIdSuffix, '').replace(':', ' · ')
 }

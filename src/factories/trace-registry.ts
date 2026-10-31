@@ -30,6 +30,13 @@ export function createTracerRegistry(
     // Shared by reference with every Tracer: it must be mutated in place, never reassigned.
     const listeners: TraceGroupListener[] = []
 
+    // Open groups per scope, innermost last: events emitted meanwhile by subscribers join the innermost one.
+    const openGroups = new Map<string, string[]>()
+    const currentGroupId = (scope?: string) => {
+        const stack = scope ? openGroups.get(scope) : undefined
+        return stack?.[stack.length - 1]
+    }
+
     /**
      * Registers a trace listener and returns its remover.
      * Listeners are evaluated in registration order.
@@ -101,7 +108,23 @@ export function createTracerRegistry(
         return listeners.length > 0 || !!journal
     }
 
+    function trackGroup(action: 'close' | 'open', { groupId, scope }: TraceEvent) {
+        if (!groupId || !scope) { return }
+
+        const stack = openGroups.get(scope) ?? []
+        if (action === 'open') {
+            stack.push(groupId)
+            openGroups.set(scope, stack)
+            return
+        }
+
+        const index = stack.lastIndexOf(groupId)
+        if (index >= 0) { stack.splice(index, 1) }
+        if (!stack.length) { openGroups.delete(scope) }
+    }
+
     function listenerGroupAction(actionName: 'createGroup' | 'logGroup', payload: TraceEvent) {
+        trackGroup(actionName === 'createGroup' ? 'open' : 'close', payload)
         if (!listeners.length) return
 
         getMatchedListener(payload).forEach(listener => {
@@ -118,7 +141,7 @@ export function createTracerRegistry(
         journal,
         tracerHandler: {
             closeGroup: (payload: TraceEvent) => listenerGroupAction('logGroup', payload),
-            createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { journal, redactor, side: tracerSide, ...options }),
+            createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { currentGroupId, journal, redactor, side: tracerSide, ...options }),
             hasTraceListeners,
             startGroup: (payload: TraceEvent) => listenerGroupAction('createGroup', payload)
         },

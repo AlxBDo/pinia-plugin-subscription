@@ -21,22 +21,34 @@ describe('mountTraceDevtools', () => {
         warn.mockRestore()
     })
 
-    it('renders an isolated panel, grouped by action, with live updates', async () => {
+    it('renders an isolated panel, grouped by lifecycle, with live updates', async () => {
         const registry = createTracerRegistry({ journal: true })
         const tracer = registry.tracerHandler.createTracer('Store')
+        const groupId = 'cart/onAction:add#1'
         tracer.debug('PluginSubscription:context', 'pluginsubscription:context', { subscribers: ['sub'] }, 'cart')
-        tracer.debug('Start', 'ns', { actionId: 'cart#1' }, 'cart')
+        registry.tracerHandler.startGroup({ groupId, scope: 'cart' } as never)
+        tracer.debug('Start', 'ns', { args: [1], groupId }, 'cart')
+        tracer.debug('Inside', 'ns', undefined, 'cart')
         const handle = mountTraceDevtools(registry, { open: true })
         await flush()
 
         expect(shadow().querySelector('aside')).not.toBeNull()
-        expect(shadow().textContent).toContain('cart#1')
+        expect(shadow().textContent).toContain('onAction \u00b7 add')
+        expect(shadow().querySelector('aside')!.textContent).not.toContain('#1')
         expect(document.body.querySelector('aside')).toBeNull()
+        expect(shadow().querySelectorAll('.pps-chip.p')).toHaveLength(0)
 
-        tracer.error('Failed', 'ns', new Error('x'), { actionId: 'cart#1' }, 'cart')
-        vi.spyOn(console, 'error').mockImplementation(() => { })
+        Array.from(shadow().querySelectorAll('button')).find(b => b.textContent?.includes('onAction'))!.click()
         await flush()
-        expect(shadow().textContent).toContain('2 events')
+        expect(shadow().querySelectorAll('.pps-chip.p')).toHaveLength(1)
+        expect(shadow().querySelectorAll('.pps-chip.e')).toHaveLength(0)
+
+        vi.spyOn(console, 'error').mockImplementation(() => { })
+        tracer.error('Failed', 'ns', new Error('x'), undefined, 'cart')
+        registry.tracerHandler.closeGroup({ groupId, scope: 'cart' } as never)
+        await flush()
+        expect(shadow().textContent).toContain('3 events')
+        expect(shadow().querySelector('.pps-chip.e')?.getAttribute('title')).toContain('x')
 
         handle.unmount()
         expect(document.getElementById(hostId)).toBeNull()
@@ -61,7 +73,7 @@ describe('mountTraceDevtools', () => {
         const registry = createTracerRegistry({ journal: true })
         const handle = mountTraceDevtools(registry, { shortcut: 'Alt+Shift+P' })
         await flush()
-        expect(shadow().querySelector('.pps-fab')).not.toBeNull()
+        expect(shadow().querySelector('.pps-fab')?.textContent).toContain('Devtools')
 
         document.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, key: 'P', shiftKey: true }))
         await flush()

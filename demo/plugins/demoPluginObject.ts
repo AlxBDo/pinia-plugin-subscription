@@ -1,4 +1,4 @@
-import { createPluginSubscriber, traceGroups } from 'pinia-plugin-subscription/helpers'
+import { createPluginSubscriber } from 'pinia-plugin-subscription/helpers'
 //import { createPluginSubscriber } from '../../src/factories/plugin-subscriber'
 //import { traceGroups } from '../../src/utils/traceGroups'
 //import Tracer from '../../src/system/Tracer'
@@ -38,7 +38,7 @@ export function createDemoPluginObject() {
                         tracer?.debug(
                             `demoPluginObject:onAction:${name}:after`,
                             `demo-plugin-object:on-action:after`,
-                            () => ({ groupId: traceGroups.onActionAfter(store.$id) }),
+                            undefined,
                             store.$id
                         )
                     })

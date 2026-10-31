@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { traceGroups } from '../utils/traceGroups'
+import { getTraceGroupName, traceGroups } from '../utils/traceGroups'
 
 describe('traceGroups', () => {
-    it('builds the group id of a store', () => {
-        expect(traceGroups.onActionAfter('cart')).toBe('store:onAction:after:cart')
-        expect(traceGroups.onActionError('cart')).toBe('store:onAction:onError:cart')
-        expect(traceGroups.onMutation('cart')).toBe('store:onMutation:cart')
-        expect(traceGroups.reset('cart')).toBe('store:reset:cart')
+    it('builds group ids as paths, after and onError being sub-groups of their onAction', () => {
+        expect(traceGroups.plugin('cart')).toBe('cart/plugin')
+        expect(traceGroups.onAction('cart', 'add', 3)).toBe('cart/onAction:add#3')
+        expect(traceGroups.onActionAfter('cart', 'add', 3)).toBe('cart/onAction:add#3/after')
+        expect(traceGroups.onActionError('cart', 'add', 3)).toBe('cart/onAction:add#3/onError')
+        expect(traceGroups.onMutation('cart', 4)).toBe('cart/onMutation#4')
+        expect(traceGroups.reset('cart', 5)).toBe('cart/reset#5')
+        expect(traceGroups.pluginDeferred('cart', 'persist', 6)).toBe('cart/plugin/deferred:persist#6')
+    })
+
+    it('names a group by its last segment, without call counter', () => {
+        expect(getTraceGroupName('cart/plugin')).toBe('Plugin setup')
+        expect(getTraceGroupName('cart/onAction:add#3')).toBe('onAction \u00b7 add')
+        expect(getTraceGroupName('cart/onAction:add#3/onError')).toBe('onError')
+        expect(getTraceGroupName('custom')).toBe('custom')
     })
 })

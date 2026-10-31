@@ -125,24 +125,27 @@ By default, `Store` prefixes its class name to labels and derived namespaces. Li
 
 ## Trace groups glossary
 
-Events emitted within the same hook for the same store share a `groupId`. The `traceGroups` helper, exported from `pinia-plugin-subscription/helpers`, builds these identifiers from a store ID:
+Events emitted for a store are grouped by lifecycle. A `groupId` is a `/` separated path whose prefixes are the parent groups, so `after` and `onError` are sub-groups of their `$onAction` call. The `traceGroups` helper, exported from `pinia-plugin-subscription/helpers`, builds these identifiers (`n` is the call counter):
 
-| Builder | `groupId` | Hook |
+| Builder | `groupId` | Lifecycle |
 | --- | --- | --- |
-| `traceGroups.onActionAfter(id)` | `store:onAction:after:<id>` | `$onAction` `after` |
-| `traceGroups.onActionError(id)` | `store:onAction:onError:<id>` | `$onAction` `onError` |
-| `traceGroups.onMutation(id)` | `store:onMutation:<id>` | `$subscribe` |
-| `traceGroups.reset(id)` | `store:reset:<id>` | `$reset` |
+| `traceGroups.plugin(id)` | `<id>/plugin` | Plugin setup and subscribers execution |
+| `traceGroups.pluginDeferred(id, subscriber, n)` | `<id>/plugin/deferred:<subscriber>#<n>` | Deferred subscriber run |
+| `traceGroups.onAction(id, name, n)` | `<id>/onAction:<name>#<n>` | One `$onAction` call |
+| `traceGroups.onActionAfter(id, name, n)` | `<id>/onAction:<name>#<n>/after` | `after` callbacks of that call |
+| `traceGroups.onActionError(id, name, n)` | `<id>/onAction:<name>#<n>/onError` | `onError` callbacks of that call |
+| `traceGroups.onMutation(id, n)` | `<id>/onMutation#<n>` | `$subscribe` |
+| `traceGroups.reset(id, n)` | `<id>/reset#<n>` | `$reset` |
+
+You do not have to set a `groupId` yourself: while a group of a store is open, every trace emitted with that store as scope (subscribers, `Store` subclasses, custom tracers) joins the innermost open group. An explicit `groupId` in the payload wins, and is lifted to the event's `groupId` (like `actionId`), out of the payload. Console listeners buffer and print each group once it closes.
 
 ```ts
-import { traceGroups } from 'pinia-plugin-subscription/helpers'
-
-registry.addListener([{ target: 'groupId', value: traceGroups.onActionAfter('cart') }])
+registry.addListener([{ target: 'groupId', comparator: 'startsWith', value: 'cart/onAction:' }])
 ```
 
-The plugin's action trace labels include the invoked action name (`store:onAction:<name>`). The `after` and `onError` callback trace labels also include that name, making activity from different actions distinguishable; their group IDs remain scoped to the store as shown above.
+`getTraceGroupName(groupId)` returns the readable name of a group (its last segment, without the counter). The plugin's action trace labels include the invoked action name (`store:onAction:<name>`).
 
-Subscribers declared with `hydration: 'defer'` run after `plugin()` has closed its `PluginSubscription:context` group. Each deferred run opens its own group (label `subscriber:deferred`, no `groupId`, so it is keyed by the store scope like the `context` group); traces emitted by the subscriber during that run, such as those of a `Store` subclass, are printed inside it. The group stays open until asynchronous `hydrate()` / `afterHydration()` promises settle (fulfilled or rejected). While it is open, console listeners buffer every trace of that store scope, so a promise that never settles would hide them: after `deferredTraceGroupTimeout` milliseconds (plugin option, default `2500`) the group is closed anyway and a `subscriber:deferred:timeout` error is traced inside it.
+Subscribers declared with `hydration: 'defer'` run after `plugin()` has closed its `PluginSubscription:context` group. Each deferred run opens its own sub-group of the plugin group (label `subscriber:deferred`, `groupId` `<id>/plugin/deferred:<subscriber>#<n>`); traces emitted by the subscriber during that run, such as those of a `Store` subclass, are printed inside it. The group stays open until asynchronous `hydrate()` / `afterHydration()` promises settle (fulfilled or rejected). While it is open, console listeners buffer every trace of that store scope, so a promise that never settles would hide them: after `deferredTraceGroupTimeout` milliseconds (plugin option, default `2500`) the group is closed anyway and a `subscriber:deferred:timeout` error is traced inside it.
 
 ## Journal
 
@@ -183,7 +186,7 @@ Imported events are marked `side: 'server'`, ordered before the local ones, and 
 
 ## In-page trace panel
 
-`pinia-plugin-subscription/devtools` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events grouped by action, client and server interleaved, expandable payloads, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
+`pinia-plugin-subscription/devtools` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events nested by lifecycle, client and server interleaved, `P` / `E` chips on events carrying a payload / an error, expandable details, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
 
 ```ts
 const registry = createTracerRegistry({ journal: true })
@@ -196,7 +199,7 @@ if (import.meta.env.DEV) {
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `open` | `false` | Open the panel on mount (a floating `PPS` button otherwise) |
+| `open` | `false` | Open the panel on mount (a floating `Devtools` button otherwise) |
 | `position` | `right` | `left` or `right` |
 | `width` | `480` | Aside width in pixels |
 | `shortcut` | `Alt+Shift+P` | Toggle shortcut, `false` to disable |

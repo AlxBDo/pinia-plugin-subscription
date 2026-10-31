@@ -75,7 +75,7 @@ export function createConsoleGroupTraceListener(groupBy: TraceListenerGroupBy = 
         createGroup,
         logGroup,
         handler(event): void {
-            const groupKey = (event?.payload?.groupId ?? event[groupBy]) as string
+            const groupKey = (event.groupId ?? event?.payload?.groupId ?? event[groupBy]) as string
             if (!groups.has(groupKey)) {
                 log(target, event)
                 return

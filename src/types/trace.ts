@@ -31,7 +31,10 @@ export type TraceLevel = 'debug' | 'error'
 export interface TraceEventMetadata {
     /** Identifier of the store action this event belongs to, shared by every event of the same action. */
     actionId?: string
-    /** Identifier for the group this event belongs to. */
+    /**
+     * Group (lifecycle) this event belongs to. It is a `/` separated path whose prefixes are the parent groups,
+     * e.g. `cart/onAction:add#3/after`, see `traceGroups`.
+     */
     groupId?: string
     /** Label describing the event, e.g. `Subscription:Delivery`. */
     label: string
@@ -113,9 +116,6 @@ export interface TraceJournal {
     /** Calls `listener` for every appended event. Returns a function removing it. */
     subscribe: (listener: TraceJournalListener) => TraceListenerRemover
 }
-
-/** Names of the trace groups emitted by `PluginSubscription`, see `traceGroups`. */
-export type TraceGroupId = 'onActionAfter' | 'onActionError' | 'onMutation' | 'reset'
 
 type TraceFilterCriterionComparator = 'equals' | 'contains' | 'startsWith' | 'endsWith'
 
@@ -257,6 +257,8 @@ export interface TracerRegistryOptions {
 }
 
 export interface TracerOptions {
+    /** Returns the innermost open group of a scope, attached to events emitted without an explicit `groupId`. */
+    currentGroupId?: (scope?: string) => string | undefined
     journal?: TraceJournal
     side?: TraceSide
     /** Transforms the resolved payload before it is delivered to listeners. */

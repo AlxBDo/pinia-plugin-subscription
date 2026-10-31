@@ -1,38 +1,87 @@
 import { isContextEvent } from '../utils/traceContext'
+import { getTraceGroupName } from '../utils/traceGroups'
 
 import type { TraceEvent, TraceJournal } from '../types/trace'
-import type { TraceStoreSummary, TraceTimelineEntry, TraceTimelineFilters } from '../types/devtools'
+import type {
+    TraceEventDetail,
+    TraceStoreSummary,
+    TraceTimelineEntry,
+    TraceTimelineFilters,
+    TraceTimelineGroup
+} from '../types/devtools'
 
 export const defaultTimelineFilters: TraceTimelineFilters = { level: 'all', side: 'all', text: '' }
 
-/** Groups the events of an action in one entry; context events belong to the Context tab and are left out. */
+function isGroup(entry: TraceTimelineEntry): entry is TraceTimelineGroup {
+    return entry.kind === 'group'
+}
+
+/**
+ * Only the parts an event actually carries: no `error` / `payload` key when they are undefined or empty.
+ */
+export function getEventDetail(event: TraceEvent): TraceEventDetail {
+    const hasPayload = !!event.payload && Object.keys(event.payload).length > 0
+    return {
+        ...(hasPayload && event.payload),
+        ...(event.error !== undefined && { error: event.error })
+    }
+}
+
+/** Calls of a same hook share one group: the `#n` call counter is dropped from the path. */
+const stripCallCounter = (segment: string): string => segment.replace(/#\d+/g, '')
+
+/** Group ids built by pinia-plugin-extending-store (`store:reset:<id>`) join the matching lifecycle group of the plugin. */
+const legacyHookGroup = /^store:(reset|onMutation):/
+
+/** Group path of an event, without the store segment (the timeline already is per store). */
+function groupSegments(event: TraceEvent): string[] {
+    const legacyHook = legacyHookGroup.exec(event.groupId ?? '')?.[1]
+    if (legacyHook) { return [legacyHook] }
+
+    const segments = (event.groupId ?? '').split('/').filter(Boolean)
+    return (segments.length > 1 && segments[0] === event.scope ? segments.slice(1) : segments).map(stripCallCounter)
+}
+
+/**
+ * Nests the events by lifecycle: the `groupId` path gives the groups, so `after` and `onError` are
+ * sub-groups of their `onAction`. Events without group stay at the root. Context events belong to the Context tab.
+ */
 export function buildTimeline(events: TraceEvent[]): TraceTimelineEntry[] {
-    const entries: TraceTimelineEntry[] = []
-    const byAction = new Map<string, TraceTimelineEntry>()
+    const root: TraceTimelineEntry[] = []
+    const groups = new Map<string, TraceTimelineGroup>()
 
-    for (const event of events) {
-        if (isContextEvent(event)) { continue }
+    const sorted = events
+        .filter(event => !isContextEvent(event))
+        .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
 
+    for (const event of sorted) {
         const seq = event.seq ?? 0
-        const existing = event.actionId ? byAction.get(event.actionId) : undefined
-        if (existing) {
-            existing.events.push(event)
-            existing.hasError ||= event.level === 'error'
-            continue
-        }
+        const side = event.side ?? 'client'
+        const segments = groupSegments(event)
+        let items = root
+        const chain: TraceTimelineGroup[] = []
 
-        const entry: TraceTimelineEntry = {
-            actionId: event.actionId,
-            events: [event],
-            hasError: event.level === 'error',
-            id: event.actionId ?? `event:${event.side ?? 'client'}:${seq}`,
-            seq
-        }
-        entries.push(entry)
-        if (event.actionId) { byAction.set(event.actionId, entry) }
+        segments.forEach((_, index) => {
+            const path = segments.slice(0, index + 1).join('/')
+            const key = `${side}|${path}`
+            let group = groups.get(key)
+            if (!group) {
+                group = { count: 0, groupId: path, hasError: false, id: key, items: [], kind: 'group', seq, side, title: getTraceGroupName(path) }
+                groups.set(key, group)
+                items.push(group)
+            }
+            chain.push(group)
+            items = group.items
+        })
+
+        items.push({ event, hasError: event.level === 'error', id: `event:${side}:${seq}`, kind: 'event', seq })
+        chain.forEach(group => {
+            group.count++
+            group.hasError ||= event.level === 'error'
+        })
     }
 
-    return entries.sort((a, b) => a.seq - b.seq)
+    return root
 }
 
 function matchesFilters(event: TraceEvent, { level, side, text }: TraceTimelineFilters): boolean {
@@ -41,15 +90,28 @@ function matchesFilters(event: TraceEvent, { level, side, text }: TraceTimelineF
     if (!text) { return true }
 
     const needle = text.toLowerCase()
-    return [event.label, event.namespace, event.actionId ?? ''].some(value => value.toLowerCase().includes(needle))
+    return [event.label, event.namespace, event.actionId ?? '', event.groupId ?? ''].some(value => value.toLowerCase().includes(needle))
 }
 
-/** Keeps the events matching the filters, and drops entries left empty. */
-export function filterTimeline(entries: TraceTimelineEntry[], filters: TraceTimelineFilters): TraceTimelineEntry[] {
+function summarize(items: TraceTimelineEntry[]): Pick<TraceTimelineGroup, 'count' | 'hasError'> {
+    return items.reduce<Pick<TraceTimelineGroup, 'count' | 'hasError'>>((total, item) => ({
+        count: total.count + (isGroup(item) ? item.count : 1),
+        hasError: total.hasError || item.hasError
+    }), { count: 0, hasError: false })
+}
+
+function filterEntries(entries: TraceTimelineEntry[], filters: TraceTimelineFilters): TraceTimelineEntry[] {
     return entries.flatMap(entry => {
-        const events = entry.events.filter(event => matchesFilters(event, filters))
-        return events.length ? [{ ...entry, events, hasError: events.some(event => event.level === 'error') }] : []
+        if (!isGroup(entry)) { return matchesFilters(entry.event, filters) ? [entry] : [] }
+
+        const items = filterEntries(entry.items, filters)
+        return items.length ? [{ ...entry, ...summarize(items), items } as TraceTimelineEntry] : []
     })
+}
+
+/** Keeps the events matching the filters, and drops groups left empty. */
+export function filterTimeline(entries: TraceTimelineEntry[], filters: TraceTimelineFilters): TraceTimelineEntry[] {
+    return filterEntries(entries, filters)
 }
 
 /** Most recent context event of a store: store, subscribers, hooks subscriptions and options. */
