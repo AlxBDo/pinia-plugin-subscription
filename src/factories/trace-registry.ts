@@ -1,4 +1,5 @@
 import Tracer from '../system/Tracer'
+import { createTraceJournal } from '../system/TraceJournal'
 import { createTraceGroupListener } from './trace-listener'
 import type {
     AddTraceListenerOptions,
@@ -18,8 +19,12 @@ import { createRedactor } from '../utils/redact'
 const noop = () => { }
 
 export function createTracerRegistry(
-    { enabled = !isProductionEnvironment(), redact = false }: TracerRegistryOptions = {}
+    { enabled = !isProductionEnvironment(), journal: journalOption = false, redact = false, side }: TracerRegistryOptions = {}
 ): TraceRegistry {
+    const journal = enabled && journalOption
+        ? createTraceJournal(journalOption === true ? {} : journalOption)
+        : undefined
+    const tracerSide = side ?? (typeof window === 'undefined' ? 'server' : 'client')
     const redactor = redact ? createRedactor(redact === true ? true : redact) : undefined
 
     // Shared by reference with every Tracer: it must be mutated in place, never reassigned.
@@ -93,7 +98,7 @@ export function createTracerRegistry(
      * @returns True if there are registered trace listeners, otherwise false.
      */
     function hasTraceListeners(): boolean {
-        return listeners.length > 0
+        return listeners.length > 0 || !!journal
     }
 
     function listenerGroupAction(actionName: 'createGroup' | 'logGroup', payload: TraceEvent) {
@@ -110,9 +115,10 @@ export function createTracerRegistry(
         addListener,
         addScopesListener,
         clearTraceListeners,
+        journal,
         tracerHandler: {
             closeGroup: (payload: TraceEvent) => listenerGroupAction('logGroup', payload),
-            createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { redactor, ...options }),
+            createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { journal, redactor, side: tracerSide, ...options }),
             hasTraceListeners,
             startGroup: (payload: TraceEvent) => listenerGroupAction('createGroup', payload)
         },

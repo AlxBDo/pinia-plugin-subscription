@@ -1,4 +1,5 @@
 export const pluginName: string = 'pinia-plugin-subscription'
 export const pluginSubscriptionClassName = 'PluginSubscription'
 /** Prefix of every namespace emitted by `PluginSubscription` (labels are lowercased into namespaces). */
-export const pluginSubscriptionNamespace: string = pluginSubscriptionClassName.toLowerCase()
+export const pluginSubscriptionNamespace: string = pluginSubscriptionClassName.toLowerCase()/** Journal scope of the events emitted without a store. */
+export const journalGlobalScope: string = '__global__'

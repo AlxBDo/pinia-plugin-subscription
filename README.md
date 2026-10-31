@@ -67,6 +67,8 @@ app.mount('#app')
 
 - **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace. Group filters receive metadata only, and the built-in registry avoids preparing group payloads when it has no listeners — see [Tracing](#tracing).
 - **Scope-based trace listeners:** Use `addScopesListener()` to group events from selected stores — see [Tracing](docs/tracing.md#filtering-events).
+- **Trace journal:** `createTracerRegistry({ journal: true })` records every event per store (with `actionId`, `seq` and `side`) so a store trace can be read back at any time — see [Tracing](docs/tracing.md#journal).
+- **In-page trace panel:** `mountTraceDevtools()` (from `pinia-plugin-subscription/devtools`) shows every store's trace, server and client together, in an aside — see [Tracing](docs/tracing.md#in-page-trace-panel).
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.

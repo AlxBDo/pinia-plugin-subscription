@@ -3,9 +3,11 @@ import type {
     TraceEvent,
     TraceEventMetadata,
     TraceGroupListener,
+    TraceJournal,
     TraceLevel,
     TraceListener,
     TracePayload,
+    TraceSide,
     TracerOptions,
 } from '../types/trace'
 
@@ -28,13 +30,17 @@ function resolvePayload(payload: TracePayload): AnyObject | undefined {
  * the payload is a factory resolved only once a consumer is known.
  */
 export default class Tracer {
+    private readonly _journal?: TraceJournal
     private readonly _listeners: Array<TraceListener | TraceGroupListener> = []
     private readonly _redactor?: (payload: AnyObject) => AnyObject
     private _scope?: string
+    private readonly _side: TraceSide
     private readonly _source: string
 
     constructor(source: string, listeners: Array<TraceListener | TraceGroupListener>, options: TracerOptions = {}) {
+        this._journal = options.journal
         this._redactor = options.redactor
+        this._side = options.side ?? 'client'
         this._scope = options.scope
         this._source = source
         this._listeners = listeners
@@ -76,14 +82,17 @@ export default class Tracer {
         }
     }
 
-    private matchListeners(level: TraceLevel, label: string, namespace: string, scope?: string) {
-        const metadata: TraceEventMetadata = {
+    private buildMetadata(level: TraceLevel, label: string, namespace: string, scope?: string): TraceEventMetadata {
+        return {
             label,
             level,
             namespace,
             scope: scope ?? this._scope,
             source: this._source
         }
+    }
+
+    private matchListeners(metadata: TraceEventMetadata) {
         const matched: Array<TraceListener | TraceGroupListener> = []
 
         for (const listener of this._listeners) {
@@ -96,7 +105,7 @@ export default class Tracer {
             }
         }
 
-        return { matched, metadata }
+        return matched
     }
 
     private emit(
@@ -107,22 +116,39 @@ export default class Tracer {
         scope?: string,
         error?: unknown
     ): void {
-        const { matched, metadata } = this._listeners.length === 0
-            ? { matched: [], metadata: undefined }
-            : this.matchListeners(level, label, namespace, scope)
-
-        if (!metadata || matched.length === 0) {
+        if (this._listeners.length === 0 && !this._journal) {
             if (level === 'error') {
                 console.error('Unhandled error trace event:', error)
             }
             return
         }
 
+        const metadata = this.buildMetadata(level, label, namespace, scope)
+        const matched = this._listeners.length ? this.matchListeners(metadata) : []
+
+        if (matched.length === 0 && !this._journal) {
+            if (level === 'error') {
+                console.error('Unhandled error trace event:', error)
+            }
+            return
+        }
+
+        const resolved = payload !== undefined ? this.resolveAndRedact(payload) : undefined
+        // `actionId` travels in the payload so that emitters need no extra argument, and is lifted to the event.
+        const { actionId, ...rest } = resolved ?? {}
         const event: TraceEvent = {
             ...metadata,
+            ...(typeof actionId === 'string' && { actionId }),
             ...(error !== undefined && { error }),
-            ...(payload !== undefined && { payload: this.resolveAndRedact(payload) }),
+            ...(resolved !== undefined && { payload: typeof actionId === 'string' ? rest : resolved }),
+            ...(this._journal && { seq: this._journal.nextSeq(), side: this._side }),
             timestamp: Date.now()
+        }
+
+        this._journal?.append(event)
+
+        if (matched.length === 0 && level === 'error') {
+            console.error('Unhandled error trace event:', error)
         }
 
         for (const listener of matched) {

@@ -13,6 +13,9 @@ For SSR, create a fresh registry, Pinia instance, and plugin instance for every 
 - [Redaction](#redaction)
 - [Filtering events](#filtering-events)
 - [Event shape](#event-shape)
+- [Journal](#journal)
+- [Server traces in the browser](#server-traces-in-the-browser)
+- [In-page trace panel](#in-page-trace-panel)
 - [Emitting your own events](#emitting-your-own-events)
 - [Grouped console output](#grouped-console-output)
 - [Error reporting](#error-reporting)
@@ -112,6 +115,9 @@ Use `addListener()` when you need other metadata criteria, a different grouping 
 | `scope` | Instance identifier, usually `store.$id` |
 | `payload` | Event data, resolved only when consumed |
 | `level` | `debug` or `error` |
+| `actionId` | Shared by every event of one store action (`<storeId>#<n>`), when emitted by an action |
+| `seq` | Monotonic position in the registry. Journal only |
+| `side` | `client` or `server`. Journal only |
 | `timestamp` | `Date.now()` at emission |
 | `error` | Present on `error` events |
 
@@ -137,6 +143,66 @@ registry.addListener([{ target: 'groupId', value: traceGroups.onActionAfter('car
 The plugin's action trace labels include the invoked action name (`store:onAction:<name>`). The `after` and `onError` callback trace labels also include that name, making activity from different actions distinguishable; their group IDs remain scoped to the store as shown above.
 
 Subscribers declared with `hydration: 'defer'` run after `plugin()` has closed its `PluginSubscription:context` group. Each deferred run opens its own group (label `subscriber:deferred`, no `groupId`, so it is keyed by the store scope like the `context` group); traces emitted by the subscriber during that run, such as those of a `Store` subclass, are printed inside it. The group stays open until asynchronous `hydrate()` / `afterHydration()` promises settle (fulfilled or rejected). While it is open, console listeners buffer every trace of that store scope, so a promise that never settles would hide them: after `deferredTraceGroupTimeout` milliseconds (plugin option, default `2500`) the group is closed anyway and a `subscriber:deferred:timeout` error is traced inside it.
+
+## Journal
+
+Console listeners print and forget. The journal instead records **every** event of **every** store, matched by a listener or not, so that a store trace can be read back at any time (the basis of an in-page trace panel).
+
+```ts
+const registry = createTracerRegistry({ journal: { maxEventsPerStore: 1000 } })
+
+registry.journal?.getScopes()        // ['cart', 'user']
+registry.journal?.getEvents('cart')  // ordered by `seq`, with `actionId` and `side`
+registry.journal?.getDropped('cart') // events evicted by the size cap
+registry.journal?.subscribe(event => { /* live updates */ })
+```
+
+- Opt-in: `registry.journal` is `undefined` unless `journal` is `true` or an options object, or when tracing is disabled (`enabled: false`, production builds).
+- Size cap: `maxEventsPerStore` (default `1000`) applies per store and per side; the oldest events are evicted first. Context and error events are kept in their own buffer under the same cap, and `side: 'server'` events do not compete with client ones.
+- `side` defaults to `server` when `window` is undefined, `client` otherwise; override it with the `side` option.
+- Events are stored by reference, after redaction when `redact` is enabled: use `redact` if payloads may hold secrets.
+- Create one registry (hence one journal) per request on the server.
+
+## Server traces in the browser
+
+`journal.serialize()` returns a JSON-safe, size-bounded snapshot (payloads go through `toSerializable`: circular references, functions and `_`-prefixed internals are handled, error stacks are dropped). Embed it in the page next to the Pinia state, then `import()` it on the client:
+
+```ts
+// server, after rendering (one registry per request)
+import { stringifyTraceSnapshot } from 'pinia-plugin-subscription/helpers'
+const traces = stringifyTraceSnapshot(registry.journal?.serialize()) // HTML-safe JSON
+// <script type="application/json" id="pinia-traces">${traces}</script>
+
+// client
+registry.journal?.import(JSON.parse(document.querySelector('#pinia-traces')!.textContent!))
+```
+
+Imported events are marked `side: 'server'`, ordered before the local ones, and replace any earlier import. Malformed entries are skipped and unknown fields are never copied.
+
+> **Security**: a snapshot exposes server-side payloads to the browser. Only embed it in development (the journal is off in production builds by default) and enable `redact` if payloads may hold secrets. When using `replace()` to inject it into an HTML template, pass a replacer function so that `$` sequences are not interpreted.
+
+## In-page trace panel
+
+`pinia-plugin-subscription/devtools` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events grouped by action, client and server interleaved, expandable payloads, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
+
+```ts
+const registry = createTracerRegistry({ journal: true })
+// ...pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
+
+if (import.meta.env.DEV) {
+    import('pinia-plugin-subscription/devtools').then(({ mountTraceDevtools }) => mountTraceDevtools(registry))
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `open` | `false` | Open the panel on mount (a floating `PPS` button otherwise) |
+| `position` | `right` | `left` or `right` |
+| `width` | `480` | Aside width in pixels |
+| `shortcut` | `Alt+Shift+P` | Toggle shortcut, `false` to disable |
+| `container` | `document.body` | Element the panel host is appended to |
+
+`mountTraceDevtools` returns `{ open, close, toggle, unmount }`. It does nothing outside a browser or without a journal. The panel uses `vue` (already a peer dependency); keep it out of production bundles with a dynamic import. The Context tab shows the store objects as they are when first opened.
 
 ## Emitting your own events
 

@@ -13,7 +13,7 @@ export async function renderDemo(pathname: string, request: DemoRequestContext =
         renderedAt: new Date().toISOString()
     }))
     // Registered on the server too: the plugin skips it there because it is client-only.
-    const { app, pinia } = createDemoApp('server', undefined, [
+    const { app, pinia, tracerRegistry } = createDemoApp('server', undefined, [
         serverVisitor.subscriber,
         createBrowserVisitorSubscriber()
     ])
@@ -23,6 +23,7 @@ export async function renderDemo(pathname: string, request: DemoRequestContext =
 
     return {
         html: await renderToString(app),
-        state: pinia.state.value
+        state: pinia.state.value,
+        traces: tracerRegistry.journal?.serialize()
     }
 }
