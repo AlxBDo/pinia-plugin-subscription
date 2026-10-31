@@ -9,6 +9,7 @@ export default defineConfig({
     plugins: [vue()],
     resolve: {
         alias: [
+            { find: /^pinia-plugin-subscription\/devtools$/, replacement: resolve(projectRoot, 'src/devtools/index.ts') },
             { find: /^pinia-plugin-subscription\/helpers$/, replacement: resolve(projectRoot, 'src/helpers/index.ts') },
             { find: /^pinia-plugin-subscription\/types$/, replacement: resolve(projectRoot, 'src/types/index.ts') },
             { find: /^pinia-plugin-subscription$/, replacement: resolve(projectRoot, 'src/lib/main.ts') },

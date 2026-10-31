@@ -11,6 +11,7 @@ export default defineConfig({
   // Resolve the package to its sources: no build required, hot reload on src/ changes
   resolve: {
     alias: [
+      { find: /^pinia-plugin-subscription\/devtools$/, replacement: resolve(__dirname, 'src/devtools/index.ts') },
       { find: /^pinia-plugin-subscription\/helpers$/, replacement: resolve(__dirname, 'src/helpers/index.ts') },
       { find: /^pinia-plugin-subscription\/types$/, replacement: resolve(__dirname, 'src/types/index.ts') },
       { find: /^pinia-plugin-subscription$/, replacement: resolve(__dirname, 'src/lib/main.ts') },
