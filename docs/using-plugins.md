@@ -341,25 +341,30 @@ import {
 
 const traceGroupsRegistry = createTracerRegistry()
 
-traceGroupsRegistry.addListener([
-  { target: 'scope', value: 'cart' }
-])
+traceGroupsRegistry.addListener({
+  filter: [{ target: 'scope', value: 'cart' }],
+  handler: event => myLogger.debug(event)
+})
 
 pinia.use(createPlugin([myStoreSubscriber], {
   tracerHandler: traceGroupsRegistry.tracerHandler
 }))
 ```
 
-The registry groups matching events by store scope by default. Criteria can
-target a source, namespace, store scope, or trace level and support the
-`equals`, `contains`, `startsWith` and `endsWith` comparators. Criteria use
-`every` by default; pass `{ filterMode: 'some' }` to match any criterion.
+Criteria can target a source, namespace, store scope, or trace level and
+support the `equals`, `contains`, `startsWith` and `endsWith` comparators.
+Criteria use `every` by default; pass `{ filterMode: 'some' }` to match any
+criterion. The `handler` receives every matching event; nothing is printed
+to the console by the package.
 
 ```js
-traceGroupsRegistry.addListener([
-  { target: 'scope', value: 'cart' },
-  { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
-], { filterMode: 'every', groupBy: 'scope' })
+traceGroupsRegistry.addListener({
+  filter: [
+    { target: 'scope', value: 'cart' },
+    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+  ],
+  handler: event => myLogger.debug(event)
+}, { filterMode: 'every' })
 ```
 
 ## SSR / Nuxt
@@ -388,7 +393,7 @@ export function createRequestApp(traceCriteria) {
   const pinia = createPinia()
   const traceGroupsRegistry = createTracerRegistry()
 
-  traceGroupsRegistry.addListener(traceCriteria)
+  traceGroupsRegistry.addListener({ filter: traceCriteria, handler: logTrace })
   pinia.use(createPlugin(subscribers, {
     tracerHandler: traceGroupsRegistry.tracerHandler
   }))

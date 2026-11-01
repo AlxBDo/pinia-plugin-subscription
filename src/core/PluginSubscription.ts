@@ -161,6 +161,41 @@ export default class PluginSubscription extends TraceEmitter {
     }
 
     /**
+     * Closes a trace group once `pending` settles, or after the configured timeout so a promise
+     * that never settles cannot keep buffering the traces of the store scope.
+     */
+    private closeGroupWhenSettled(
+        pending: Promise<unknown>,
+        closeGroup: () => void,
+        storeId: string,
+        subscriberName: string
+    ): void {
+        let closed = false
+        const closeOnce = () => {
+            if (closed) {
+                return
+            }
+            closed = true
+            globalThis.clearTimeout(timer)
+            closeGroup()
+        }
+        const timeout = this._options?.deferredTraceGroupTimeout ?? defaultDeferredTraceGroupTimeout
+        const timer = globalThis.setTimeout(() => {
+            if (closed) {
+                return
+            }
+            this.traceError(
+                'subscriber:deferred:timeout',
+                new Error(`Subscriber "${subscriberName}" hydration still pending after ${timeout}ms`),
+                storeId
+            )
+            closeOnce()
+        }, timeout)
+
+        pending.then(closeOnce, closeOnce)
+    }
+
+    /**
      * Creates a callback collector for the specified action and store.
      * @param actionName The name of the action to collect callbacks for.
      * @param store The store instance associated with the action.
@@ -237,6 +272,16 @@ export default class PluginSubscription extends TraceEmitter {
         return getStoreScopedKey(pluginName, store)
     }
 
+    /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
+    private endGroupAfter(pending: (Promise<void> | undefined)[], end: () => void): void {
+        const promises = pending.filter((p): p is Promise<void> => !!p)
+        if (promises.length) {
+            Promise.all(promises).then(end)
+        } else {
+            end()
+        }
+    }
+
     private executeResetStoreCallbacks(store: Store): void {
         this._resetStoreCallback.get(store)?.forEach(callback => callback(store))
     }
@@ -265,14 +310,16 @@ export default class PluginSubscription extends TraceEmitter {
                 return
             }
 
-            const actionId = `${store.$id}#${++this._actionSeq}`
-            this.traceGroupStart(() => ({ actionId, args }), store.$id, `store:onAction:${name}`)
+            const callId = ++this._actionSeq
+            const actionId = `${store.$id}#${callId}`
+            const groupId = traceGroups.onAction(store.$id, name, callId)
+            this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
             // The group must be closed exactly once, whichever way the action ends.
             let groupClosed = false
             const closeGroup = () => {
                 if (!groupClosed) {
                     groupClosed = true
-                    this.traceGroupEnd({}, store.$id)
+                    this.traceGroupEnd({ groupId }, store.$id)
                 }
             }
 
@@ -295,7 +342,7 @@ export default class PluginSubscription extends TraceEmitter {
                         }),
                         'store:onAction:callback:error',
                         store.$id,
-                        () => ({ actionId })
+                        () => ({ actionId, groupId })
                     )
                     if (result) {
                         pending.push(result)
@@ -303,8 +350,8 @@ export default class PluginSubscription extends TraceEmitter {
                 })
 
                 this.endGroupAfter(pending, closeGroup)
-                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name, actionId)
-                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId)
+                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name, actionId, callId)
+                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId, callId)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
             } catch (error) {
                 closeGroup()
@@ -313,45 +360,13 @@ export default class PluginSubscription extends TraceEmitter {
         })
     }
 
-    /**
-     * Runs a callback, tracing sync errors and async rejections.
-     * @returns a never-rejecting promise when the callback is asynchronous, undefined otherwise.
-     */
-    private runCallbackSafely(
-        callback: () => unknown,
-        errorLabel: string,
-        storeId: string,
-        extra?: () => Record<string, unknown>
-    ): Promise<void> | undefined {
-        try {
-            const result = callback()
-            if (result && typeof (result as Promise<unknown>).then === 'function') {
-                return Promise.resolve(result).then(
-                    () => undefined,
-                    error => this.traceError(errorLabel, error, storeId, extra)
-                )
-            }
-        } catch (error) {
-            this.traceError(errorLabel, error, storeId, extra)
-        }
-    }
-
-    /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
-    private endGroupAfter(pending: (Promise<void> | undefined)[], end: () => void): void {
-        const promises = pending.filter((p): p is Promise<void> => !!p)
-        if (promises.length) {
-            Promise.all(promises).then(end)
-        } else {
-            end()
-        }
-    }
-
     private executeStoreOnActionAfterCallbacks(
         after: (callback: (result: any) => void) => void,
         storageKey: string,
         store: Store,
         name: string,
-        actionId: string
+        actionId: string,
+        callId: number
     ) {
         const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
         if (afterCallbacks?.length) {
@@ -359,7 +374,7 @@ export default class PluginSubscription extends TraceEmitter {
                 this.traceGroupStart(
                     () => ({
                         actionId,
-                        groupId: traceGroups.onActionAfter(store.$id),
+                        groupId: traceGroups.onActionAfter(store.$id, name, callId),
                         result
                     }),
                     store.$id,
@@ -370,11 +385,11 @@ export default class PluginSubscription extends TraceEmitter {
                     () => callback(result),
                     'storeOnActionAfterCallbacks',
                     store.$id,
-                    () => ({ actionId, 'action name': name })
+                    () => ({ actionId, 'action name': name, groupId: traceGroups.onActionAfter(store.$id, name, callId) })
                 ))
 
                 this.endGroupAfter(pending, () =>
-                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionAfter(store.$id) }), store.$id))
+                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionAfter(store.$id, name, callId) }), store.$id))
             })
         }
     }
@@ -384,7 +399,8 @@ export default class PluginSubscription extends TraceEmitter {
         storageKey: string,
         store: Store,
         name: string,
-        actionId: string
+        actionId: string,
+        callId: number
     ) {
         const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
 
@@ -394,7 +410,7 @@ export default class PluginSubscription extends TraceEmitter {
                     actionId,
                     'action name': name,
                     error,
-                    groupId: traceGroups.onActionError(store.$id)
+                    groupId: traceGroups.onActionError(store.$id, name, callId)
                 }), store.$id,
                     `store:onAction:onError:${name}`
                 )
@@ -403,11 +419,11 @@ export default class PluginSubscription extends TraceEmitter {
                     () => callback(error),
                     'store:onAction:onError:error',
                     store.$id,
-                    () => ({ actionId, groupId: traceGroups.onActionError(store.$id) })
+                    () => ({ actionId, groupId: traceGroups.onActionError(store.$id, name, callId) })
                 ))
 
                 this.endGroupAfter(pending, () =>
-                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionError(store.$id) }), store.$id))
+                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionError(store.$id, name, callId) }), store.$id))
             })
         }
     }
@@ -508,12 +524,9 @@ export default class PluginSubscription extends TraceEmitter {
             $onAction: [],
             $subscribe: [],
         }
+        const pluginGroupId = traceGroups.plugin(store.$id)
         this.traceGroupStart(() => ({
-            environment: {
-                current: this.defineCurrentEnvironment(),
-                ...this._options?.execution ?? {}
-
-            },
+            groupId: pluginGroupId,
             subscribers: this._subscribers,
             'hooks subscriptions': subscribtions,
             store,
@@ -556,7 +569,7 @@ export default class PluginSubscription extends TraceEmitter {
         } catch (e) {
             this.traceError('plugin:invoke', e, store.$id)
         }
-        this.traceGroupEnd(() => ({}), store.$id)
+        this.traceGroupEnd(() => ({ groupId: pluginGroupId }), store.$id)
     }
 
     private queueSubscriberExecution(
@@ -575,8 +588,9 @@ export default class PluginSubscription extends TraceEmitter {
 
             // Deferred runs happen after plugin() closed its group: open one so their traces stay grouped by store
             const storeId = context.store.$id
-            this.traceGroupStart(() => ({ subscriber: subscriber.name }), storeId, 'subscriber:deferred')
-            const closeGroup = () => this.traceGroupEnd(() => ({}), storeId)
+            const groupId = traceGroups.pluginDeferred(storeId, subscriber.name, ++this._actionSeq)
+            this.traceGroupStart(() => ({ groupId, subscriber: subscriber.name }), storeId, 'subscriber:deferred')
+            const closeGroup = () => this.traceGroupEnd(() => ({ groupId }), storeId)
             let pending: Promise<unknown> | undefined
             try {
                 pending = this.executeSubscriberSafely(context, subscriber)
@@ -589,41 +603,6 @@ export default class PluginSubscription extends TraceEmitter {
                 }
             }
         })
-    }
-
-    /**
-     * Closes a trace group once `pending` settles, or after the configured timeout so a promise
-     * that never settles cannot keep buffering the traces of the store scope.
-     */
-    private closeGroupWhenSettled(
-        pending: Promise<unknown>,
-        closeGroup: () => void,
-        storeId: string,
-        subscriberName: string
-    ): void {
-        let closed = false
-        const closeOnce = () => {
-            if (closed) {
-                return
-            }
-            closed = true
-            globalThis.clearTimeout(timer)
-            closeGroup()
-        }
-        const timeout = this._options?.deferredTraceGroupTimeout ?? defaultDeferredTraceGroupTimeout
-        const timer = globalThis.setTimeout(() => {
-            if (closed) {
-                return
-            }
-            this.traceError(
-                'subscriber:deferred:timeout',
-                new Error(`Subscriber "${subscriberName}" hydration still pending after ${timeout}ms`),
-                storeId
-            )
-            closeOnce()
-        }, timeout)
-
-        pending.then(closeOnce, closeOnce)
     }
 
     private registerStoreCleanup(store: Store): void {
@@ -651,13 +630,37 @@ export default class PluginSubscription extends TraceEmitter {
         const safeState = deepClone(initState)
 
         store.$reset = () => {
-            this.traceGroupStart(() => ({ initialState: safeState, groupId: traceGroups.reset(store.$id) }), store.$id, 'store:reset')
+            const groupId = traceGroups.reset(store.$id, ++this._actionSeq)
+            this.traceGroupStart(() => ({ initialState: safeState, groupId }), store.$id, 'store:reset')
             try {
                 this.executeResetStoreCallbacks(store)
                 store.$patch(deepClone(safeState))
             } finally {
-                this.traceGroupEnd(() => ({ initialState: safeState, groupId: traceGroups.reset(store.$id) }), store.$id)
+                this.traceGroupEnd(() => ({ groupId }), store.$id)
             }
+        }
+    }
+
+    /**
+     * Runs a callback, tracing sync errors and async rejections.
+     * @returns a never-rejecting promise when the callback is asynchronous, undefined otherwise.
+     */
+    private runCallbackSafely(
+        callback: () => unknown,
+        errorLabel: string,
+        storeId: string,
+        extra?: () => Record<string, unknown>
+    ): Promise<void> | undefined {
+        try {
+            const result = callback()
+            if (result && typeof (result as Promise<unknown>).then === 'function') {
+                return Promise.resolve(result).then(
+                    () => undefined,
+                    error => this.traceError(errorLabel, error, storeId, extra)
+                )
+            }
+        } catch (error) {
+            this.traceError(errorLabel, error, storeId, extra)
         }
     }
 
@@ -708,17 +711,18 @@ export default class PluginSubscription extends TraceEmitter {
                 return
             }
 
-            this.traceGroupStart(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id, 'store:onMutation')
+            const groupId = traceGroups.onMutation(store.$id, ++this._actionSeq)
+            this.traceGroupStart(() => ({ mutation, groupId }), store.$id, 'store:onMutation')
             try {
                 await Promise.all([...callbacks].map(async (mutationCallback) => {
                     try {
                         await mutationCallback(mutation)
                     } catch (error) {
-                        this.traceError('store:onMutation', error, store.$id)
+                        this.traceError('store:onMutation', error, store.$id, () => ({ groupId }))
                     }
                 }))
             } finally {
-                this.traceGroupEnd(() => ({ mutation, groupId: traceGroups.onMutation(store.$id) }), store.$id)
+                this.traceGroupEnd(() => ({ groupId }), store.$id)
             }
         })
 
@@ -775,6 +779,7 @@ export default class PluginSubscription extends TraceEmitter {
             const { subscription, subscriptionOptions, stores } = pluginSubscription
 
             this.trace('Subscription:delivery', store.$id, () => ({
+                groupId: traceGroups.plugin(store.$id),
                 pluginName,
                 subscription,
                 subscriptionOptions
@@ -802,7 +807,7 @@ export default class PluginSubscription extends TraceEmitter {
                 )
             }
         } catch (e) {
-            this.traceError('subscription:delivery', e, store.$id)
+            this.traceError('subscription:delivery', e, store.$id, () => ({ groupId: traceGroups.plugin(store.$id) }))
         }
     }
 

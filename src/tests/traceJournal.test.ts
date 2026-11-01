@@ -123,11 +123,45 @@ describe('registry journal', () => {
         }
         plugin.plugin({ store, options: {} } as any)
         expect(registry.journal!.getEvents('cart').some(e => e.namespace.endsWith(':context'))).toBe(true)
+        expect(registry.journal!.getEvents('cart').find(e => e.namespace.endsWith(':context'))?.groupId).toBe('cart/plugin')
         if (!onActionCb) { return }
 
         onActionCb({ after: () => { }, args: [], name: 'add', onError: () => { } })
         const actionEvents = registry.journal!.getEvents('cart').filter(e => e.actionId)
         expect(actionEvents.length).toBeGreaterThan(0)
         expect(new Set(actionEvents.map(e => e.actionId)).size).toBe(1)
+    })
+
+    it('attaches the events emitted inside open groups to the innermost one', () => {
+        const registry = createTracerRegistry({ journal: true })
+        const { createTracer, startGroup, closeGroup } = registry.tracerHandler
+        const tracer = createTracer('Store')
+        const action = { groupId: 'cart/onAction:add#1', scope: 'cart' } as TraceEvent
+        const after = { groupId: 'cart/onAction:add#1/after', scope: 'cart' } as TraceEvent
+
+        startGroup(action)
+        tracer.debug('in action', 'ns', undefined, 'cart')
+        startGroup(after)
+        tracer.debug('in after', 'ns', { value: 1 }, 'cart')
+        closeGroup(after)
+        tracer.debug('back in action', 'ns', undefined, 'cart')
+        closeGroup(action)
+        tracer.debug('outside', 'ns', undefined, 'cart')
+
+        const events = registry.journal!.getEvents('cart')
+        expect(events.map(e => e.groupId)).toEqual([
+            'cart/onAction:add#1', 'cart/onAction:add#1/after', 'cart/onAction:add#1', undefined
+        ])
+        expect(events[1]!.payload).toEqual({ value: 1 })
+    })
+
+    it('lifts an explicit groupId out of the payload', () => {
+        const registry = createTracerRegistry({ journal: true })
+
+        registry.tracerHandler.createTracer('Store').debug('L', 'ns', { groupId: 'cart/custom', a: 1 }, 'cart')
+
+        const [first] = registry.journal!.getEvents('cart')
+        expect(first).toMatchObject({ groupId: 'cart/custom', payload: { a: 1 } })
+        expect(first!.payload).not.toHaveProperty('groupId')
     })
 })

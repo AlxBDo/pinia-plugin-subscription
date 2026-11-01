@@ -4,18 +4,6 @@ import type Tracer from '../system/Tracer'
 export interface AddTraceListenerOptions {
     context?: boolean
     filterMode?: TraceListenerFilterMode
-    groupBy?: TraceListenerGroupBy
-}
-
-export interface ConsoleTraceEventArgs extends Omit<TraceEvent, 'level' | 'timestamp'> { }
-export type ConsoleTraceEvent = Array<string | ConsoleTraceEventArgs>
-
-/**
- * A trace listener that supports grouping of trace events.
- */
-export interface ConsoleTraceGroupListener extends Omit<TraceListener, 'filter'> {
-    createGroup: (key: string) => void
-    logGroup: (key: string) => void
 }
 
 /**
@@ -31,7 +19,10 @@ export type TraceLevel = 'debug' | 'error'
 export interface TraceEventMetadata {
     /** Identifier of the store action this event belongs to, shared by every event of the same action. */
     actionId?: string
-    /** Identifier for the group this event belongs to. */
+    /**
+     * Group (lifecycle) this event belongs to. It is a `/` separated path whose prefixes are the parent groups,
+     * e.g. `cart/onAction:add#3/after`, see `traceGroups`.
+     */
     groupId?: string
     /** Label describing the event, e.g. `Subscription:Delivery`. */
     label: string
@@ -114,9 +105,6 @@ export interface TraceJournal {
     subscribe: (listener: TraceJournalListener) => TraceListenerRemover
 }
 
-/** Names of the trace groups emitted by `PluginSubscription`, see `traceGroups`. */
-export type TraceGroupId = 'onActionAfter' | 'onActionError' | 'onMutation' | 'reset'
-
 type TraceFilterCriterionComparator = 'equals' | 'contains' | 'startsWith' | 'endsWith'
 
 export interface TraceFilterCriterion {
@@ -147,10 +135,6 @@ export type TracePayload = AnyObject | (() => AnyObject)
  */
 export type TraceFilter = (event: TraceEventMetadata) => boolean
 
-export interface TraceGroupListener extends ConsoleTraceGroupListener, Pick<TraceListener, 'filter'> {
-    groupBy: TraceListenerGroupBy
-}
-
 /**
  * Handles a trace event.
  * @param event The resolved trace event to handle.
@@ -167,8 +151,6 @@ export interface TraceListener {
 
 export type TraceListenerFilterMode = 'every' | 'some'
 
-export type TraceListenerGroupBy = keyof TraceEventMetadata
-
 /** Removes a previously registered listener. */
 export type TraceListenerRemover = () => void
 
@@ -177,7 +159,7 @@ export type TraceRegistry = {
      * Registers a trace listener and returns its remover.
      * Listeners are evaluated in registration order.
      * @param listenerDef The listener definition or filter criteria.
-     * @param options Context, filter mode and grouping options.
+     * @param options Context and filter mode options.
      * @returns A function that removes the registered listener when called.
      */
     addListener: (
@@ -188,10 +170,11 @@ export type TraceRegistry = {
     /**
      * Registers a listener for the specified scopes and returns its remover.
      * @param scopes The scopes to listen for.
-     * @param context Whether to print the plugin context to the console. Defaults to true.
+     * @param context Whether to also match the plugin's own context events. Defaults to true.
+     * @param handler Receives the matching events.
      * @returns A function that removes the registered listener when called.
      */
-    addScopesListener: (scopes: string[], context?: boolean) => TraceListenerRemover
+    addScopesListener: (scopes: string[], context?: boolean, handler?: TraceHandler) => TraceListenerRemover
 
     /**
      * Clears all registered trace listeners.
@@ -222,6 +205,8 @@ export interface TracerHandler {
     createTracer: (source: string, options?: TracerOptions) => Tracer
     /** Reports whether this handler currently has any registered trace listeners. */
     hasTraceListeners?: () => boolean
+    /** Journal exposed by registry-backed handlers, used to mount the in-page devtools. */
+    journal?: TraceJournal
     /** Opens a group for the event's group key on the matching listeners. */
     startGroup: (payload: TraceEvent) => void
 }
@@ -257,6 +242,8 @@ export interface TracerRegistryOptions {
 }
 
 export interface TracerOptions {
+    /** Returns the innermost open group of a scope, attached to events emitted without an explicit `groupId`. */
+    currentGroupId?: (scope?: string) => string | undefined
     journal?: TraceJournal
     side?: TraceSide
     /** Transforms the resolved payload before it is delivered to listeners. */

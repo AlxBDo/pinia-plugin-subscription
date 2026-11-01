@@ -21,15 +21,39 @@ export interface TraceDevtoolsOptions {
     width?: number
 }
 
-export interface TraceTimelineEntry {
-    /** Shared by the events of an action; the event `seq` for standalone events. */
-    id: string
-    actionId?: string
-    events: TraceEvent[]
+export interface PluginDevtoolsOptions extends TraceDevtoolsOptions {
+    /** ID of the JSON script containing the SSR journal snapshot. Defaults to `pinia-traces`; `false` disables importing it. */
+    serverSnapshotId?: string | false
+}
+
+/** Parts of an event worth displaying: its payload content directly, plus `error` when present. */
+export type TraceEventDetail = Record<string, unknown>
+
+export interface TraceTimelineEventEntry {
+    event: TraceEvent
     hasError: boolean
-    /** `seq` of the first event, used for ordering. */
+    id: string
+    kind: 'event'
+    /** Position of the event, used for ordering. */
     seq: number
 }
+
+/** A lifecycle (plugin setup, `$onAction` call, `after`...) holding its events and sub-groups in order. */
+export interface TraceTimelineGroup {
+    /** Number of events of the group, sub-groups included. */
+    count: number
+    groupId: string
+    hasError: boolean
+    id: string
+    items: TraceTimelineEntry[]
+    kind: 'group'
+    seq: number
+    side: TraceSide
+    /** Readable name, without call counter. */
+    title: string
+}
+
+export type TraceTimelineEntry = TraceTimelineEventEntry | TraceTimelineGroup
 
 export interface TraceTimelineFilters {
     level: 'all' | 'error'

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
-import { createConsoleGroupTraceListener } from '../factories/console-trace-listener'
 import { createTracerRegistry } from '../factories/trace-registry'
 import type { TraceEvent } from '../types/trace'
 import { getStoreScopedKey } from '../utils/store'
@@ -37,12 +36,14 @@ function getPluginSubscription(
 
 describe('PluginSubscription', () => {
     let pluginSub: PluginSubscription
+    const errorHandler = vi.fn()
 
     beforeEach(() => {
+        errorHandler.mockClear()
         clearTraceListeners()
         addListener({
             filter: event => event.level === 'error',
-            handler: createConsoleGroupTraceListener().handler
+            handler: errorHandler
         })
         // Create a fresh instance before each test
         pluginSub = getPluginSubscription([])
@@ -1523,7 +1524,6 @@ describe('PluginSubscription', () => {
         })
 
         it('should catch nested subscription errors without breaking delivery', () => {
-            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             const subscriber: PluginSubscriber = {
                 name: 'root',
                 invoke: vi.fn().mockReturnValue(true),
@@ -1547,13 +1547,7 @@ describe('PluginSubscription', () => {
             } as unknown as Store
 
             expect(() => pluginSub.plugin({ store: mockStore, options: {} } as any)).not.toThrow()
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                '%c%s',
-                expect.any(String),
-                expect.stringContaining('subscription:delivery'),
-                expect.any(String)
-            )
-            consoleLogSpy.mockRestore()
+            expect(errorHandler).toHaveBeenCalledWith(expect.objectContaining({ level: 'error', namespace: expect.stringContaining('subscription:delivery') }))
         })
 
         it('should invoke a nested subscription for each store when stores is a single-item array', () => {
@@ -1724,7 +1718,6 @@ describe('PluginSubscription', () => {
         const flushMicrotasks = () => new Promise(resolve => setTimeout(resolve, 0))
 
         it('should log hydrate promise rejections without breaking registration', async () => {
-            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             const afterHydration = vi.fn()
             const subscriber: PluginSubscriber = {
                 name: 'async-hydrate-failure',
@@ -1747,17 +1740,10 @@ describe('PluginSubscription', () => {
             await flushMicrotasks()
 
             expect(afterHydration).not.toHaveBeenCalled()
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                '%c%s',
-                expect.any(String),
-                expect.stringContaining('subscriber:hydrate'),
-                expect.any(String)
-            )
-            consoleLogSpy.mockRestore()
+            expect(errorHandler).toHaveBeenCalledWith(expect.objectContaining({ level: 'error', namespace: expect.stringContaining('subscriber:hydrate') }))
         })
 
         it('should log afterHydration promise rejections without breaking registration', async () => {
-            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
             const subscriber: PluginSubscriber = {
                 name: 'async-after-hydration-failure',
                 invoke: vi.fn().mockReturnValue(true),
@@ -1777,13 +1763,7 @@ describe('PluginSubscription', () => {
             pluginSub.plugin({ store: mockStore, options: {} } as any)
             await flushMicrotasks()
 
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                '%c%s',
-                expect.any(String),
-                expect.stringContaining('subscriber:afterHydration'),
-                expect.any(String)
-            )
-            consoleLogSpy.mockRestore()
+            expect(errorHandler).toHaveBeenCalledWith(expect.objectContaining({ level: 'error', namespace: expect.stringContaining('subscriber:afterhydration') }))
         })
     })
 

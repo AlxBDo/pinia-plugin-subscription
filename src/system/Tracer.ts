@@ -2,7 +2,6 @@ import type { AnyObject } from '../types'
 import type {
     TraceEvent,
     TraceEventMetadata,
-    TraceGroupListener,
     TraceJournal,
     TraceLevel,
     TraceListener,
@@ -30,14 +29,16 @@ function resolvePayload(payload: TracePayload): AnyObject | undefined {
  * the payload is a factory resolved only once a consumer is known.
  */
 export default class Tracer {
+    private readonly _currentGroupId?: TracerOptions['currentGroupId']
     private readonly _journal?: TraceJournal
-    private readonly _listeners: Array<TraceListener | TraceGroupListener> = []
+    private readonly _listeners: TraceListener[] = []
     private readonly _redactor?: (payload: AnyObject) => AnyObject
     private _scope?: string
     private readonly _side: TraceSide
     private readonly _source: string
 
-    constructor(source: string, listeners: Array<TraceListener | TraceGroupListener>, options: TracerOptions = {}) {
+    constructor(source: string, listeners: TraceListener[], options: TracerOptions = {}) {
+        this._currentGroupId = options.currentGroupId
         this._journal = options.journal
         this._redactor = options.redactor
         this._side = options.side ?? 'client'
@@ -93,7 +94,7 @@ export default class Tracer {
     }
 
     private matchListeners(metadata: TraceEventMetadata) {
-        const matched: Array<TraceListener | TraceGroupListener> = []
+        const matched: TraceListener[] = []
 
         for (const listener of this._listeners) {
             try {
@@ -135,12 +136,18 @@ export default class Tracer {
 
         const resolved = payload !== undefined ? this.resolveAndRedact(payload) : undefined
         // `actionId` travels in the payload so that emitters need no extra argument, and is lifted to the event.
-        const { actionId, ...rest } = resolved ?? {}
+        // `groupId` is lifted the same way; without one, the innermost open group of the scope applies.
+        const { actionId, groupId: payloadGroupId, ...rest } = resolved ?? {}
+        const groupId = typeof payloadGroupId === 'string'
+            ? payloadGroupId
+            : this._currentGroupId?.(metadata.scope)
+        const lifted = typeof actionId === 'string' || typeof payloadGroupId === 'string'
         const event: TraceEvent = {
             ...metadata,
             ...(typeof actionId === 'string' && { actionId }),
+            ...(groupId !== undefined && { groupId }),
             ...(error !== undefined && { error }),
-            ...(resolved !== undefined && { payload: typeof actionId === 'string' ? rest : resolved }),
+            ...(resolved !== undefined && { payload: lifted ? rest : resolved }),
             ...(this._journal && { seq: this._journal.nextSeq(), side: this._side }),
             timestamp: Date.now()
         }

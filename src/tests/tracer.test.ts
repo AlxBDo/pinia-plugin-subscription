@@ -25,72 +25,50 @@ describe('Tracer', () => {
     })
 
     describe('Trace groups registry', () => {
-        it('groups matching events by scope and flushes them when the group closes', () => {
+        it('delivers events to a custom handler without writing to the console', () => {
             const registry = createTracerRegistry()
-            const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
             const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
-            registry.addListener([{ target: 'scope', value: 'cart' }])
+            const handler = vi.fn()
+            registry.addListener({ filter: event => event.scope === 'cart', handler })
 
-            registry.tracerHandler.startGroup({ scope: 'cart' } as TraceEvent)
-            registry.tracerHandler.createTracer('Store').debug('Mutation', 'store:mutation', { count: 1 }, 'cart')
-            expect(groupSpy).not.toHaveBeenCalled()
+            const tracer = registry.tracerHandler.createTracer('Store')
+            tracer.debug('Mutation', 'store:mutation', { count: 1 }, 'cart')
+            tracer.debug('Mutation', 'store:mutation', { count: 2 }, 'other')
 
-            registry.tracerHandler.closeGroup({ scope: 'cart' } as TraceEvent)
-
-            expect(groupSpy).toHaveBeenCalled()
-            expect(logSpy).toHaveBeenCalledWith(
-                '%c%s',
-                expect.any(String),
-                '[ count ]',
-                1
-            )
-            groupSpy.mockRestore()
-            logSpy.mockRestore()
-        })
-
-        it('uses the configured filter mode when selecting groups', () => {
-            const registry = createTracerRegistry()
-            const groupSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => { })
-            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
-            registry.addListener([
-                { target: 'scope', value: 'cart' },
-                { target: 'namespace', value: 'store:mutation' },
-            ], { filterMode: 'some' })
-
-            registry.tracerHandler.startGroup({ scope: 'cart' } as TraceEvent)
-            registry.tracerHandler.createTracer('Store').debug('Mutation', 'plugin:invoke', undefined, 'cart')
-            registry.tracerHandler.closeGroup({ scope: 'cart' } as TraceEvent)
-
-            expect(groupSpy).toHaveBeenCalled()
+            expect(handler).toHaveBeenCalledTimes(1)
+            expect(handler).toHaveBeenCalledWith(expect.objectContaining({ payload: { count: 1 }, scope: 'cart' }))
             expect(logSpy).not.toHaveBeenCalled()
-            groupSpy.mockRestore()
             logSpy.mockRestore()
         })
 
-        it('passes metadata only to group filters', () => {
+        it('uses the configured filter mode when selecting events', () => {
             const registry = createTracerRegistry()
-            const filter = vi.fn(() => true)
-            registry.addListener({ filter, handler: () => { } })
+            const handler = vi.fn()
+            registry.addListener({
+                filter: [
+                    { target: 'scope', value: 'cart' },
+                    { target: 'namespace', value: 'store:mutation' },
+                ],
+                handler
+            }, { filterMode: 'some' })
 
-            registry.tracerHandler.startGroup({
-                groupId: 'group',
-                label: 'context',
-                level: 'debug',
-                namespace: 'context',
-                payload: { token: 'secret' },
-                scope: 'cart',
-                source: 'PluginSubscription',
-                timestamp: 1
-            })
+            registry.tracerHandler.createTracer('Store').debug('Mutation', 'plugin:invoke', undefined, 'cart')
 
-            expect(filter).toHaveBeenCalledWith({
-                groupId: 'group',
-                label: 'context',
-                level: 'debug',
-                namespace: 'context',
-                scope: 'cart',
-                source: 'PluginSubscription'
-            })
+            expect(handler).toHaveBeenCalledTimes(1)
+        })
+
+        it('tags events emitted while a group is open with its groupId', () => {
+            const registry = createTracerRegistry()
+            const handler = vi.fn()
+            registry.addListener({ filter: () => true, handler })
+
+            registry.tracerHandler.startGroup({ groupId: 'cart/onAction:add#1', scope: 'cart' } as TraceEvent)
+            registry.tracerHandler.createTracer('Store').debug('Mutation', 'store:mutation', undefined, 'cart')
+            registry.tracerHandler.closeGroup({ groupId: 'cart/onAction:add#1', scope: 'cart' } as TraceEvent)
+            registry.tracerHandler.createTracer('Store').debug('Mutation', 'store:mutation', undefined, 'cart')
+
+            expect(handler.mock.calls[0]![0].groupId).toBe('cart/onAction:add#1')
+            expect(handler.mock.calls[1]![0].groupId).toBeUndefined()
         })
     })
 
