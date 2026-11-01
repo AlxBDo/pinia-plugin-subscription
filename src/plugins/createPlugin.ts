@@ -44,7 +44,7 @@ export function createPlugin(
                 try {
                     registry.journal.import(JSON.parse(snapshotElement.textContent ?? 'null'))
                 } catch (error) {
-                    console.error(`Failed to import SSR trace snapshot from "#${serverSnapshotId}".`, error)
+                    console.error(`Failed to import SSR trace snapshot (element id: ${serverSnapshotId}).`, error)
                 }
             }
         }
