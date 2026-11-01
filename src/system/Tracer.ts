@@ -2,7 +2,6 @@ import type { AnyObject } from '../types'
 import type {
     TraceEvent,
     TraceEventMetadata,
-    TraceGroupListener,
     TraceJournal,
     TraceLevel,
     TraceListener,
@@ -32,13 +31,13 @@ function resolvePayload(payload: TracePayload): AnyObject | undefined {
 export default class Tracer {
     private readonly _currentGroupId?: TracerOptions['currentGroupId']
     private readonly _journal?: TraceJournal
-    private readonly _listeners: Array<TraceListener | TraceGroupListener> = []
+    private readonly _listeners: TraceListener[] = []
     private readonly _redactor?: (payload: AnyObject) => AnyObject
     private _scope?: string
     private readonly _side: TraceSide
     private readonly _source: string
 
-    constructor(source: string, listeners: Array<TraceListener | TraceGroupListener>, options: TracerOptions = {}) {
+    constructor(source: string, listeners: TraceListener[], options: TracerOptions = {}) {
         this._currentGroupId = options.currentGroupId
         this._journal = options.journal
         this._redactor = options.redactor
@@ -95,7 +94,7 @@ export default class Tracer {
     }
 
     private matchListeners(metadata: TraceEventMetadata) {
-        const matched: Array<TraceListener | TraceGroupListener> = []
+        const matched: TraceListener[] = []
 
         for (const listener of this._listeners) {
             try {

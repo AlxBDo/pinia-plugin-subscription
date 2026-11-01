@@ -1,12 +1,13 @@
 import Tracer from '../system/Tracer'
 import { createTraceJournal } from '../system/TraceJournal'
-import { createTraceGroupListener } from './trace-listener'
+import { createTraceListener } from './trace-listener'
 import type {
     AddTraceListenerOptions,
     TraceEvent,
+    TraceHandler,
     TraceFilterFactoryCriterion,
     TraceFilterFactoryParam,
-    TraceGroupListener,
+    TraceListener,
     TraceListenerRemover,
     TraceRegistry,
     TracerOptions,
@@ -28,7 +29,7 @@ export function createTracerRegistry(
     const redactor = redact ? createRedactor(redact === true ? true : redact) : undefined
 
     // Shared by reference with every Tracer: it must be mutated in place, never reassigned.
-    const listeners: TraceGroupListener[] = []
+    const listeners: TraceListener[] = []
 
     // Open groups per scope, innermost last: events emitted meanwhile by subscribers join the innermost one.
     const openGroups = new Map<string, string[]>()
@@ -41,25 +42,23 @@ export function createTracerRegistry(
      * Registers a trace listener and returns its remover.
      * Listeners are evaluated in registration order.
      * @param listenerDef The listener definition or filter criteria for the trace group listener.
-     * @param context Print the plugin context (subscribers, store, options, and traces) to the console.. Defaults to true.
-     * @param filterMode The mode to use when creating the trace group listener from the listener definition or criteria. Defaults to 'every'.
-     * @param groupBy The property to group traces by. Defaults to 'scope'.
-     * @returns A function that removes the registered trace group listener when called.
+     * @param context Also match the plugin's own context events. Defaults to true.
+     * @param filterMode The mode to use when creating the listener from the criteria. Defaults to 'every'.
+     * @returns A function that removes the registered listener when called.
      */
     function addListener(
         listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
-        { context = true, filterMode = 'every', groupBy = 'scope' }: AddTraceListenerOptions = {}
+        { context = true, filterMode = 'every' }: AddTraceListenerOptions = {}
     ): TraceListenerRemover {
         if (!enabled) {
             return noop
         }
 
-        const listenerGroup = createTraceGroupListener(
-            listenerDef, !!context, filterMode ?? 'every', groupBy ?? 'scope')
-        listeners.push(listenerGroup)
+        const listener = createTraceListener(listenerDef, !!context, filterMode ?? 'every')
+        listeners.push(listener)
 
         return () => {
-            const index = listeners.indexOf(listenerGroup)
+            const index = listeners.indexOf(listener)
 
             if (index !== -1) {
                 listeners.splice(index, 1)
@@ -70,13 +69,13 @@ export function createTracerRegistry(
     /**
      * Adds a trace listener for specific scopes.
      * @param scopes The scopes to listen for.
-     * @param context Print the plugin context (subscribers, store, options, and traces) to the console.. Defaults to true.
-     * @returns A function that removes the registered trace group listener when called.
+     * @param context Also match the plugin's own context events. Defaults to true.
+     * @returns A function that removes the registered listener when called.
      */
-    function addScopesListener(scopes: string[], context = true): TraceListenerRemover {
+    function addScopesListener(scopes: string[], context = true, handler?: TraceHandler): TraceListenerRemover {
         return addListener(
-            scopes.map(scope => ({ target: 'scope', value: scope })),
-            { context, filterMode: 'some', groupBy: 'scope' }
+            { filter: scopes.map(scope => ({ target: 'scope', value: scope })), handler },
+            { context, filterMode: 'some' }
         )
     }
 
@@ -85,19 +84,6 @@ export function createTracerRegistry(
      */
     function clearTraceListeners(): void {
         listeners.length = 0
-    }
-
-    function getMatchedListener(payload: TraceEvent) {
-        const metadata = {
-            groupId: payload.groupId,
-            label: payload.label,
-            level: payload.level,
-            namespace: payload.namespace,
-            scope: payload.scope,
-            source: payload.source
-        }
-
-        return listeners.filter(listener => listener.filter(metadata))
     }
 
     /**
@@ -123,16 +109,6 @@ export function createTracerRegistry(
         if (!stack.length) { openGroups.delete(scope) }
     }
 
-    function listenerGroupAction(actionName: 'createGroup' | 'logGroup', payload: TraceEvent) {
-        trackGroup(actionName === 'createGroup' ? 'open' : 'close', payload)
-        if (!listeners.length) return
-
-        getMatchedListener(payload).forEach(listener => {
-            const groupLabel = payload.groupId ?? payload[listener.groupBy]
-            if (typeof groupLabel === 'string') { listener[actionName](groupLabel) }
-        })
-    }
-
 
     return {
         addListener,
@@ -140,10 +116,11 @@ export function createTracerRegistry(
         clearTraceListeners,
         journal,
         tracerHandler: {
-            closeGroup: (payload: TraceEvent) => listenerGroupAction('logGroup', payload),
+            closeGroup: (payload: TraceEvent) => trackGroup('close', payload),
             createTracer: (source: string, options: TracerOptions = {}) => new Tracer(source, listeners, { currentGroupId, journal, redactor, side: tracerSide, ...options }),
             hasTraceListeners,
-            startGroup: (payload: TraceEvent) => listenerGroupAction('createGroup', payload)
+            journal,
+            startGroup: (payload: TraceEvent) => trackGroup('open', payload)
         },
         hasTraceListeners
     }

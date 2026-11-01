@@ -1,5 +1,4 @@
 import { Store } from 'pinia-plugin-subscription/helpers'
-//import Store from '../../src/core/Store'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from "pinia"
 import type {

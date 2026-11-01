@@ -17,7 +17,7 @@ For SSR, create a fresh registry, Pinia instance, and plugin instance for every 
 - [Server traces in the browser](#server-traces-in-the-browser)
 - [In-page trace panel](#in-page-trace-panel)
 - [Emitting your own events](#emitting-your-own-events)
-- [Grouped console output](#grouped-console-output)
+- [Custom listeners](#custom-listeners)
 - [Error reporting](#error-reporting)
 - [Migrating from `debugLog()` / `logError()`](#migrating-from-debuglog--logerror)
 
@@ -28,10 +28,13 @@ import { createPlugin } from 'pinia-plugin-subscription'
 import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 
 const traceGroupsRegistry = createTracerRegistry()
-const remove = traceGroupsRegistry.addListener([
-  { target: 'scope', value: 'cart' },
-  { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
-])
+const remove = traceGroupsRegistry.addListener({
+  filter: [
+    { target: 'scope', value: 'cart' },
+    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+  ],
+  handler: event => console.log(event.label, event.payload)
+})
 
 pinia.use(createPlugin(subscribers, {
   tracerHandler: traceGroupsRegistry.tracerHandler
@@ -79,31 +82,35 @@ Limits: only keys are inspected, not values (a secret stored under an innocuous 
 
 Criteria are evaluated against event metadata, before the payload is resolved. They can target the `source`, `namespace`, `scope` or `level` of an event.
 
-By default, all criteria must match and events are grouped by `scope`. Supported comparators are `equals` (the default), `contains`, `startsWith` and `endsWith`; set `filterMode` to `some` to match any criterion, or `groupBy` to group by a different event metadata field:
+By default, all criteria must match. Supported comparators are `equals` (the default), `contains`, `startsWith` and `endsWith`; set `filterMode` to `some` to match any criterion:
 
 ```ts
-traceGroupsRegistry.addListener([
-  { target: 'scope', value: 'cart' },
-  { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
-], { filterMode: 'every', groupBy: 'scope' })
+traceGroupsRegistry.addListener({
+  filter: [
+    { target: 'scope', value: 'cart' },
+    { target: 'namespace', comparator: 'startsWith', value: 'pluginsubscription:subscription:' }
+  ],
+  handler: event => console.log(event.label)
+}, { filterMode: 'every' })
 ```
 
 Listener definitions passed to `addListener()` are never mutated.
 
-Trace filters, including custom filters used when starting or closing groups, receive event metadata only. They never receive payloads or error objects. The built-in registry also avoids resolving group payload factories when it has no registered listeners; custom `TracerHandler` implementations may expose the optional `hasTraceListeners()` capability to enable the same optimization.
+Trace filters receive event metadata only. They never receive payloads or error objects. The built-in registry also avoids resolving payload factories when it has no registered listeners; custom `TracerHandler` implementations may expose the optional `hasTraceListeners()` capability to enable the same optimization.
 
-For the common case of selecting several store scopes, use `addScopesListener(scopes, context?)`. It registers one listener that matches events whose `scope` equals **any** of the supplied strings, groups them by scope, and returns a remover just like `addListener()`. The optional `context` flag controls whether the plugin context is printed and defaults to `true`:
+For the common case of selecting several store scopes, use `addScopesListener(scopes, context?, handler?)`. It registers one listener that matches events whose `scope` equals **any** of the supplied strings and returns a remover just like `addListener()`. The optional `context` flag also matches the plugin's own context events and defaults to `true`:
 
 ```ts
 const removeStoreListeners = traceGroupsRegistry.addScopesListener(
   ['cart', 'checkout'],
-  false
+  false,
+  event => console.log(event.label)
 )
 
 removeStoreListeners() // unsubscribe
 ```
 
-Use `addListener()` when you need other metadata criteria, a different grouping field, or custom filter logic.
+Use `addListener()` when you need other metadata criteria or custom filter logic.
 
 ## Event shape
 
@@ -137,7 +144,7 @@ Events emitted for a store are grouped by lifecycle. A `groupId` is a `/` separa
 | `traceGroups.onMutation(id, n)` | `<id>/onMutation#<n>` | `$subscribe` |
 | `traceGroups.reset(id, n)` | `<id>/reset#<n>` | `$reset` |
 
-You do not have to set a `groupId` yourself: while a group of a store is open, every trace emitted with that store as scope (subscribers, `Store` subclasses, custom tracers) joins the innermost open group. An explicit `groupId` in the payload wins, and is lifted to the event's `groupId` (like `actionId`), out of the payload. Console listeners buffer and print each group once it closes.
+You do not have to set a `groupId` yourself: while a group of a store is open, every trace emitted with that store as scope (subscribers, `Store` subclasses, custom tracers) joins the innermost open group. An explicit `groupId` in the payload wins, and is lifted to the event's `groupId` (like `actionId`), out of the payload. Listener handlers receive each event immediately and can use `groupId` to regroup them.
 
 ```ts
 registry.addListener([{ target: 'groupId', comparator: 'startsWith', value: 'cart/onAction:' }])
@@ -145,11 +152,11 @@ registry.addListener([{ target: 'groupId', comparator: 'startsWith', value: 'car
 
 `getTraceGroupName(groupId)` returns the readable name of a group (its last segment, without the counter). The plugin's action trace labels include the invoked action name (`store:onAction:<name>`).
 
-Subscribers declared with `hydration: 'defer'` run after `plugin()` has closed its `PluginSubscription:context` group. Each deferred run opens its own sub-group of the plugin group (label `subscriber:deferred`, `groupId` `<id>/plugin/deferred:<subscriber>#<n>`); traces emitted by the subscriber during that run, such as those of a `Store` subclass, are printed inside it. The group stays open until asynchronous `hydrate()` / `afterHydration()` promises settle (fulfilled or rejected). While it is open, console listeners buffer every trace of that store scope, so a promise that never settles would hide them: after `deferredTraceGroupTimeout` milliseconds (plugin option, default `2500`) the group is closed anyway and a `subscriber:deferred:timeout` error is traced inside it.
+Subscribers declared with `hydration: 'defer'` run after `plugin()` has closed its `PluginSubscription:context` group. Each deferred run opens its own sub-group of the plugin group (label `subscriber:deferred`, `groupId` `<id>/plugin/deferred:<subscriber>#<n>`); traces emitted by the subscriber during that run, such as those of a `Store` subclass, carry its `groupId`. The group stays open until asynchronous `hydrate()` / `afterHydration()` promises settle (fulfilled or rejected). A promise that never settles would keep the group open: after `deferredTraceGroupTimeout` milliseconds (plugin option, default `2500`) the group is closed anyway and a `subscriber:deferred:timeout` error is traced inside it.
 
 ## Journal
 
-Console listeners print and forget. The journal instead records **every** event of **every** store, matched by a listener or not, so that a store trace can be read back at any time (the basis of an in-page trace panel).
+Listeners receive each event as it is emitted. The journal instead records **every** event of **every** store, matched by a listener or not, so that a store trace can be read back at any time (the basis of an in-page trace panel).
 
 ```ts
 const registry = createTracerRegistry({ journal: { maxEventsPerStore: 1000 } })
@@ -188,6 +195,16 @@ Imported events are marked `side: 'server'`, ordered before the local ones, and 
 
 `pinia-plugin-subscription/devtools` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events nested by lifecycle, client and server interleaved, `P` / `E` chips on events carrying a payload / an error, expandable details, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
 
+For the simplest browser development setup, enable it directly on `createPlugin()`:
+
+```ts
+pinia.use(createPlugin(subscribers, { devtools: true }))
+```
+
+This creates a journal-backed tracer, loads the devtools entry dynamically, and mounts the panel without registering console listeners. If you already pass a registry's `tracerHandler`, its journal is reused. An SSR journal snapshot in a `<script type="application/json" id="pinia-traces">` element is imported automatically; set `serverSnapshotId` to a different element ID or `false` to disable importing it. Normal trace events appear in the panel, not the console; the existing `console.error` fallback for unmatched error events still applies. The option is inactive in production builds and outside the browser. Payloads are redacted using the default redaction keys for the automatically created registry. Pass panel options instead of `true` to customize it, for example `{ devtools: { open: true } }`.
+
+When using a custom `tracerHandler`, it must expose a journal (as the built-in registry handler does). For custom trace listeners, server-side trace transfer, or other registry options, use the manual setup below.
+
 ```ts
 const registry = createTracerRegistry({ journal: true })
 // ...pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
@@ -223,13 +240,18 @@ Always prefer the **function form** for `payload`: it is only invoked once a lis
 
 Trace groups opened by `onAction`, `$subscribe` and `$reset` are always closed, including when the action fails or a callback throws.
 
-## Grouped console output
+## Custom listeners
 
-Normal trace events do not write to a console. The registry created by `createTracerRegistry()` uses the console's grouped output for the events matching its listeners: register listeners as shown in the [quick start](#quick-start) and pass `tracerHandler` to the plugin. Groups default to the `scope` metadata field; use the `groupBy` option of `addListener()` to group by another field.
+The package no longer prints traces to the console: events are delivered to the `handler` of each matching listener, and the [in-page panel](#in-page-trace-panel) displays them. Pass a `handler` (and optionally a custom `filter` function) to forward events wherever you need, such as the console, a logging service or a test collector:
 
-When an event has a `payload.groupId`, that value takes precedence over the configured `groupBy` field as its console-group key. Events without an open group for their key are printed immediately outside a group. If multiple groups with the same key are opened concurrently, their events share one buffer; the buffered group is printed only after every matching open has been closed.
+```ts
+registry.addListener({
+  filter: event => event.scope === 'cart' && event.level === 'debug', // metadata only
+  handler: event => console.log(event.label, event.payload)           // resolved (and redacted) event
+})
+```
 
-`CustomConsole` remains exported from `pinia-plugin-subscription/helpers` for plugins not yet migrated to the tracer.
+`handler` is optional when a listener is only used to keep tracing active; criteria arrays can be used as `filter` too, and `addScopesListener(scopes, context?, handler?)` accepts a handler as its third argument. Events carry their `groupId`, `actionId` and `scope`, so a handler can reproduce any grouping it needs; it is called once per event, immediately.
 
 ## Error reporting
 

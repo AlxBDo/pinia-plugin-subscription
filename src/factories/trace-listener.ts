@@ -1,4 +1,3 @@
-import { createConsoleGroupTraceListener } from "./console-trace-listener"
 import { pluginName, pluginSubscriptionNamespace } from "../utils/constants"
 
 import type {
@@ -6,8 +5,10 @@ import type {
     TraceFilter,
     TraceFilterFactoryCriterion,
     TraceFilterFactoryParam,
-    TraceGroupListener
+    TraceListener
 } from "../types/trace"
+
+const noop = () => { }
 
 
 function createFilter(criteria: TraceFilterFactoryCriterion[], context: boolean = true, mode: 'every' | 'some') {
@@ -44,25 +45,20 @@ function createFilter(criteria: TraceFilterFactoryCriterion[], context: boolean 
 }
 
 /**
- * Creates a trace group listener with optional filtering.
- * @param listenerDef The listener definition or filter criteria for the trace group listener.
- * @param context Print the plugin context (subscribers, store, options, and traces) to the console.. Defaults to true.
+ * Creates a trace listener from a definition or filter criteria.
+ * @param listenerDef The listener definition or filter criteria.
+ * @param context Also match the plugin's own context events. Defaults to true.
  * @param filterMode The mode to apply when evaluating multiple filter criteria: 'every' or 'some'.
- * @param groupBy The key of the trace event metadata to group by.
- * @returns A trace listener configured with group handling and filtering.
+ * @returns A listener whose handler is the supplied one, or a no-op when none is given.
  */
-export function createTraceGroupListener(
+export function createTraceListener(
     listenerDef: TraceFilterFactoryParam | TraceFilterFactoryCriterion[],
     context: boolean = true,
-    filterMode: 'every' | 'some' = 'every',
-    groupBy: keyof TraceEventMetadata = 'scope'
-) {
-    return {
-        groupBy,
-        ...createConsoleGroupTraceListener(groupBy),
-        ...createTraceFilter(listenerDef, context, filterMode)
-    } as TraceGroupListener
+    filterMode: 'every' | 'some' = 'every'
+): TraceListener {
+    const { handler = noop, filter } = createTraceFilter(listenerDef, context, filterMode)
 
+    return { filter, handler }
 }
 
 function createTraceFilter(

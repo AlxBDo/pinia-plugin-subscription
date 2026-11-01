@@ -10,6 +10,7 @@ export const devtoolsStyles = `
   background: #1b1d23; color: #42d392; font: 600 12px ui-monospace, monospace; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
 .pps-icon { width: 16px; height: 16px; fill: currentColor; }
 .pps-fab.right { right: calc(16px + var(--pps-gutter, 0px)); } .pps-fab.left { left: 16px; }
+.pps-fab.right:hover { filter: drop-shadow(1px 1px 29px #90ee90d4); }
 .pps-fab.has-errors { color: #ff6b6b; }
 .pps-header { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #343846; }
 .pps-title { font-weight: 700; color: #42d392; flex: 1; }

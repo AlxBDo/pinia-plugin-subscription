@@ -31,7 +31,6 @@ export type ConsoleStyleDefinition = StyleDefinition
 export type ConsoleStyleDefinitionKeys = StyleDefinitionKeys
 export type ConsoleStyleDefinitions = StyleDefinitions
 
-export type { List, ListTypes, ListTypesMap, PartialList } from './list'
 export type {
     TraceEvent,
     TraceEventMetadata,
@@ -50,6 +49,11 @@ export type {
     TracerOptions,
     TracerRegistryOptions
 } from './trace'
+export type {
+    PluginDevtoolsOptions,
+    TraceDevtoolsHandle,
+    TraceDevtoolsOptions
+} from './devtools'
 export type {
     CustomStore,
     DefineAStoreSetupContext,

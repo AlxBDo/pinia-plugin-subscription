@@ -21,6 +21,11 @@ export interface TraceDevtoolsOptions {
     width?: number
 }
 
+export interface PluginDevtoolsOptions extends TraceDevtoolsOptions {
+    /** ID of the JSON script containing the SSR journal snapshot. Defaults to `pinia-traces`; `false` disables importing it. */
+    serverSnapshotId?: string | false
+}
+
 /** Parts of an event worth displaying: its payload content directly, plus `error` when present. */
 export type TraceEventDetail = Record<string, unknown>
 

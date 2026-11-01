@@ -31,19 +31,13 @@ export function createDemoApp(
 
     pinia.use(createPlugin(subscribers, {
         runtimeEnvironment,
-        tracerHandler: tracerRegistry.tracerHandler
+        tracerHandler: tracerRegistry.tracerHandler,
+        devtools: runtimeEnvironment === 'client'
     }))
 
-    // Per-request registry: server traces go to the Node terminal, browser traces to the devtools console.
-    tracerRegistry.addScopesListener(['visitorEnvironmentStore'])
-
-    if (runtimeEnvironment === 'client') {
-        tracerRegistry.addScopesListener([
-            'rollbackSnapshotStoreWithRollback',
-            'enhancedStore'
-        ])
-    }
-
     app.use(pinia)
-    return { app, pinia, tracerRegistry }
+    return {
+        app, pinia,
+        tracerRegistry
+    }
 }

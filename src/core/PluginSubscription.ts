@@ -161,6 +161,41 @@ export default class PluginSubscription extends TraceEmitter {
     }
 
     /**
+     * Closes a trace group once `pending` settles, or after the configured timeout so a promise
+     * that never settles cannot keep buffering the traces of the store scope.
+     */
+    private closeGroupWhenSettled(
+        pending: Promise<unknown>,
+        closeGroup: () => void,
+        storeId: string,
+        subscriberName: string
+    ): void {
+        let closed = false
+        const closeOnce = () => {
+            if (closed) {
+                return
+            }
+            closed = true
+            globalThis.clearTimeout(timer)
+            closeGroup()
+        }
+        const timeout = this._options?.deferredTraceGroupTimeout ?? defaultDeferredTraceGroupTimeout
+        const timer = globalThis.setTimeout(() => {
+            if (closed) {
+                return
+            }
+            this.traceError(
+                'subscriber:deferred:timeout',
+                new Error(`Subscriber "${subscriberName}" hydration still pending after ${timeout}ms`),
+                storeId
+            )
+            closeOnce()
+        }, timeout)
+
+        pending.then(closeOnce, closeOnce)
+    }
+
+    /**
      * Creates a callback collector for the specified action and store.
      * @param actionName The name of the action to collect callbacks for.
      * @param store The store instance associated with the action.
@@ -235,6 +270,16 @@ export default class PluginSubscription extends TraceEmitter {
 
     private defineSubscriptionKey(pluginName: string, store: Store): string {
         return getStoreScopedKey(pluginName, store)
+    }
+
+    /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
+    private endGroupAfter(pending: (Promise<void> | undefined)[], end: () => void): void {
+        const promises = pending.filter((p): p is Promise<void> => !!p)
+        if (promises.length) {
+            Promise.all(promises).then(end)
+        } else {
+            end()
+        }
     }
 
     private executeResetStoreCallbacks(store: Store): void {
@@ -313,39 +358,6 @@ export default class PluginSubscription extends TraceEmitter {
                 throw error
             }
         })
-    }
-
-    /**
-     * Runs a callback, tracing sync errors and async rejections.
-     * @returns a never-rejecting promise when the callback is asynchronous, undefined otherwise.
-     */
-    private runCallbackSafely(
-        callback: () => unknown,
-        errorLabel: string,
-        storeId: string,
-        extra?: () => Record<string, unknown>
-    ): Promise<void> | undefined {
-        try {
-            const result = callback()
-            if (result && typeof (result as Promise<unknown>).then === 'function') {
-                return Promise.resolve(result).then(
-                    () => undefined,
-                    error => this.traceError(errorLabel, error, storeId, extra)
-                )
-            }
-        } catch (error) {
-            this.traceError(errorLabel, error, storeId, extra)
-        }
-    }
-
-    /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
-    private endGroupAfter(pending: (Promise<void> | undefined)[], end: () => void): void {
-        const promises = pending.filter((p): p is Promise<void> => !!p)
-        if (promises.length) {
-            Promise.all(promises).then(end)
-        } else {
-            end()
-        }
     }
 
     private executeStoreOnActionAfterCallbacks(
@@ -515,11 +527,6 @@ export default class PluginSubscription extends TraceEmitter {
         const pluginGroupId = traceGroups.plugin(store.$id)
         this.traceGroupStart(() => ({
             groupId: pluginGroupId,
-            environment: {
-                current: this.defineCurrentEnvironment(),
-                ...this._options?.execution ?? {}
-
-            },
             subscribers: this._subscribers,
             'hooks subscriptions': subscribtions,
             store,
@@ -598,41 +605,6 @@ export default class PluginSubscription extends TraceEmitter {
         })
     }
 
-    /**
-     * Closes a trace group once `pending` settles, or after the configured timeout so a promise
-     * that never settles cannot keep buffering the traces of the store scope.
-     */
-    private closeGroupWhenSettled(
-        pending: Promise<unknown>,
-        closeGroup: () => void,
-        storeId: string,
-        subscriberName: string
-    ): void {
-        let closed = false
-        const closeOnce = () => {
-            if (closed) {
-                return
-            }
-            closed = true
-            globalThis.clearTimeout(timer)
-            closeGroup()
-        }
-        const timeout = this._options?.deferredTraceGroupTimeout ?? defaultDeferredTraceGroupTimeout
-        const timer = globalThis.setTimeout(() => {
-            if (closed) {
-                return
-            }
-            this.traceError(
-                'subscriber:deferred:timeout',
-                new Error(`Subscriber "${subscriberName}" hydration still pending after ${timeout}ms`),
-                storeId
-            )
-            closeOnce()
-        }, timeout)
-
-        pending.then(closeOnce, closeOnce)
-    }
-
     private registerStoreCleanup(store: Store): void {
         if (typeof store.$dispose !== 'function') {
             return
@@ -666,6 +638,29 @@ export default class PluginSubscription extends TraceEmitter {
             } finally {
                 this.traceGroupEnd(() => ({ groupId }), store.$id)
             }
+        }
+    }
+
+    /**
+     * Runs a callback, tracing sync errors and async rejections.
+     * @returns a never-rejecting promise when the callback is asynchronous, undefined otherwise.
+     */
+    private runCallbackSafely(
+        callback: () => unknown,
+        errorLabel: string,
+        storeId: string,
+        extra?: () => Record<string, unknown>
+    ): Promise<void> | undefined {
+        try {
+            const result = callback()
+            if (result && typeof (result as Promise<unknown>).then === 'function') {
+                return Promise.resolve(result).then(
+                    () => undefined,
+                    error => this.traceError(errorLabel, error, storeId, extra)
+                )
+            }
+        } catch (error) {
+            this.traceError(errorLabel, error, storeId, extra)
         }
     }
 

@@ -65,29 +65,38 @@ app.mount('#app')
 
 ## Advanced Features
 
-- **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace. Group filters receive metadata only, and the built-in registry avoids preparing group payloads when it has no listeners — see [Tracing](#tracing).
-- **Scope-based trace listeners:** Use `addScopesListener()` to group events from selected stores — see [Tracing](docs/tracing.md#filtering-events).
+- **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace, and consume them with your own `handler` — see [Tracing](#tracing).
+- **Scope-based trace listeners:** Use `addScopesListener(scopes, context?, handler?)` to receive events from selected stores — see [Tracing](docs/tracing.md#filtering-events).
 - **Trace journal:** `createTracerRegistry({ journal: true })` records every event per store (with `actionId`, `seq` and `side`) so a store trace can be read back at any time — see [Tracing](docs/tracing.md#journal).
-- **In-page trace panel:** `mountTraceDevtools()` (from `pinia-plugin-subscription/devtools`) shows every store's trace, grouped by lifecycle, server and client together, in an aside — see [Tracing](docs/tracing.md#in-page-trace-panel).
+- **In-page trace panel:** enable it with `createPlugin(subscribers, { devtools: true })` in development, or mount it manually with `mountTraceDevtools()` (from `pinia-plugin-subscription/devtools`) — see [Tracing](docs/tracing.md#in-page-trace-panel).
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 
 ## Tracing
 
-A built-in, opt-in debugging solution: plugins and stores emit structured trace events that you select with filters, optionally redact, and group in the console. It is disabled by default in production builds and costs nothing when unused.
+A built-in, opt-in debugging solution: plugins and stores emit structured trace events that you select with filters, optionally redact, and consume with your own handler (or inspect in the devtools panel). The package no longer prints traces to the console itself. It is disabled by default in production builds and costs nothing when unused.
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
 import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
 
 const registry = createTracerRegistry({ redact: true })
-registry.addListener([{ target: 'scope', value: 'cart' }])
+registry.addListener({
+  filter: [{ target: 'scope', value: 'cart' }],
+  handler: event => console.log(event.label, event.payload)
+})
 
 pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
 ```
 
 See the [Tracing documentation](docs/tracing.md) for filtering, redaction, production safety, event shape and error reporting.
+
+For a development-only in-page trace panel, no separate registry or devtools import is needed. If the page contains a JSON script with the default ID `pinia-traces`, its SSR journal snapshot is imported automatically:
+
+```ts
+pinia.use(createPlugin(subscribers, { devtools: true }))
+```
 
 ## License
 
