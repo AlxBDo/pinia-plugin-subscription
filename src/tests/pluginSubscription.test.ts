@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { PiniaPluginContext, Store } from 'pinia'
 import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugin'
 import PluginSubscription from '../core/PluginSubscription'
-import { createTracerRegistry } from '../factories/trace-registry'
+import { createTestTracerRegistry } from './support/testTracer'
 import type { TraceEvent } from '../types/trace'
 import { getStoreScopedKey } from '../utils/store'
 
@@ -13,7 +13,7 @@ function createContext(store: Store, options: Partial<PiniaPluginContext['option
     } as unknown as PiniaPluginContext
 }
 
-const traceRegistry = createTracerRegistry()
+const traceRegistry = createTestTracerRegistry()
 const { addListener, clearTraceListeners } = traceRegistry
 const createTracer = traceRegistry.tracerHandler.createTracer
 const tracerHandler = {

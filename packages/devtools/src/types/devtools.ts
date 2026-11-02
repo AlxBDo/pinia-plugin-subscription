@@ -1,4 +1,4 @@
-import type { TraceEvent, TraceSide } from './trace'
+import type { TraceEvent, TraceRegistry, TraceSide } from './trace'
 
 export interface TraceDevtoolsHandle {
     close: () => void
@@ -21,9 +21,17 @@ export interface TraceDevtoolsOptions {
     width?: number
 }
 
-export interface PluginDevtoolsOptions extends TraceDevtoolsOptions {
+export interface CreateTraceDevtoolsOptions extends TraceDevtoolsOptions {
     /** ID of the JSON script containing the SSR journal snapshot. Defaults to `pinia-traces`; `false` disables importing it. */
     serverSnapshotId?: string | false
+}
+
+/** Result of `createTraceDevtools`. */
+export interface TraceDevtools {
+    /** Handle of the mounted panel. Only defined in a development browser. */
+    handle?: TraceDevtoolsHandle
+    /** Registry whose `tracerHandler` is passed to the plugin. Payloads are redacted with the default keys. */
+    registry: TraceRegistry
 }
 
 /** Parts of an event worth displaying: its payload content directly, plus `error` when present. */

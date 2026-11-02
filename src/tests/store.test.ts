@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { ref, isRef } from 'vue'
-import { createTracerRegistry } from '../factories/trace-registry'
+import { createTestTracerRegistry } from './support/testTracer'
 
 const { defineStoreMock, beforeReturnStoreMock } = vi.hoisted(() => ({
     beforeReturnStoreMock: vi.fn(),
@@ -33,7 +33,7 @@ import type { PluginStoreOptions, StoreClassConstructorParams, StoreOptions } fr
 import type { TraceEvent } from '../types/trace'
 import { defineAStore, defineAStoreCtx, getDefineAStoreSetupContext } from '../utils/store'
 
-const traceRegistry = createTracerRegistry()
+const traceRegistry = createTestTracerRegistry()
 const { addListener, clearTraceListeners } = traceRegistry
 const createTracer = traceRegistry.tracerHandler.createTracer
 

@@ -7,9 +7,4 @@ export {
     getDefineAStoreSetupContext,
     setEnhancedStore
 } from "../utils/store"
-export { createTracerRegistry } from "../factories/trace-registry"
-export { default as Tracer } from "../system/Tracer"
-export { getTraceGroupName, traceGroups } from '../utils/traceGroups'
-export { defaultRedactedKeys } from '../utils/redact'
-
-export { stringifyForHtml as stringifyTraceSnapshot } from '../utils/toSerializable'
+export { traceGroups } from '../utils/traceGroups'

@@ -10,7 +10,7 @@ import {
 import { parsePreferredLocale } from './utils/parsePreferredLocale'
 
 import type { PiniaPluginContext } from 'pinia'
-import type { Tracer } from 'pinia-plugin-subscription/helpers'
+import type { Tracer } from 'pinia-plugin-subscription/types'
 import type { VisitorBrowserData, VisitorServerData } from './types/plugin'
 
 const browserData: VisitorBrowserData = {

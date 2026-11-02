@@ -1,9 +1,7 @@
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { StoreOptions } from "./store"
 import type { PluginSubscriberInterface } from "."
-import Tracer from "../system/Tracer"
-import type { PluginDevtoolsOptions } from "./devtools"
-import type { TracerHandler } from "./trace"
+import type { Tracer, TracerHandler } from "./trace"
 
 
 export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
@@ -39,14 +37,8 @@ export interface PluginStoreOptions {
 
 export interface PluginSubscriptionOptions {
     /**
-     * Automatically creates a trace journal and mounts the in-page panel in development browsers.
-     * Pass panel options to customize its appearance.
-     */
-    devtools?: boolean | PluginDevtoolsOptions
-
-    /**
      * Tracer handler for the plugin subscriber.
-     * This allows the plugin to interact with the tracing system.
+     * Provided by a tracing package such as `pinia-plugin-subscription-devtools`; tracing is inactive without it.
      */
     tracerHandler?: TracerHandler
 

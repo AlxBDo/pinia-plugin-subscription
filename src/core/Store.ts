@@ -1,6 +1,6 @@
 import { isRef, ref, toRef } from "vue"
-import Tracer from "../system/Tracer"
 import TraceEmitter from "../system/TraceEmitter"
+import type { Tracer } from "../types/trace"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
 

@@ -16,12 +16,3 @@ export const traceGroups = {
     pluginDeferred: (storeId: string, subscriberName: string, callId: number) => `${plugin(storeId)}/deferred:${subscriberName}#${callId}`,
     reset: (storeId: string, callId: number) => `${storeId}/reset#${callId}`
 }
-
-const callIdSuffix = /#\d+$/
-
-/** Human readable name of a group: its last segment, without the call counter. */
-export function getTraceGroupName(groupId: string): string {
-    const segment = groupId.slice(groupId.lastIndexOf('/') + 1)
-    if (segment === 'plugin') { return 'Plugin setup' }
-    return segment.replace(callIdSuffix, '').replace(':', ' · ')
-}

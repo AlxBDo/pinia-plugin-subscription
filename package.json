@@ -1,6 +1,6 @@
 {
   "name": "pinia-plugin-subscription",
-  "version": "1.0.0-beta.14",
+  "version": "1.0.0-beta.15",
   "description": "Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a Store base class for store helpers.",
   "type": "module",
   "sideEffects": false,
@@ -30,10 +30,6 @@
       "types": "./dist/lib/main.d.ts",
       "import": "./dist/pinia-plugin-subscription.js"
     },
-    "./devtools": {
-      "types": "./dist/devtools/index.d.ts",
-      "import": "./dist/devtools.js"
-    },
     "./helpers": {
       "types": "./dist/helpers/index.d.ts",
       "import": "./dist/helpers.js"
@@ -46,9 +42,6 @@
   "types": "./dist/lib/main.d.ts",
   "typesVersions": {
     "*": {
-      "devtools": [
-        "./dist/devtools/index.d.ts"
-      ],
       "helpers": [
         "./dist/helpers/index.d.ts"
       ],
@@ -78,8 +71,9 @@
     "dev:library": "vite",
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "build": "vitest && vite build && tsc --emitDeclarationOnly --outDir dist && npm run check:leaks && node scripts/measure-bundle.mjs",
-    "check:leaks": "node scripts/check-dist-leaks.mjs",
+    "build": "vitest run && npm run build:library && npm run build -w pinia-plugin-subscription-devtools",
+    "build:library": "vite build && tsc --emitDeclarationOnly --outDir dist && node scripts/check-dist-leaks.mjs . && node scripts/measure-bundle.mjs",
+    "check:leaks": "node scripts/check-dist-leaks.mjs . && node scripts/check-dist-leaks.mjs packages/devtools",
     "bundle:check": "vite build --config vite.config.ts && node scripts/measure-bundle.mjs",
     "build:demo": "vite --config vite.demo.config.ts build",
     "preview": "vite preview --config vite.demo.config.ts"
@@ -109,5 +103,8 @@
     "vitest": "^4.0.15",
     "vue": "^3.5.24",
     "vue-tsc": "^3.1.4"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

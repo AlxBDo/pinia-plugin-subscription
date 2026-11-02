@@ -135,5 +135,3 @@ export function mountTraceDevtools(
         }
     }
 }
-
-export type { TraceDevtoolsHandle, TraceDevtoolsOptions } from '../types/devtools'

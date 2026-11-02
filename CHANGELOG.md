@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking)
+- The tracing solution moved to the new `pinia-plugin-subscription-devtools` package (`packages/devtools/`, same repository). `pinia-plugin-subscription` now only emits trace events through the `Tracer` / `TracerHandler` contract exported from `pinia-plugin-subscription/types`; without a `tracerHandler` it emits nothing. The compressed package drops from about 117 kB to about 50 kB, and the new package weighs about 19 kB.
+- `createTracerRegistry`, `Tracer` (class), `defaultRedactedKeys`, `stringifyTraceSnapshot`, `getTraceGroupName` and `mountTraceDevtools` are now exported by `pinia-plugin-subscription-devtools` instead of `pinia-plugin-subscription/helpers` and `pinia-plugin-subscription/devtools`. `traceGroups` stays in `pinia-plugin-subscription/helpers`.
+- The `Tracer` export of `pinia-plugin-subscription/helpers` is now the `Tracer` interface of `pinia-plugin-subscription/types`.
+- `TracerHandler.createTracer(source)` no longer takes options, and `TracerHandler` no longer exposes `journal`; the registry's handler of the devtools package does.
+- Source maps are no longer published.
+
+### Removed
+- The `devtools` option of `createPlugin()` and the `pinia-plugin-subscription/devtools` entry point. Install `pinia-plugin-subscription-devtools` and use `createTraceDevtools()` (which creates a redacted journal registry, imports the SSR snapshot and mounts the panel in development browsers) with `tracerHandler: registry.tracerHandler`.
+- Types `TraceFilter`, `TraceJournal`, `TraceRegistry`, `TracerOptions`, `TracerRegistryOptions` and the other registry types from `pinia-plugin-subscription/types`; they are exported by `pinia-plugin-subscription-devtools`.
+
+### Added
+- `pinia-plugin-subscription-devtools` package with `createTraceDevtools(options?)`, `createTracerRegistry()`, `mountTraceDevtools()` and the tracing documentation (`packages/devtools/docs/tracing.md`).
+
 ### Added
 - `addScopesListener(scopes, context?, handler?)` accepts a custom trace handler; custom `handler` / `filter` listeners are the supported way to consume trace events, documented in `docs/tracing.md`
 - `createPlugin(subscribers, { devtools: true })` automatically creates a redacting trace journal (or reuses the supplied registry journal), imports a conventional SSR snapshot, and dynamically mounts the in-page panel in development browsers; supports devtools options and is documented in `README.md` and `docs/tracing.md`

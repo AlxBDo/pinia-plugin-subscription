@@ -1,7 +1,7 @@
 import { createSSRApp } from 'vue'
 import { createPinia, type StateTree } from 'pinia'
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTraceDevtools } from 'pinia-plugin-subscription-devtools'
 import type { PluginRuntimeEnvironment, PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
 import { ExtendsPiniaStore } from 'pinia-plugin-extending-store'
 
@@ -21,7 +21,8 @@ export function createDemoApp(
         pinia.state.value = initialState
     }
 
-    const tracerRegistry = createTracerRegistry({ journal: true })
+    // Mounts the in-page panel in the browser; on the server only records the journal sent to the client
+    const { registry: tracerRegistry } = createTraceDevtools()
     const subscribers: PluginSubscriberInterface[] = [
         createDemoPluginClass(),
         createDemoPluginObject(),
@@ -31,8 +32,7 @@ export function createDemoApp(
 
     pinia.use(createPlugin(subscribers, {
         runtimeEnvironment,
-        tracerHandler: tracerRegistry.tracerHandler,
-        devtools: runtimeEnvironment === 'client'
+        tracerHandler: tracerRegistry.tracerHandler
     }))
 
     app.use(pinia)

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTracerRegistry } from '../factories/trace-registry'
+import { createTestTracerRegistry } from './support/testTracer'
 import TraceEmitter from '../system/TraceEmitter'
 
-import type { Tracer } from '../helpers'
+import type { Tracer } from '../types/trace'
 import type { TraceEvent } from '../types/trace'
 
 class Emitter extends TraceEmitter {
@@ -15,7 +15,7 @@ class Emitter extends TraceEmitter {
 }
 
 function setup() {
-    const registry = createTracerRegistry()
+    const registry = createTestTracerRegistry()
     const events: TraceEvent[] = []
     registry.addListener({ filter: () => true, handler: event => { events.push(event) } })
     return { emitter: new Emitter(registry.tracerHandler.createTracer('Source')), events }

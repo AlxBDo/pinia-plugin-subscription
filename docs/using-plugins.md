@@ -22,8 +22,9 @@ Plugins built on `pinia-plugin-subscription` share a common contract:
 - **`$reset` on registered stores** — every store registered by the plugin
   gains a `$reset()` method that restores its initial state, including
   setup-style stores where pinia does not provide one natively.
-- **Runtime-filtered tracing** — register trace listeners and filter events by
-  source, namespace, scope, or level.
+- **Runtime-filtered tracing** — with `pinia-plugin-subscription-devtools`,
+  register trace listeners and filter events by source, namespace, scope, or
+  level.
 - **SSR-safe execution** — each plugin declares where (`client`, `server`
   or `both`) and when (`immediate` or deferred after hydration) it runs.
 - **State rollback on action failure** — actions listed in the
@@ -325,16 +326,19 @@ try {
 
 ## Tracing
 
-See the [Tracing documentation](./tracing.md) for the full guide. Tracing is
-disabled by default in production builds and can mask sensitive payload keys
-with `createTracerRegistry({ redact: true })`.
+Tracing is provided by the separate `pinia-plugin-subscription-devtools`
+package (`npm install -D pinia-plugin-subscription-devtools`); the plugin
+emits nothing without it. See its
+[Tracing documentation](../packages/devtools/docs/tracing.md) for the full
+guide. Tracing is disabled by default in production builds and can mask
+sensitive payload keys with `createTracerRegistry({ redact: true })`.
 
 Register listeners independently from plugin construction:
 
 ```js
 import {
   createTracerRegistry
-} from 'pinia-plugin-subscription/helpers'
+} from 'pinia-plugin-subscription-devtools'
 import {
   createPlugin
 } from 'pinia-plugin-subscription'
@@ -384,7 +388,7 @@ finishes.
 import { createSSRApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTracerRegistry } from 'pinia-plugin-subscription-devtools'
 import App from './App.vue'
 import { subscribers } from './subscribers'
 
