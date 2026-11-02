@@ -34,26 +34,13 @@ export type ConsoleStyleDefinitions = StyleDefinitions
 export type {
     TraceEvent,
     TraceEventMetadata,
-    TraceFilter,
     TraceHandler,
-    TraceJournal,
-    TraceJournalListener,
-    TraceJournalOptions,
     TraceLevel,
-    TraceListener,
-    TraceListenerRemover,
     TracePayload,
-    TraceRedactOptions,
-    TraceRegistry,
     TraceSide,
-    TracerOptions,
-    TracerRegistryOptions
+    Tracer,
+    TracerHandler
 } from './trace'
-export type {
-    PluginDevtoolsOptions,
-    TraceDevtoolsHandle,
-    TraceDevtoolsOptions
-} from './devtools'
 export type {
     CustomStore,
     DefineAStoreSetupContext,

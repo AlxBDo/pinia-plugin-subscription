@@ -150,11 +150,11 @@ function readBuiltFiles(directory, rootDirectory = directory) {
 }
 
 function run() {
-    const rootDir = path.resolve(__dirname, '..')
+    const rootDir = path.resolve(__dirname, '..', process.argv[2] ?? '.')
     const distDir = path.join(rootDir, 'dist')
 
     if (!statSync(distDir, { throwIfNoEntry: false })?.isDirectory()) {
-        console.error('dist/ not found: run `npm run build` before checking for leaks.')
+        console.error(`${path.relative(process.cwd(), distDir)} not found: run \`npm run build\` before checking for leaks.`)
         process.exit(1)
     }
 

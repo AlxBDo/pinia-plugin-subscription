@@ -1,0 +1,57 @@
+{
+  "name": "pinia-plugin-subscription-devtools",
+  "version": "1.0.0-beta.0",
+  "description": "Trace registry, journal and in-page panel to debug pinia-plugin-subscription and the Pinia plugins built on it.",
+  "type": "module",
+  "sideEffects": false,
+  "author": "Alexandre Bidaud <alexbidaud85@gmail.com> (https://github.com/AlxBDo)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlxBDo/pinia-plugin-subscription.git",
+    "directory": "packages/devtools"
+  },
+  "homepage": "https://github.com/AlxBDo/pinia-plugin-subscription/tree/main/packages/devtools",
+  "bugs": {
+    "url": "https://github.com/AlxBDo/pinia-plugin-subscription/issues"
+  },
+  "keywords": [
+    "pinia",
+    "vue",
+    "devtools",
+    "debug",
+    "trace",
+    "pinia-plugin-subscription"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/pinia-plugin-subscription-devtools.js"
+    }
+  },
+  "main": "./dist/pinia-plugin-subscription-devtools.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "docs",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "vite build && tsc --emitDeclarationOnly --outDir dist && node ../../scripts/check-dist-leaks.mjs packages/devtools"
+  },
+  "peerDependencies": {
+    "pinia-plugin-subscription": ">=1.0.0-beta.15",
+    "vue": "^3.0.0"
+  },
+  "devDependencies": {
+    "pinia-plugin-subscription": "file:../.."
+  }
+}

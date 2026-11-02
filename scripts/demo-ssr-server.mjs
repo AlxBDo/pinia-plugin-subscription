@@ -19,7 +19,7 @@ async function renderRequest(request, response) {
         const template = await readFile(resolve(demoRoot, 'index.html'), 'utf-8')
         const transformedTemplate = await vite.transformIndexHtml(url, template)
         const { renderDemo } = await vite.ssrLoadModule('/entry-server.ts')
-        const { stringifyTraceSnapshot: stringifyForHtml } = await vite.ssrLoadModule('pinia-plugin-subscription/helpers')
+        const { stringifyTraceSnapshot: stringifyForHtml } = await vite.ssrLoadModule('pinia-plugin-subscription-devtools')
         const { html, state, traces } = await renderDemo(pathname, {
             acceptLanguage: request.headers['accept-language']
         })

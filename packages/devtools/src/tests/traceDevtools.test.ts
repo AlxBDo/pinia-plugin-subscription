@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createTracerRegistry } from '../factories/trace-registry'
-import { mountTraceDevtools } from '../devtools'
+import { mountTraceDevtools } from '../panel/mount'
 
 const hostId = 'pinia-plugin-subscription-devtools'
 const shadow = () => document.getElementById(hostId)!.shadowRoot!

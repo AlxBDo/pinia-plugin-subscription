@@ -10,12 +10,11 @@ export default defineConfig({
     target: 'es2020',
     minify: 'esbuild',
     reportCompressedSize: false,
-    sourcemap: true,
+    sourcemap: false,
     lib: {
       entry: {
         index: resolve(__dirname, 'src/lib/main.ts'),
         helpers: resolve(__dirname, 'src/helpers/index.ts'),
-        devtools: resolve(__dirname, 'src/devtools/index.ts'),
       },
       name: pluginName,
       formats: ['es'],

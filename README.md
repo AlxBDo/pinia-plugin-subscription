@@ -35,7 +35,7 @@ The package serves two audiences:
 | --- | --- |
 | Use a compatible plugin (e.g. `pinia-plugin-extending-store`, `pinia-plugin-persist-state`) or this package's built-in store features (`defineAStore`, `$reset`, state rollback) in your app | [Using compatible plugins](docs/using-plugins.md) |
 | Build your own pinia plugin on top of `pinia-plugin-subscription` (API reference, `Store` class, import subpaths, development and testing) | [Plugin authoring guide](docs/authoring-plugins.md) |
-| Debug stores and plugins with structured trace events | [Tracing](docs/tracing.md) |
+| Debug stores and plugins with structured trace events | [Tracing](packages/devtools/docs/tracing.md) |
 
 A runnable example lives in [`demo/`](demo/) (`npm run dev` for SPA mode or `npm run dev:ssr` for Vite SSR). The SSR example hydrates **one store from two environments**: a server-only subscriber loads request data (awaited before rendering and serializing Pinia state) and a client-only, deferred subscriber fills browser data after hydration, with a visual timeline; see the [reference implementation](docs/authoring-plugins.md#reference-implementation). Plugins built on this package are discoverable through the [`pinia-plugin-subscription` GitHub topic](https://github.com/topics/pinia-plugin-subscription).
 
@@ -65,38 +65,29 @@ app.mount('#app')
 
 ## Advanced Features
 
-- **Structured tracing:** Subscribe to typed trace events and filter them at runtime, per store or per namespace, and consume them with your own `handler` — see [Tracing](#tracing).
-- **Scope-based trace listeners:** Use `addScopesListener(scopes, context?, handler?)` to receive events from selected stores — see [Tracing](docs/tracing.md#filtering-events).
-- **Trace journal:** `createTracerRegistry({ journal: true })` records every event per store (with `actionId`, `seq` and `side`) so a store trace can be read back at any time — see [Tracing](docs/tracing.md#journal).
-- **In-page trace panel:** enable it with `createPlugin(subscribers, { devtools: true })` in development, or mount it manually with `mountTraceDevtools()` (from `pinia-plugin-subscription/devtools`) — see [Tracing](docs/tracing.md#in-page-trace-panel).
+- **Structured tracing:** the plugin and `Store` emit typed trace events through an optional `tracerHandler`. Tracing itself (listeners, journal, redaction, in-page panel) lives in the separate [`pinia-plugin-subscription-devtools`](packages/devtools/) package, so apps that do not debug stay lean — see [Tracing](#tracing).
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 
 ## Tracing
 
-A built-in, opt-in debugging solution: plugins and stores emit structured trace events that you select with filters, optionally redact, and consume with your own handler (or inspect in the devtools panel). The package no longer prints traces to the console itself. It is disabled by default in production builds and costs nothing when unused.
+The plugin only *emits* structured trace events; without a `tracerHandler` it emits nothing and costs nothing. Install [`pinia-plugin-subscription-devtools`](packages/devtools/) (usually as a development dependency) to consume them with filtered listeners, a per-store journal, payload redaction and an in-page panel:
+
+```bash
+npm install -D pinia-plugin-subscription-devtools
+```
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTraceDevtools } from 'pinia-plugin-subscription-devtools'
 
-const registry = createTracerRegistry({ redact: true })
-registry.addListener({
-  filter: [{ target: 'scope', value: 'cart' }],
-  handler: event => console.log(event.label, event.payload)
-})
+const { registry } = createTraceDevtools() // mounts the in-page panel in development browsers
 
 pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
 ```
 
-See the [Tracing documentation](docs/tracing.md) for filtering, redaction, production safety, event shape and error reporting.
-
-For a development-only in-page trace panel, no separate registry or devtools import is needed. If the page contains a JSON script with the default ID `pinia-traces`, its SSR journal snapshot is imported automatically:
-
-```ts
-pinia.use(createPlugin(subscribers, { devtools: true }))
-```
+See the [Tracing documentation](packages/devtools/docs/tracing.md) for filtering, redaction, production safety, event shape and error reporting. Plugin authors only need the `Tracer` and `TracerHandler` types from `pinia-plugin-subscription/types`, and `createTracer` / `this.trace()` to emit events.
 
 ## License
 
@@ -104,4 +95,4 @@ MIT
 
 ## Publishing
 
-Releases are published to npm via GitHub Actions. GitHub releases marked as pre-releases are published with the `beta` dist-tag using `npm publish --tag beta`; stable releases use the default `latest` tag. The workflow uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.
+Both packages (`pinia-plugin-subscription` and `pinia-plugin-subscription-devtools`) are published to npm via GitHub Actions on the same release. GitHub releases marked as pre-releases are published with the `beta` dist-tag using `npm publish --tag beta`; stable releases use the default `latest` tag. The workflow uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.

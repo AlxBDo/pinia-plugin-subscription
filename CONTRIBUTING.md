@@ -23,6 +23,15 @@ Please be respectful and constructive in all interactions with other contributor
    git checkout -b feature/your-feature-name
    ```
 
+## Repository Layout
+
+This repository is an npm workspace with two published packages:
+
+- `pinia-plugin-subscription` (repository root, `src/`): the plugin. It only *emits* trace events through the `TracerHandler` contract (`src/types/trace.ts`) and must never import the devtools package.
+- `pinia-plugin-subscription-devtools` (`packages/devtools/`): consumes trace events (registry, journal, redaction, in-page panel). It depends on the plugin through types only.
+
+Core tests use the in-memory tracer in `src/tests/support/testTracer.ts`; end-to-end tracing tests live in `packages/devtools/src/tests/`.
+
 ## Development Workflow
 
 ### Running Tests
@@ -36,7 +45,7 @@ npm run coverage      # Generate coverage report
 ### Building
 
 ```bash
-npm run build         # Run tests, build, and generate types
+npm run build         # Run tests, then build and check both packages
 ```
 
 ### Preview Changes

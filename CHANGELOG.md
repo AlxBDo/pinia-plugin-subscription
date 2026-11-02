@@ -8,28 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `addScopesListener(scopes, context?, handler?)` accepts a custom trace handler; custom `handler` / `filter` listeners are the supported way to consume trace events, documented in `docs/tracing.md`
-- `createPlugin(subscribers, { devtools: true })` automatically creates a redacting trace journal (or reuses the supplied registry journal), imports a conventional SSR snapshot, and dynamically mounts the in-page panel in development browsers; supports devtools options and is documented in `README.md` and `docs/tracing.md`
-- `pinia-plugin-subscription/devtools`: `mountTraceDevtools(registry, options?)` mounts an in-page aside (Vue, Shadow DOM) reading the journal: per-store timeline with events grouped by action, client and server interleaved, filters, expandable payloads, and a Context tab; documented in `docs/tracing.md`
-- `journal.serialize()` / `journal.import()` and `stringifyTraceSnapshot()` (helpers) to carry server traces to the browser; payloads are bounded and made JSON-safe by `toSerializable`, imports are validated. The SSR demo embeds the server journal in the page and loads it through `createPlugin()` without handling it from the main module
-- `createTracerRegistry({ journal, side })`: opt-in per-store journal (`registry.journal`) recording every trace event with `seq`, `side` and the `actionId` correlating the events of one store action; ring buffer per store and side (default 1000, context and error events kept separately), `getEvents()`, `getScopes()`, `getDropped()`, `subscribe()`, `clear()`; documented in `docs/tracing.md`
+- `pinia-plugin-subscription-devtools` package with `createTraceDevtools(options?)`, `createTracerRegistry()`, `mountTraceDevtools()` and the tracing documentation (`packages/devtools/docs/tracing.md`).
+- `addScopesListener(scopes, context?, handler?)` groups events from selected store scopes and accepts a custom trace handler; custom `handler` / `filter` listeners are the supported way to consume trace events, documented in `packages/devtools/docs/tracing.md`
+- `journal.serialize()` / `journal.import()` and `stringifyTraceSnapshot()` to carry server traces to the browser; payloads are bounded and made JSON-safe by `toSerializable`, imports are validated. The SSR demo embeds the server journal in the page and loads it through `createTraceDevtools()`
+- `pinia-plugin-subscription-devtools`: `createTracerRegistry({ journal, side })` enables a per-store journal (`registry.journal`) recording every trace event with `seq`, `side` and the `actionId` correlating the events of one store action; ring buffer per store and side (default 1000, context and error events kept separately), `getEvents()`, `getScopes()`, `getDropped()`, `subscribe()`, `clear()`; documented in `packages/devtools/docs/tracing.md`
 - SSR demo subscribers are now class-based (`PluginSubscriber` + a `Store` subclass) and emit traces through the tracer `PluginSubscription` provides (`this.trace()` / `this.traceError()`): hydration start/done, errors, and the `onMutation` trace group, all scoped to the store; the per-request tracer registry also listens on the server, so server traces print in the Node terminal and browser traces in the devtools console
 - SSR demo shows a concrete case of environment-aware hydration: one store filled by a server-only subscriber (request data) and a client-only deferred subscriber (browser data), with a server/browser panel layout and a hydration timeline; the `Accept-Language` header is validated before being serialized
 - Added a Vite SSR demo server (`npm run dev:ssr`) with per-request app/plugin instances, async server-side subscriber hydration, and Pinia state serialization for client hydration
 - Demo: `defineAStoreCtx` enhanced-store example; the demo app now resolves the package to `src/` through Vite aliases (no build needed)
 - Added `pinia-plugin-subscription` to the package `keywords`
-- Added `addScopesListener(scopes, context?)` to `createTracerRegistry()` for grouping events from selected store scopes; documented in `docs/tracing.md`
 - `traceGroups` glossary, exported from `pinia-plugin-subscription/helpers`, building the `groupId` emitted by `PluginSubscription` (`onActionAfter`, `onActionError`, `onMutation`, `reset`); documented in `docs/tracing.md`
 - `createPluginSubscriber(name, invoke, optionalProps?)` factory, exported from `pinia-plugin-subscription/helpers`, to build plain-object subscribers; documented in `docs/authoring-plugins.md` and used by the demo plugin
 - Added a dedicated tracing guide, `docs/tracing.md`; the README now only presents tracing and links to it
 - Moved the API reference, import subpaths, development, `Store` summary and testing sections from `README.md` to `docs/authoring-plugins.md`
-- `createTracerRegistry({ redact })`: opt-in redaction of event payloads before they reach listeners. `true` masks a default list of sensitive keys (`password`, `token`, `secret`, `authorization`, API/private keys, `credential`, `cookie`, `cipher`...); an object adds custom `keys`, a `replacement`, or drops the defaults with `includeDefaults: false`. It works on a copy, covers arrays/`Map`/`Set`, handles circular references, and replaces the payload by `__traceRedactionError` if redaction fails. `defaultRedactedKeys` and `TraceRedactOptions` are exported
-- `createTracerRegistry({ enabled })`: tracing is now disabled by default in production builds (`process.env.NODE_ENV === 'production'`); `addListener()` becomes a no-op unless `enabled: true` is passed. `enabled: false` forces it off in any environment. Error reporting through `console.error` is unchanged
-- Added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
-- Added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
-- Added metadata-based trace filter criteria with `equals`, `contains`, `startsWith` and `endsWith` comparators, combined with `every` or `some`
+- `pinia-plugin-subscription-devtools`: `createTracerRegistry({ redact })` opts into redaction of event payloads before they reach listeners. `true` masks a default list of sensitive keys (`password`, `token`, `secret`, `authorization`, API/private keys, `credential`, `cookie`, `cipher`...); an object adds custom `keys`, a `replacement`, or drops the defaults with `includeDefaults: false`. It works on a copy, covers arrays/`Map`/`Set`, handles circular references, and replaces the payload by `__traceRedactionError` if redaction fails. `defaultRedactedKeys` and `TraceRedactOptions` are exported
+- `createTracerRegistry({ enabled })` in `pinia-plugin-subscription-devtools`: tracing is now disabled by default in production builds (`process.env.NODE_ENV === 'production'`); `addListener()` becomes a no-op unless `enabled: true` is passed. `enabled: false` forces it off in any environment. Error reporting through `console.error` is unchanged
+- `pinia-plugin-subscription-devtools`: added `createTracerRegistry()` to create isolated trace listeners and tracers for each application or Pinia instance
+- `pinia-plugin-subscription-devtools`: added the `Tracer` class and registry methods `addTraceListener()`, `clearTraceListeners()` and `hasTraceListeners()`
+- `pinia-plugin-subscription-devtools`: added metadata-based trace filter criteria with `equals`, `contains`, `startsWith` and `endsWith` comparators, combined with `every` or `some`
 - Added `trace()` and `traceError()` to `Store` and `PluginSubscription`
-- Added trace types: `TraceEvent`, `TraceEventMetadata`, `TraceFilter`, `TraceHandler`, `TraceLevel`, `TraceListener`, `TraceListenerRemover`, `TracePayload`, `TracerOptions`
+- Added trace types: `TraceEvent`, `TraceEventMetadata`, `TraceHandler`, `TraceLevel`, `TraceListener`, `TraceListenerRemover` and `TracePayload`
 - Added `check:leaks` script and `scripts/check-dist-leaks.mjs`, guarding published artifacts against non-peer dependency imports in `dist/` (`.js` and `.d.ts`)
 - Added the leak guard to `npm run build` and to the CI workflow
 - Added unit tests covering the tracing system and the leak detection logic
@@ -39,14 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** removed the built-in console output of traces (`createConsoleGroupTraceListener`, `ConsoleTraceGroupListener`, `TraceGroupListener`, `TraceListenerGroupBy`, the `groupBy` option of `addListener()`, and the internal console printers). Listeners now only forward events to their own `handler` (a no-op when omitted); `startGroup` / `closeGroup` only maintain the open-group stack that sets `groupId`. Fixed `tracerHandler.journal` not being exposed by the registry
 - Trace groups follow the lifecycles of a store: `groupId` is now a `/` separated path (`<storeId>/plugin`, `<storeId>/onAction:<name>#<n>`, with `/after` and `/onError` sub-groups, `<storeId>/onMutation#<n>`, `<storeId>/reset#<n>`, `<storeId>/plugin/deferred:<subscriber>#<n>`). Every trace emitted for a store while a group is open, including those of subscribers and `Store` subclasses, joins the innermost one. `traceGroups` builders take the call counter; `TraceGroupId` is removed, and `groupId` is lifted from the payload to the event like `actionId`
 - Devtools: the timeline nests events by lifecycle instead of by raw `actionId` (no more `#<n>` ids), events without `error` / `payload` are no longer expandable, `P` (payload) and `E` (error) chips flag the events carrying them, the floating button reads `Devtools` with a debug icon, and the Context tab lists subscribers by name (with their execution options) and shows options without `actions`
-- Console trace groups now prefer `payload.groupId` over the configured `groupBy` key; events sharing a key across overlapping groups are buffered until all those groups close, while events without an open group are printed immediately. See `docs/tracing.md`
 - `storeMutationSubscription` now supports several subscribers per store, like `storeOnActionSubscription`: a single `$subscribe` is registered per store and dispatches to every callback. A failing callback is reported through `traceError` without blocking the others, subscriber names are tracked, and the hook is unsubscribed when the store is disposed
 - `storeOnActionSubscription` now receives the Pinia plugin context; action trace labels include the invoked action name
 - Subscribers deferred with `hydration: 'defer'` now run inside their own trace group (label `subscriber:deferred`, keyed by store scope), which stays open until their asynchronous `hydrate()` / `afterHydration()` settle, so their traces are no longer emitted outside any group once `plugin()` has closed its `context` group. A hydration that never settles can no longer buffer the store's traces forever: the group is force-closed after `deferredTraceGroupTimeout` ms (new option, default 2500) and a `subscriber:deferred:timeout` error is traced
 - Moved the demo application from `src/demo/` to the repository-level `demo/` directory, separating example code from the library source and tracking the demo files in version control.
 - Clarified that SSR tracing registries and plugin instances must be created per request, and added coverage for listener isolation between registries
 - Replaced the `Debug` abstract class with composition: `Store` and `PluginSubscription` no longer extend it and now own a `Tracer`
-- `createPlugin()` accepts `PluginSubscriptionOptions`, including a `createTracer` factory to connect a tracer registry to plugin and store trace events
 - Trace errors with no matching listener, and failures in listener filters or handlers, are now reported with `console.error` instead of rethrowing the original error
 - Deprecated `createHydrationPlugin()` in favor of `createPlugin()` with hydration options
 - Trace payloads are now lazily resolved, so unobserved tracing no longer builds log arguments
@@ -58,6 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Store` and `PluginSubscription` now share the abstract `TraceEmitter` class for `trace()`, `traceError()` and class-name label formatting, removing duplicated code
 - `Tracer` listener matching no longer allocates intermediate arrays beyond the matched set, and duplicated unhandled-error reporting was factored out
 - The `pluginsubscription` namespace prefix is now a shared constant (`pluginSubscriptionNamespace`) instead of a hard-coded string
+
+### Changed (breaking)
+- The tracing solution moved to the new `pinia-plugin-subscription-devtools` package (`packages/devtools/`, same repository). `pinia-plugin-subscription` now only emits trace events through the `Tracer` / `TracerHandler` contract exported from `pinia-plugin-subscription/types`; without a `tracerHandler` it emits nothing. The compressed package drops from about 117 kB to about 50 kB, and the new package weighs about 19 kB.
+- `createTracerRegistry`, `Tracer` (class), `defaultRedactedKeys`, `stringifyTraceSnapshot`, `getTraceGroupName` and `mountTraceDevtools` are now exported by `pinia-plugin-subscription-devtools` instead of `pinia-plugin-subscription/helpers` and `pinia-plugin-subscription/devtools`. `traceGroups` stays in `pinia-plugin-subscription/helpers`.
+- The `Tracer` export of `pinia-plugin-subscription/helpers` is now the `Tracer` interface of `pinia-plugin-subscription/types`.
+- `TracerHandler.createTracer(source)` no longer takes options, and `TracerHandler` no longer exposes `journal`; the registry's handler of the devtools package does.
+- Source maps are no longer published.
 
 ### Documentation
 - Added `demo/README.md` mapping each use case to its demo files and docs; documented the `pinia-plugin-subscription` topic in the Ecosystem section
@@ -78,7 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Subscriber, subscription, action and rollback tracking keys now encode store IDs and names without delimiter collisions; disposing a store removes only its own tracking entries
 - Trace groups opened by `onAction`, `$subscribe` and `$reset` are now always closed (also when the action fails or a callback throws), so grouped events no longer stay buffered forever
 - Listener definitions passed to `addListener()` are no longer mutated when their `filter` is an array of criteria
-- `TracerHandler` and `TraceRegistry` types now match the implementation (`createTracer(source, options?)`, `void` group callbacks, `addListener()` with options, `tracerHandler`); `createTracerRegistry()` is explicitly typed as `TraceRegistry`
 - `CustomConsole.rebuildArgs()` no longer returns `undefined` for unsupported argument types
 - `clearTraceListeners()` now empties the shared listener list in place, so tracers created before the call stop delivering to cleared listeners and see listeners registered afterwards
 
@@ -90,7 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** removed the legacy `debug` and `console` accessors from `Store` and `PluginSubscription`
 - Removed the internal `src/system/Debug.ts` abstract class (was never publicly exported)
 - **Breaking:** replaced module-global trace-listener functions with methods on a `createTracerRegistry()` instance
-- Removed Performance monitoring utilities.
+- Removed Performance monitoring utilities
+- The `devtools` option of `createPlugin()` and the `pinia-plugin-subscription/devtools` entry point; install `pinia-plugin-subscription-devtools` and use `createTraceDevtools()` with `tracerHandler: registry.tracerHandler`
+- Types `TraceFilter`, `TraceJournal`, `TraceRegistry`, `TracerOptions`, `TracerRegistryOptions` and the other registry types from `pinia-plugin-subscription/types`; they are exported by `pinia-plugin-subscription-devtools`
 
 ## [0.2.1]
 

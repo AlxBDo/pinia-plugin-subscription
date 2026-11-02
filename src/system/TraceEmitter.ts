@@ -1,5 +1,4 @@
-import type Tracer from './Tracer'
-import type { TracePayload } from '../types/trace'
+import type { TracePayload, Tracer } from '../types/trace'
 
 /**
  * Base class for objects emitting structured trace events.

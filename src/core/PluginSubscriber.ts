@@ -9,7 +9,7 @@ import type {
     StoreMutationSubscription,
     StoreOnActionSubscription
 } from "../types/plugin";
-import type Tracer from "../system/Tracer";
+import type { Tracer } from "../types/trace";
 
 
 

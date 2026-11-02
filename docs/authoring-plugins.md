@@ -400,13 +400,19 @@ class CartStore extends Store {
 }
 ```
 
-`createTracerRegistry()` is available from
-`pinia-plugin-subscription/helpers`. Register event criteria with
-`addListener()` (with your own `handler`) and pass the registry's `tracerHandler` through
+The plugin only emits events: it provides the `Tracer` and `TracerHandler`
+types (from `pinia-plugin-subscription/types`) and ignores tracing when no
+`tracerHandler` is configured. Consuming events is the job of the separate
+`pinia-plugin-subscription-devtools` package, which provides
+`createTracerRegistry()`. Register event criteria with `addListener()` (with
+your own `handler`) and pass the registry's `tracerHandler` through
 `createPlugin()` options to consume plugin and store events.
 Criteria target event metadata and support `equals`, `contains`, `startsWith`
-and `endsWith` comparisons. See the [Tracing documentation](./tracing.md) for
-filtering, redaction, production safety and error reporting.
+and `endsWith` comparisons. See the
+[Tracing documentation](../packages/devtools/docs/tracing.md) for filtering,
+redaction, production safety and error reporting. To test your plugin's
+traces, install it as a development dependency, or provide a minimal
+`TracerHandler` of your own.
 
 ## Typing per-store options: `StoreOptionsExtensions` (TypeScript)
 
@@ -580,7 +586,7 @@ resolve the package to `src/`, so no build is needed. See also
 | Environment-aware hydration | [`demo/plugins/demoPluginEnvironmentHydration.ts`](../demo/plugins/demoPluginEnvironmentHydration.ts), [`demo/core/VisitorEnvironmentStore.ts`](../demo/core/VisitorEnvironmentStore.ts), [`demo/stores/visitor-environment.ts`](../demo/stores/visitor-environment.ts), [`demo/entry-server.ts`](../demo/entry-server.ts) | One store hydrated by a server-only subscriber (awaited before render and serialization) and a client-only `hydration: 'defer'` subscriber; each is skipped in the other environment; traces via `Store.trace()` and the `onMutation` group |
 | Enhanced store | [`demo/stores/enhanced-store.ts`](../demo/stores/enhanced-store.ts), [`demo/components/EnhancedExample.vue`](../demo/components/EnhancedExample.vue) | `defineAStoreCtx` + `getEnhancedStore` consuming the `DemoStore` augmentations |
 | Option typing | [`demo/types/plugin.ts`](../demo/types/plugin.ts) | Extending `StoreOptions` with plugin options |
-| Registration & tracing | [`demo/main.ts`](../demo/main.ts) | `createPlugin()` with several subscribers, `createTracerRegistry()`, `addScopesListener()` |
+| Registration & tracing | [`demo/app.ts`](../demo/app.ts) | `createPlugin()` with several subscribers, `createTraceDevtools()` from `pinia-plugin-subscription-devtools` |
 | Rollback | [`demo/stores/rollback-snapshot.ts`](../demo/stores/rollback-snapshot.ts), [`demo/components/Example.vue`](../demo/components/Example.vue) | `rollbackAfterFailure` option vs manual `$rollbackAfterFailure()` |
 
 Open the browser console to see the trace output of the

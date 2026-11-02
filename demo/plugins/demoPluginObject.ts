@@ -1,4 +1,5 @@
-import { createPluginSubscriber, type Tracer } from 'pinia-plugin-subscription/helpers'
+import { createPluginSubscriber } from 'pinia-plugin-subscription/helpers'
+import type { Tracer } from 'pinia-plugin-subscription/types'
 import type { PluginStoreOptions, StoreOnActionCallbackParameters } from 'pinia-plugin-subscription/types'
 
 

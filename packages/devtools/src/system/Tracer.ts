@@ -1,4 +1,5 @@
 import type { AnyObject } from '../types'
+import type { Tracer as TracerContract } from 'pinia-plugin-subscription/types'
 import type {
     TraceEvent,
     TraceEventMetadata,
@@ -28,7 +29,7 @@ function resolvePayload(payload: TracePayload): AnyObject | undefined {
  * Nothing is allocated when no listener matches:
  * the payload is a factory resolved only once a consumer is known.
  */
-export default class Tracer {
+export default class Tracer implements TracerContract {
     private readonly _currentGroupId?: TracerOptions['currentGroupId']
     private readonly _journal?: TraceJournal
     private readonly _listeners: TraceListener[] = []

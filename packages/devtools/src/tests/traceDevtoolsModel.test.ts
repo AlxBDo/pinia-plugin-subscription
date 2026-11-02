@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTimeline, defaultTimelineFilters, filterTimeline, findContextEvent, getEventDetail } from '../devtools/model'
+import { buildTimeline, defaultTimelineFilters, filterTimeline, findContextEvent, getEventDetail } from '../panel/model'
 
 import type { TraceEvent } from '../types/trace'
 import type { TraceTimelineGroup } from '../types/devtools'

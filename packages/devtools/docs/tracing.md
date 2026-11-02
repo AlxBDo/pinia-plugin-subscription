@@ -1,10 +1,10 @@
 # Tracing
 
-Tracing is the debugging solution of `pinia-plugin-subscription`. It is **opt-in**, scoped to an explicit registry, and **allocation free when unused**.
+Tracing is the debugging solution of `pinia-plugin-subscription`, provided by the separate `pinia-plugin-subscription-devtools` package. The plugin only *emits* events through a `tracerHandler`; this package consumes them. Install it explicitly (usually as a development dependency): `npm install -D pinia-plugin-subscription-devtools`. It is **opt-in**, scoped to an explicit registry, and **allocation free when unused**.
 
 Create a trace-groups registry per application or Pinia instance, add criteria to select the events to group, then pass its `tracerHandler` to `createPlugin()` so plugin and store events share its groups.
 
-For SSR, create a fresh registry, Pinia instance, and plugin instance for every request; do not keep them in module-level state or clear a shared registry at request completion, since requests may overlap. See the [SSR guide](./using-plugins.md#ssr--nuxt) for an example.
+For SSR, create a fresh registry, Pinia instance, and plugin instance for every request; do not keep them in module-level state or clear a shared registry at request completion, since requests may overlap. See the [SSR guide](https://github.com/AlxBDo/pinia-plugin-subscription/blob/main/docs/using-plugins.md#ssr--nuxt) for an example.
 
 ## Contents
 
@@ -25,7 +25,7 @@ For SSR, create a fresh registry, Pinia instance, and plugin instance for every 
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
-import { createTracerRegistry } from 'pinia-plugin-subscription/helpers'
+import { createTracerRegistry } from 'pinia-plugin-subscription-devtools'
 
 const traceGroupsRegistry = createTracerRegistry()
 const remove = traceGroupsRegistry.addListener({
@@ -56,7 +56,7 @@ Tracing is **disabled by default in production builds**: `createTracerRegistry()
 
 Events are **not redacted by default** and may include sensitive action arguments, store state, plugin options, or error details. Filters select events by metadata; they do not sanitize payloads. Enable the built-in [redaction](#redaction) and, before writing to a console or forwarding to a logging service, select an allowlist of fields rather than sending complete events.
 
-**Disabling normal tracing does not disable error reporting.** Errors can still be sent to `console.error` without a tracer or when no listener matches. See [Error reporting](#error-reporting) and the [security guidance](../SECURITY.md#tracing-and-production-logging) for precautions, including log access and retention.
+**Disabling normal tracing does not disable error reporting.** Errors can still be sent to `console.error` without a tracer or when no listener matches. See [Error reporting](#error-reporting) and the [security guidance](https://github.com/AlxBDo/pinia-plugin-subscription/blob/main/SECURITY.md#tracing-and-production-logging) for precautions, including log access and retention.
 
 ## Redaction
 
@@ -74,7 +74,7 @@ const custom = createTracerRegistry({
 })
 ```
 
-The default keys (`defaultRedactedKeys`, exported from `pinia-plugin-subscription/helpers`) match, case-insensitively, any key containing `password`/`passwd`/`passphrase`/`passcode`, `secret`, `token`, `authorization`, `api key`, `private/encryption/signing key`, `credential`, `cookie` or `cipher`, or starting with `pwd`. Keys are masked at any depth, including inside arrays, `Map` and `Set`; circular references are handled. Redaction works on a copy, so the live store state is never modified, and it only runs when a listener consumes the event. If redaction itself fails, the payload is replaced by `{ __traceRedactionError }` rather than delivered raw.
+The default keys (`defaultRedactedKeys`, exported by this package) match, case-insensitively, any key containing `password`/`passwd`/`passphrase`/`passcode`, `secret`, `token`, `authorization`, `api key`, `private/encryption/signing key`, `credential`, `cookie` or `cipher`, or starting with `pwd`. Keys are masked at any depth, including inside arrays, `Map` and `Set`; circular references are handled. Redaction works on a copy, so the live store state is never modified, and it only runs when a listener consumes the event. If redaction itself fails, the payload is replaced by `{ __traceRedactionError }` rather than delivered raw.
 
 Limits: only keys are inspected, not values (a secret stored under an innocuous key is not detected), `event.error` is not redacted, and nesting deeper than 12 levels is truncated.
 
@@ -179,7 +179,7 @@ registry.journal?.subscribe(event => { /* live updates */ })
 
 ```ts
 // server, after rendering (one registry per request)
-import { stringifyTraceSnapshot } from 'pinia-plugin-subscription/helpers'
+import { stringifyTraceSnapshot } from 'pinia-plugin-subscription-devtools'
 const traces = stringifyTraceSnapshot(registry.journal?.serialize()) // HTML-safe JSON
 // <script type="application/json" id="pinia-traces">${traces}</script>
 
@@ -193,24 +193,30 @@ Imported events are marked `side: 'server'`, ordered before the local ones, and 
 
 ## In-page trace panel
 
-`pinia-plugin-subscription/devtools` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events nested by lifecycle, client and server interleaved, `P` / `E` chips on events carrying a payload / an error, expandable details, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
+`mountTraceDevtools()` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events nested by lifecycle, client and server interleaved, `P` / `E` chips on events carrying a payload / an error, expandable details, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
 
-For the simplest browser development setup, enable it directly on `createPlugin()`:
+For the simplest browser development setup, use `createTraceDevtools()`:
 
 ```ts
-pinia.use(createPlugin(subscribers, { devtools: true }))
+import { createPlugin } from 'pinia-plugin-subscription'
+import { createTraceDevtools } from 'pinia-plugin-subscription-devtools'
+
+const { registry } = createTraceDevtools()
+pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
 ```
 
-This creates a journal-backed tracer, loads the devtools entry dynamically, and mounts the panel without registering console listeners. If you already pass a registry's `tracerHandler`, its journal is reused. An SSR journal snapshot in a `<script type="application/json" id="pinia-traces">` element is imported automatically; set `serverSnapshotId` to a different element ID or `false` to disable importing it. Normal trace events appear in the panel, not the console; the existing `console.error` fallback for unmatched error events still applies. The option is inactive in production builds and outside the browser. Payloads are redacted using the default redaction keys for the automatically created registry. Pass panel options instead of `true` to customize it, for example `{ devtools: { open: true } }`.
+It creates a journal-backed registry whose payloads are redacted with the default keys, and mounts the panel without registering console listeners. An SSR journal snapshot in a `<script type="application/json" id="pinia-traces">` element is imported automatically; set `serverSnapshotId` to a different element ID or `false` to disable importing it. Normal trace events appear in the panel, not the console; the `console.error` fallback for unmatched error events still applies. Nothing is mounted outside the browser or in production builds. Pass panel options to customize it, for example `createTraceDevtools({ open: true })`; it returns `{ registry, handle }`, `handle` being the `mountTraceDevtools()` handle.
 
-When using a custom `tracerHandler`, it must expose a journal (as the built-in registry handler does). For custom trace listeners, server-side trace transfer, or other registry options, use the manual setup below.
+`createTraceDevtools()` is meant for development. To keep the package out of production bundles, load it with a dynamic import behind a development check. For custom trace listeners, server-side trace transfer, or other registry options, use the manual setup below.
 
 ```ts
+import { createTracerRegistry } from 'pinia-plugin-subscription-devtools'
+
 const registry = createTracerRegistry({ journal: true })
 // ...pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
 
 if (import.meta.env.DEV) {
-    import('pinia-plugin-subscription/devtools').then(({ mountTraceDevtools }) => mountTraceDevtools(registry))
+    import('pinia-plugin-subscription-devtools').then(({ mountTraceDevtools }) => mountTraceDevtools(registry))
 }
 ```
 
@@ -222,7 +228,7 @@ if (import.meta.env.DEV) {
 | `shortcut` | `Alt+Shift+P` | Toggle shortcut, `false` to disable |
 | `container` | `document.body` | Element the panel host is appended to |
 
-`mountTraceDevtools` returns `{ open, close, toggle, unmount }`. It does nothing outside a browser or without a journal. The panel uses `vue` (already a peer dependency); keep it out of production bundles with a dynamic import. The Context tab shows the store objects as they are when first opened.
+`mountTraceDevtools` returns `{ open, close, toggle, unmount }`. It does nothing outside a browser or without a journal. The panel uses `vue` (a peer dependency). The Context tab shows the store objects as they are when first opened.
 
 ## Emitting your own events
 

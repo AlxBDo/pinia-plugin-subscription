@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createTracerRegistry } from '../factories/trace-registry'
 import { createTraceJournal } from '../system/TraceJournal'
-import PluginSubscription from '../core/PluginSubscription'
+import { PluginSubscription } from 'pinia-plugin-subscription/helpers'
 
 import type { TraceEvent } from '../types/trace'
 

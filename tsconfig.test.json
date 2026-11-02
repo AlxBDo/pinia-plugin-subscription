@@ -5,6 +5,7 @@
         "emitDeclarationOnly": false,
         "noEmit": true
     },
+    "exclude": [],
     "include": [
         "src/types/**/*.ts",
         "src/tests/**/*.test-d.ts"

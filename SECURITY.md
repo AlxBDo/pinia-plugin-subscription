@@ -38,7 +38,7 @@ When using pinia-plugin-subscription:
 
 ### Tracing and Production Logging
 
-Normal trace events are opt-in: the plugin requires an explicitly configured `tracerHandler` and matching listeners to deliver them. `createTracerRegistry()` ignores `addListener()` in production builds (`process.env.NODE_ENV === 'production'`) unless `createTracerRegistry({ enabled: true })` is passed. This guard relies on the consuming bundler replacing `process.env.NODE_ENV`; without it, tracing is considered enabled. Production tracing can be useful for incident diagnosis, but should only be enabled deliberately and with controlled access to its output.
+Tracing is provided by the separate `pinia-plugin-subscription-devtools` package. Normal trace events are opt-in: the plugin requires an explicitly configured `tracerHandler` and matching listeners to deliver them. `createTracerRegistry()` ignores `addListener()` in production builds (`process.env.NODE_ENV === 'production'`) unless `createTracerRegistry({ enabled: true })` is passed. This guard relies on the consuming bundler replacing `process.env.NODE_ENV`; without it, tracing is considered enabled. Production tracing can be useful for incident diagnosis, but should only be enabled deliberately and with controlled access to its output.
 
 Trace events are not redacted by default. Depending on the event, they may contain action arguments, store state, mutations, plugin options, subscriptions, or error details. These values can include application secrets or personal data. `createTracerRegistry({ redact: true })` masks values stored under sensitive keys (passwords, tokens, secrets, authorization, API keys, cookies...) before any listener receives them, but it inspects keys only: it does not detect secrets under innocuous keys, and it does not redact `event.error`. A listener can expose them through the browser console, server logs, or an external logging service. The absence of a production block is not, by itself, a vulnerability; the disclosure risk depends on the data emitted, the logging destination, and who can access it.
 
@@ -53,7 +53,7 @@ When configuring tracing:
 
 For production, handle error events with a matching listener that reports only sanitized details, and ensure listener filters and handlers do not throw sensitive errors. Review the application's console and error logging policy as well; do not silently discard operational errors to prevent disclosure.
 
-See [Tracing](./docs/tracing.md) for configuration and event details.
+See [Tracing](./packages/devtools/docs/tracing.md) for configuration and event details.
 
 ## Dependencies Security
 
