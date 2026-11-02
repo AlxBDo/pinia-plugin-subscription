@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { computed, ref } from 'vue'
 import { createTracerRegistry } from '../factories/trace-registry'
 import { stringifyForHtml, toSerializable } from '../utils/toSerializable'
 
@@ -21,6 +22,11 @@ describe('toSerializable', () => {
         expect(toSerializable([1, 2, 3], { maxEntries: 2 })).toEqual([1, 2, '… 1 more'])
         expect(toSerializable([{}, {}, {}], { maxNodes: 2 })).toEqual([{}, '[Truncated]', '[Truncated]'])
         expect(toSerializable({ get bad() { throw new Error('x') } })).toEqual({ bad: '[Unreadable]' })
+    })
+
+    it('unwraps refs and computed to their value', () => {
+        expect(toSerializable({ count: ref(1), double: computed(() => 2), nested: ref({ a: ref('x') }) }))
+            .toEqual({ count: 1, double: 2, nested: { a: 'x' } })
     })
 
     it('drops error stacks', () => {
