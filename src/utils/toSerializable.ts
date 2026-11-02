@@ -34,6 +34,15 @@ export function toSerializable(
         if (current === null) { return null }
 
         const object = current as object
+        // Refs and computed (flagged `__v_isRef`) are displayed through their value
+        if ((object as { __v_isRef?: boolean }).__v_isRef === true) {
+            if (ancestors.has(object)) { return '[Circular]' }
+            try {
+                return convert((object as { value: unknown }).value, depth)
+            } catch {
+                return '[Unreadable]'
+            }
+        }
         if (ancestors.has(object)) { return '[Circular]' }
         if (++nodes > maxNodes) { return '[Truncated]' }
         if (object instanceof Date) { return Number.isNaN(object.getTime()) ? 'Invalid Date' : object.toISOString() }
