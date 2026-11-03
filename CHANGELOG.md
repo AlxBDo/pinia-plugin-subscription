@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reference implementation section lists the demo files and what each one illustrates; README links the demo and the `pinia-plugin-subscription` topic
 
 ### Fixed
+- Publish workflow: `scripts/publish-unpublished.mjs` publishes each package (root, then workspaces) only when its `name@version` is not already on npm, so a re-run after a partial failure no longer fails on versions already published
 - Devtools: the aside body now scrolls inside the aside (its scrollbar was out of reach under the page one)
 - Devtools: traces emitted with the `store:reset:<id>` / `store:onMutation:<id>` group ids of pinia-plugin-extending-store are merged into the plugin `reset` / `onMutation` groups
 - Devtools: the aside no longer sits under the page scrollbar (it keeps a gutter next to it) and the mouse wheel over the aside always scrolls the aside, not the page

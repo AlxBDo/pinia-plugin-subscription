@@ -95,4 +95,4 @@ MIT
 
 ## Publishing
 
-Both packages (`pinia-plugin-subscription` and `pinia-plugin-subscription-devtools`) are published to npm via GitHub Actions on the same release. GitHub releases marked as pre-releases are published with the `beta` dist-tag using `npm publish --tag beta`; stable releases use the default `latest` tag. The workflow uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.
+Both packages (`pinia-plugin-subscription` and `pinia-plugin-subscription-devtools`) are published to npm via GitHub Actions on the same release. GitHub releases marked as pre-releases are published with the `beta` dist-tag; stable releases use the default `latest` tag. The workflow runs `scripts/publish-unpublished.mjs`, which skips any package whose version is already on npm, so it can be safely re-run after a partial failure. It uses npm provenance for better supply-chain security and requires a `NPM_TOKEN` secret in the repository settings.
