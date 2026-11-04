@@ -1,3 +1,5 @@
+import { collectKeys } from './collectKeys'
+
 import type { ToSerializableOptions } from '../types/trace'
 
 const maxStringLength = 2000
@@ -67,7 +69,7 @@ export function toSerializable(
             }
 
             const result: Record<string, unknown> = {}
-            const keys = Object.keys(object).filter(key => !key.startsWith('_'))
+            const keys = collectKeys(object).filter(key => !key.startsWith('_') || key.startsWith('__trace'))
             for (const key of keys.slice(0, maxEntries)) {
                 try {
                     result[key] = convert((object as Record<string, unknown>)[key], depth + 1)

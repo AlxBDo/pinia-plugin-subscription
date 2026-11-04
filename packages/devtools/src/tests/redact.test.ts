@@ -16,6 +16,14 @@ describe('redaction', () => {
     afterEach(() => vi.restoreAllMocks())
 
     describe('createRedactor', () => {
+        it('keeps accessors inherited from class prototypes, and still masks sensitive ones', () => {
+            class Subscriber { _name = 'persist'; get name() { return this._name } get token() { return 't' } }
+
+            const result = createRedactor()({ subscriber: new Subscriber() })
+
+            expect(result).toMatchObject({ subscriber: { name: 'persist', token: DEFAULT_REDACTED_VALUE } })
+        })
+
         it('masks default sensitive keys at any depth', () => {
             const redact = createRedactor()
 
@@ -132,7 +140,7 @@ describe('redaction', () => {
                 .toEqual({ token: 'x', id: 'x' })
         })
 
-        it('does not leak the raw payload when redaction fails', () => {
+        it('never leaks a value it cannot read, and keeps the rest of the payload', () => {
             const registry = createTracerRegistry({ enabled: true, redact: true })
             const events: TraceEvent[] = []
             registry.addListener({ filter: () => true, handler: event => { events.push(event) } })
@@ -143,7 +151,18 @@ describe('redaction', () => {
 
             registry.tracerHandler.createTracer('Source').debug('Label', 'ns', () => hostile)
 
-            expect(events[0]?.payload).toEqual({ __traceRedactionError: 'getter failed' })
+            expect(events[0]?.payload).toEqual({ boom: '[Unreadable]', token: DEFAULT_REDACTED_VALUE })
+        })
+
+        it('does not leak the raw payload when redaction fails', () => {
+            const registry = createTracerRegistry({ enabled: true, redact: true })
+            const events: TraceEvent[] = []
+            registry.addListener({ filter: () => true, handler: event => { events.push(event) } })
+            const hostile = new Proxy({ token: 'abc' }, { ownKeys() { throw new Error('keys failed') } })
+
+            registry.tracerHandler.createTracer('Source').debug('Label', 'ns', () => hostile)
+
+            expect(events[0]?.payload).toEqual({ __traceRedactionError: 'keys failed' })
         })
     })
 })

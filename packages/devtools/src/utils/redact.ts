@@ -1,3 +1,5 @@
+import { collectKeys } from './collectKeys'
+
 import type { AnyObject } from '../types'
 import type { TraceRedactOptions } from '../types/trace'
 
@@ -104,10 +106,16 @@ export function createRedactor(options: TraceRedactOptions | true = true): (payl
 
         const copy: Record<string, unknown> = {}
         seen.set(value, copy)
-        for (const key of Object.keys(value)) {
-            const redactedValue = isSensitive(key)
-                ? replacement
-                : redact((value as Record<string, unknown>)[key], seen, depth + 1)
+        for (const key of collectKeys(value)) {
+            let redactedValue: unknown
+            try {
+                redactedValue = isSensitive(key)
+                    ? replacement
+                    : redact((value as Record<string, unknown>)[key], seen, depth + 1)
+            } catch {
+                // a throwing getter (e.g. a computed of a store being set up) must not hide the rest of the payload
+                redactedValue = '[Unreadable]'
+            }
             Object.defineProperty(copy, key, {
                 configurable: true,
                 enumerable: true,

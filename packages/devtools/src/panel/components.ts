@@ -27,13 +27,23 @@ function formatTime(timestamp: number): string {
     return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`
 }
 
+const summaryMaxKeys = 4
+
+/** Collapsed summary showing the keys/properties directly instead of their count. */
+function buildObjectSummary(value: object): string {
+    if (Array.isArray(value)) { return `Array(${value.length})` }
+    const keys = Object.keys(value)
+    if (!keys.length) { return '{}' }
+    return `{ ${keys.slice(0, summaryMaxKeys).join(', ')}${keys.length > summaryMaxKeys ? ', …' : ''} }`
+}
+
 /** Renders text only (never HTML), so payload content can never inject markup. */
 function renderValue(key: string | undefined, value: unknown, depth = 0): VNode {
     const keyNode = key === undefined ? [] : [h('span', { class: 'pps-key' }, `${key}: `)]
 
     if (value !== null && typeof value === 'object') {
         const entries = Object.entries(value as object)
-        const summary = Array.isArray(value) ? `Array(${entries.length})` : `{${entries.length}}`
+        const summary = buildObjectSummary(value as object)
         return h('details', { class: 'pps-tree', open: depth < 1 }, [
             h('summary', null, [...keyNode, h('span', { class: 'pps-muted' }, summary)]),
             ...entries.map(([childKey, child]) => renderValue(childKey, child, depth + 1))
@@ -177,7 +187,8 @@ function renderContext(events: TraceEvent[]): VNode {
 
     return h('div', null, [
         h('div', { class: 'pps-muted' }, `Recorded ${formatTime(context.timestamp)} (live objects are shown as they were serialized now)`),
-        renderValue(undefined, serializedOf(context, buildContextView(context.payload ?? {})))
+        // Not cached: the store is live and gets extended after the context event (deferred hydration), so each render re-reads it.
+        renderValue(undefined, toSerializable(buildContextView(context.payload ?? {})))
     ])
 }
 

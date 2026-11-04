@@ -21,6 +21,38 @@ describe('mountTraceDevtools', () => {
         warn.mockRestore()
     })
 
+    it('shows object keys in the collapsed summary instead of their count', async () => {
+        const registry = createTracerRegistry({ journal: true })
+        registry.tracerHandler.createTracer('Store').debug('PluginSubscription:context', 'pluginsubscription:context', { subscribers: [], store: {}, options: {} }, 'cart')
+        const handle = mountTraceDevtools(registry, { open: true })
+        await flush()
+
+        Array.from(shadow().querySelectorAll('button')).find(b => b.textContent === 'Context')!.click()
+        await flush()
+        expect(shadow().textContent).toContain('{ subscribers, store, options }')
+        expect(shadow().textContent).not.toMatch(/\{\d+\}/)
+        handle.destroy?.()
+    })
+
+    it('re-reads the live store on each render, so members added after the context event show up', async () => {
+        const registry = createTracerRegistry({ journal: true })
+        const tracer = registry.tracerHandler.createTracer('Store')
+        const store: Record<string, unknown> = { $id: 'cart' }
+        tracer.debug('PluginSubscription:context', 'pluginsubscription:context', { store }, 'cart')
+        const handle = mountTraceDevtools(registry, { open: true })
+        await flush()
+
+        Array.from(shadow().querySelectorAll('button')).find(b => b.textContent === 'Context')!.click()
+        await flush()
+        expect(shadow().textContent).not.toContain('inheritedAction')
+
+        store.inheritedAction = () => { }
+        tracer.debug('Extended', 'ns', undefined, 'cart')
+        await flush()
+        expect(shadow().textContent).toContain('inheritedAction')
+        handle.destroy?.()
+    })
+
     it('renders an isolated panel, grouped by lifecycle, with live updates', async () => {
         const registry = createTracerRegistry({ journal: true })
         const tracer = registry.tracerHandler.createTracer('Store')

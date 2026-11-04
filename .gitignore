@@ -27,3 +27,6 @@ dist-demo
 
 # demo
 **/experiment
+
+# packages
+packages/devtools/src/tests/contextExtendedStore.test.ts
