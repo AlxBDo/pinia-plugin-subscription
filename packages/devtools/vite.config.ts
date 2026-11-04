@@ -17,9 +17,9 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ['vue', /^pinia-plugin-subscription(\/.*)?$/],
+      // propertyReadSideEffects must stay enabled: reading a ref's `.value` inside a computed is what registers the reactive dependency.
       treeshake: {
         moduleSideEffects: false,
-        propertyReadSideEffects: false,
       },
       plugins: [
         {

@@ -84,4 +84,33 @@ describe('mountTraceDevtools', () => {
         expect(shadow().querySelector('aside')).toBeNull()
         handle.unmount()
     })
+
+    it('shows events appended after mounting without remounting', async () => {
+        const registry = createTracerRegistry({ journal: true })
+        const handle = mountTraceDevtools(registry, { open: true })
+        await flush()
+        expect(shadow().textContent).toContain('No store traced yet.')
+
+        registry.tracerHandler.createTracer('Store').debug('Late', 'ns', undefined, 'cart')
+        await flush()
+
+        expect(shadow().textContent).not.toContain('No store traced yet.')
+        expect(shadow().textContent).toContain('cart')
+        expect(shadow().textContent).toContain('Late')
+        handle.unmount()
+    })
+
+    it('updates the floating button error badge after mounting', async () => {
+        const registry = createTracerRegistry({ journal: true })
+        const handle = mountTraceDevtools(registry)
+        await flush()
+        expect(shadow().querySelector('.pps-fab.has-errors')).toBeNull()
+
+        vi.spyOn(console, 'error').mockImplementation(() => { })
+        registry.tracerHandler.createTracer('Store').error('Failed', 'ns', new Error('x'), undefined, 'cart')
+        await flush()
+
+        expect(shadow().querySelector('.pps-fab.has-errors')?.textContent).toContain('1')
+        handle.unmount()
+    })
 })
