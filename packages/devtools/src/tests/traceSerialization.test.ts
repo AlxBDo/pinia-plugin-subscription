@@ -29,6 +29,15 @@ describe('toSerializable', () => {
             .toEqual({ count: 1, double: 2, nested: { a: 'x' } })
     })
 
+    it('includes accessors and methods inherited from class prototypes', () => {
+        class Base { get double() { return 4 } hello() { } }
+        class Child extends Base { count = 2; get triple() { return 6 } }
+
+        expect(toSerializable(new Child())).toEqual({
+            count: 2, double: 4, hello: '[Function hello]', triple: 6
+        })
+    })
+
     it('drops error stacks', () => {
         expect(toSerializable(new Error('boom'))).toEqual({ message: 'boom', name: 'Error' })
     })

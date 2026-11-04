@@ -525,13 +525,19 @@ export default class PluginSubscription extends TraceEmitter {
             $subscribe: [],
         }
         const pluginGroupId = traceGroups.plugin(store.$id)
-        this.traceGroupStart(() => ({
+        // The context is traced once subscribers ran: they may extend the store (e.g. parentsStores), and a redacted payload is a copy
+        const contextPayload = () => ({
             groupId: pluginGroupId,
-            subscribers: this._subscribers,
+            subscribers: this._subscribers.map(subscriber => ({
+                name: subscriber.name,
+                execution: subscriber.execution,
+                pluginOptions: subscriber.pluginOptions
+            })),
             'hooks subscriptions': subscribtions,
             store,
             options
-        }), store.$id)
+        })
+        this.traceGroupStart(() => ({ groupId: pluginGroupId }), store.$id, undefined, false)
 
         this._onActionSubscriptionsTraces.set(store.$id, subscribtions.$onAction)
         this._onMutationSubscriptionsTraces.set(store.$id, subscribtions.$subscribe)
@@ -569,6 +575,7 @@ export default class PluginSubscription extends TraceEmitter {
         } catch (e) {
             this.traceError('plugin:invoke', e, store.$id)
         }
+        this.trace('context', store.$id, contextPayload)
         this.traceGroupEnd(() => ({ groupId: pluginGroupId }), store.$id)
     }
 
@@ -821,7 +828,7 @@ export default class PluginSubscription extends TraceEmitter {
         }
     }
 
-    private traceGroupStart(payload: TracePayload, scope: string, label?: string): void {
+    private traceGroupStart(payload: TracePayload, scope: string, label?: string, emitTrace = true): void {
         const tracerHandler = this._options?.tracerHandler
         if (tracerHandler && (tracerHandler.hasTraceListeners?.() ?? true)) {
             payload = (typeof payload === 'function' ? payload() : (payload ?? {}));
@@ -829,7 +836,7 @@ export default class PluginSubscription extends TraceEmitter {
                 ...payload,
                 scope
             } as TraceEvent)
-            this.trace(label ?? 'context', scope, payload)
+            if (emitTrace) { this.trace(label ?? 'context', scope, payload) }
         }
     }
 }
