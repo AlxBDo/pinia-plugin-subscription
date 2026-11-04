@@ -1,6 +1,6 @@
 {
   "name": "pinia-plugin-subscription-devtools",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "description": "Trace registry, journal and in-page panel to debug pinia-plugin-subscription and the Pinia plugins built on it.",
   "type": "module",
   "sideEffects": false,
