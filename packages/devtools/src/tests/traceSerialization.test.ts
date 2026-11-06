@@ -19,6 +19,8 @@ describe('toSerializable', () => {
 
     it('bounds depth, entries and nodes, and survives throwing getters', () => {
         expect(toSerializable({ a: { b: { c: 1 } } }, { maxDepth: 2 })).toEqual({ a: { b: '[Object]' } })
+        expect(toSerializable({ a: { b: { c: { d: { e: { f: { g: { h: { i: 1 } } } } } } } } }))
+            .toEqual({ a: { b: { c: { d: { e: { f: { g: { h: '[Object]' } } } } } } } })
         expect(toSerializable([1, 2, 3], { maxEntries: 2 })).toEqual([1, 2, '… 1 more'])
         expect(toSerializable([{}, {}, {}], { maxNodes: 2 })).toEqual([{}, '[Truncated]', '[Truncated]'])
         expect(toSerializable({ get bad() { throw new Error('x') } })).toEqual({ bad: '[Unreadable]' })
@@ -68,6 +70,38 @@ describe('journal serialize / import', () => {
         ])
         expect(events[0]!.payload).toEqual({ store: { $id: 'cart' } })
         expect(events[1]).toMatchObject({ actionId: 'cart#1', payload: { value: 1 } })
+    })
+
+    it('preserves nested parent store options in redacted server snapshots', () => {
+        const server = createTracerRegistry({ journal: true, redact: true, side: 'server' })
+        const options = {
+            storeOptions: {
+                parentsStores: [{
+                    id: 'listsCollection',
+                    options: {
+                        actionsToRename: { add: 'addList' },
+                        propertiesToRename: { items: 'lists', token: 'secret' }
+                    }
+                }]
+            }
+        }
+        server.tracerHandler.createTracer('Store').debug('Context', 'pluginsubscription:context', { options }, 'lists')
+
+        const client = createTracerRegistry({ journal: true, side: 'client' })
+        expect(client.journal!.import(JSON.parse(stringifyForHtml(server.journal!.serialize())))).toBe(1)
+        expect(client.journal!.getEvents('lists')[0]!.payload).toEqual({
+            options: {
+                storeOptions: {
+                    parentsStores: [{
+                        id: 'listsCollection',
+                        options: {
+                            actionsToRename: { add: 'addList' },
+                            propertiesToRename: { items: 'lists', token: '[REDACTED]' }
+                        }
+                    }]
+                }
+            }
+        })
     })
 
     it('replaces previously imported events and notifies subscribers', () => {

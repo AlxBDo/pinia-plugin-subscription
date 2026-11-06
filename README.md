@@ -72,22 +72,7 @@ app.mount('#app')
 
 ## Tracing
 
-The plugin only *emits* structured trace events; without a `tracerHandler` it emits nothing and costs nothing. Install [`pinia-plugin-subscription-devtools`](packages/devtools/) (usually as a development dependency) to consume them with filtered listeners, a per-store journal, payload redaction and an in-page panel:
-
-```bash
-npm install -D pinia-plugin-subscription-devtools
-```
-
-```ts
-import { createPlugin } from 'pinia-plugin-subscription'
-import { createTraceDevtools } from 'pinia-plugin-subscription-devtools'
-
-const { registry } = createTraceDevtools() // mounts the in-page panel in development browsers
-
-pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
-```
-
-See the [Tracing documentation](packages/devtools/docs/tracing.md) for filtering, redaction, production safety, event shape and error reporting. Plugin authors only need the `Tracer` and `TracerHandler` types from `pinia-plugin-subscription/types`, and `createTracer` / `this.trace()` to emit events.
+The plugin only *emits* structured trace events; without a `tracerHandler` it emits nothing and costs nothing. Install [`pinia-plugin-subscription-devtools`](packages/devtools/) (usually as a development dependency) to consume them with filtered listeners, a per-store journal, payload redaction and an in-page panel.
 
 ## License
 

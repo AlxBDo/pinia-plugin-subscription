@@ -10,7 +10,7 @@ const maxStringLength = 2000
  */
 export function toSerializable(
     value: unknown,
-    { maxDepth = 5, maxEntries = 100, maxNodes = 2000 }: ToSerializableOptions = {}
+    { maxDepth = 8, maxEntries = 100, maxNodes = 2000 }: ToSerializableOptions = {}
 ): unknown {
     const ancestors = new Set<object>()
     let nodes = 0

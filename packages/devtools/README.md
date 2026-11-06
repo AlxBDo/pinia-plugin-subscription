@@ -25,6 +25,8 @@ pinia.use(createPlugin(subscribers, { tracerHandler: registry.tracerHandler }))
 
 In a development browser, `createTraceDevtools()` mounts the in-page panel (`Alt+Shift+P`). Nothing is mounted on the server or in production builds. To keep the package out of production bundles, load it with a dynamic import behind a development check.
 
+The Context tab includes nested parent store rename options; panel values and journal snapshots remain bounded to 8 nesting levels, 100 entries per object or collection and 2000 visited objects.
+
 For custom listeners, filtering, redaction, the journal, SSR traces and error reporting, use `createTracerRegistry()` and see the [Tracing documentation](./docs/tracing.md).
 
 ## Exports

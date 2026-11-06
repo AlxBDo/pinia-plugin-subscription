@@ -34,6 +34,38 @@ describe('mountTraceDevtools', () => {
         handle.destroy?.()
     })
 
+    it.each(['live', 'imported'] as const)('shows nested parent store rename options in %s context without exposing redacted values', async source => {
+        const traced = createTracerRegistry({ journal: true, redact: true, side: 'server' })
+        traced.tracerHandler.createTracer('Store').debug('PluginSubscription:context', 'pluginsubscription:context', {
+            options: {
+                storeOptions: {
+                    parentsStores: [{
+                        id: 'listsCollection',
+                        options: {
+                            actionsToRename: { add: 'addList' },
+                            propertiesToRename: { items: 'lists', token: 'secret' }
+                        }
+                    }]
+                }
+            }
+        }, 'lists')
+        const registry = source === 'live' ? traced : createTracerRegistry({ journal: true, side: 'client' })
+        if (source === 'imported') { registry.journal!.import(JSON.parse(JSON.stringify(traced.journal!.serialize()))) }
+        const handle = mountTraceDevtools(registry, { open: true })
+        await flush()
+
+        Array.from(shadow().querySelectorAll('button')).find(b => b.textContent === 'Context')!.click()
+        await flush()
+
+        expect(shadow().textContent).toContain('actionsToRename: { add }')
+        expect(shadow().textContent).toContain('addList')
+        expect(shadow().textContent).toContain('propertiesToRename: { items, token }')
+        expect(shadow().textContent).toContain('items: lists')
+        expect(shadow().textContent).toContain('[REDACTED]')
+        expect(shadow().textContent).not.toContain('secret')
+        handle.unmount()
+    })
+
     it('re-reads the live store on each render, so members added after the context event show up', async () => {
         const registry = createTracerRegistry({ journal: true })
         const tracer = registry.tracerHandler.createTracer('Store')

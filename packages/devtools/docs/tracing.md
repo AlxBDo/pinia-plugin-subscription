@@ -175,7 +175,7 @@ registry.journal?.subscribe(event => { /* live updates */ })
 
 ## Server traces in the browser
 
-`journal.serialize()` returns a JSON-safe, size-bounded snapshot (payloads go through `toSerializable`: circular references, functions and `_`-prefixed internals are handled, error stacks are dropped). Embed it in the page next to the Pinia state, then `import()` it on the client:
+`journal.serialize()` returns a JSON-safe, size-bounded snapshot (payloads go through `toSerializable`: circular references, functions and `_`-prefixed internals are handled, error stacks are dropped). Serialization is limited to 8 nesting levels, 100 entries per object or collection and 2000 visited objects; deeper or larger values are truncated. Embed it in the page next to the Pinia state, then `import()` it on the client:
 
 ```ts
 // server, after rendering (one registry per request)
@@ -194,6 +194,8 @@ Imported events are marked `side: 'server'`, ordered before the local ones, and 
 ## In-page trace panel
 
 `mountTraceDevtools()` mounts an aside in the page that reads the journal: one selector per store, a **Timeline** (events nested by lifecycle, client and server interleaved, `P` / `E` chips on events carrying a payload / an error, expandable details, filters on text, side and level) and a **Context** tab (store, subscribers, hook subscriptions and options). It is isolated in a Shadow DOM, updates live, and renders text only.
+
+The panel uses the same serialization limits as journal snapshots. Nested parent store options such as `actionsToRename` and `propertiesToRename` are expandable within those limits.
 
 For the simplest browser development setup, use `createTraceDevtools()`:
 

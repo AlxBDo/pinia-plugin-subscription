@@ -31,7 +31,7 @@ export interface TraceJournalOptions {
 }
 
 export interface ToSerializableOptions {
-    /** Maximum nesting depth. Defaults to `5`. */
+    /** Maximum nesting depth. Defaults to `8`. */
     maxDepth?: number
     /** Maximum entries kept per object or array. Defaults to `100`. */
     maxEntries?: number
