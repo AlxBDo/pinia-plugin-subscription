@@ -18,19 +18,6 @@ export interface AnyObject {
     [key: number | string | symbol]: any
 }
 
-export interface Console {
-    log(...args: any): void
-    error(...args: any): void
-}
-
-export type LogType = 'error' | 'info'
-export type StyleDefinitionKeys = 'bgColor' | 'color' | 'icon'
-export type StyleDefinition = Record<StyleDefinitionKeys, string>
-export type StyleDefinitions = Record<LogType, Record<StyleDefinitionKeys, string>>
-export type ConsoleStyleDefinition = StyleDefinition
-export type ConsoleStyleDefinitionKeys = StyleDefinitionKeys
-export type ConsoleStyleDefinitions = StyleDefinitions
-
 export type {
     TraceEvent,
     TraceEventMetadata,
@@ -41,6 +28,7 @@ export type {
     Tracer,
     TracerHandler
 } from './trace'
+
 export type {
     CustomStore,
     DefineAStoreSetupContext,
