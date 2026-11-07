@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import pluginSubscription from '../core/PluginSubscription'
-import { createHydrationPlugin } from '../plugins/createHydrationPlugin'
 import { createPlugin } from '../plugins/createPlugin'
 
 import type { PluginSubscriber } from '../types/plugin'
@@ -45,7 +44,7 @@ describe('createPlugin', () => {
         const subscribers: PluginSubscriber[] = [{ invoke: vi.fn() } as unknown as PluginSubscriber]
         const options = { runtimeEnvironment: 'client' as const, hydrationScheduler: vi.fn() }
 
-        createHydrationPlugin(subscribers, options)
+        createPlugin(subscribers, options)
 
         expect(pluginSubscription).toHaveBeenCalledWith(subscribers, {
             execution: undefined,

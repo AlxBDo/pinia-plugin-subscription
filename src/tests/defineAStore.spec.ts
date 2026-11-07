@@ -32,7 +32,6 @@ import {
     defineAStoreCtx,
     getDefineAStoreSetupContext,
     getEnhancedStore,
-    getExtendingStore,
     setEnhancedStore
 } from '../utils/store'
 
@@ -110,23 +109,6 @@ describe('defineAStore setup context', () => {
 
         expect(store.$id).toBe('ctxRequiredStore')
         expect(setupContext?.id).toBe('ctxRequiredStore')
-    })
-
-    it('sets and retrieves enhanced store with extending backward compatibility', () => {
-        const useStore = defineAStoreCtx('enhancedStore', (ctx) => {
-            const enhancedStore = { addItem: vi.fn() }
-            setEnhancedStore(ctx, enhancedStore)
-
-            return {
-                enhancedFromNewKey: getEnhancedStore(ctx),
-                enhancedFromDeprecatedKey: getExtendingStore(ctx)
-            }
-        })
-
-        const store = useStore()
-
-        expect(store.enhancedFromNewKey).toBeDefined()
-        expect(store.enhancedFromDeprecatedKey).toBe(store.enhancedFromNewKey)
     })
 
     it('re-registers id lookup for each store access when enhancedStore is enabled', () => {

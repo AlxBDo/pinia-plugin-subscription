@@ -28,8 +28,6 @@ export default defineConfig({
                 '**/models/**',
                 '**/stores/**',
                 '**/types/**',
-                '**/utils/Performance.ts',
-                '**/utils/defineStoreId.ts',
                 'scripts/**',
                 '**/demo/**',
                 '**/log/**',
