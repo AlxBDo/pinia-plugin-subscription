@@ -7,7 +7,7 @@ import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
-import type { TraceEvent, TracePayload } from "pinia-plugin-subscription-devtools"
+import type { TraceEvent, TracePayload } from "../types/trace"
 import { traceGroups } from "../utils/traceGroups"
 import type {
     PluginExecutionOptions,
