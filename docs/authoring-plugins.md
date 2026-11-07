@@ -290,7 +290,7 @@ Available execution options (`PluginExecutionOptions`):
 - `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules
   execution after hydration.
 - `hydrationScheduler` can be provided either on a subscriber or via
-  `createHydrationPlugin()` to override the execution timing when needed.
+  `createPlugin()` to override the execution timing when needed.
 
 The class-based equivalent sets the same policy in the constructor and
 overrides the lifecycle hooks:
@@ -336,12 +336,12 @@ Use `hydration: 'defer'` when the subscriber depends on browser-only APIs,
 client-side cookies, `localStorage`, DOM access, or a hydrated app state
 that must exist only after the app is mounted.
 
-Use `runtimeEnvironment: 'server'` (on `createHydrationPlugin()`) or
+Use `runtimeEnvironment: 'server'` (on `createPlugin()`) or
 `execution.environment: 'server'` when a subscriber is only valid during
 server-side rendering or should not touch browser-only objects:
 
 ```js
-pinia.use(createHydrationPlugin([serverOnlySubscriber], {
+pinia.use(createPlugin([serverOnlySubscriber], {
   runtimeEnvironment: 'server'
 }))
 ```
@@ -472,22 +472,29 @@ import type { PluginSubscriptionOptions } from 'pinia-plugin-subscription/types'
 
 ### `createPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
 
-Creates and returns a Pinia plugin from the provided `subscribers`. Each subscriber is invoked when a store is registered. The optional `options` configure execution, hydration and tracing.
+Creates and returns a Pinia plugin from the provided `subscribers`. Each
+subscriber is invoked when a store is registered. The optional `options`
+configure execution and hydration defaults (`execution` and
+`hydrationScheduler`), per-subscriber execution (`subscriberExecution`),
+runtime environment, store behavior and tracing.
 
 ### `createPluginSubscriber(name: string, invoke: PluginSubscriberInvoke, optionalProps?: Omit<PluginSubscriber, 'name' | 'invoke'>): PluginSubscriber`
 
 Factory returning a plain-object subscriber `{ name, invoke, ...optionalProps }`. Exported from `pinia-plugin-subscription/helpers`.
 
-### `createHydrationPlugin(subscribers: PluginSubscriber[], options?: PluginSubscriptionOptions): PiniaPlugin`
-
-Deprecated. Use `createPlugin()` with hydration options instead. This helper remains available for compatibility.
+`createPlugin()` accepts hydration options directly. Set shared execution and
+scheduling defaults for its subscribers, or use `subscriberExecution` to
+configure execution by subscriber name:
 
 ```typescript
+import { nextTick } from 'vue'
 import { createPlugin } from 'pinia-plugin-subscription'
 
-pinia.use(createPlugin([
-  persistedStateSubscriber
-], {
+pinia.use(createPlugin([persistedStateSubscriber], {
+  execution: {
+    environment: 'client',
+    hydration: 'defer',
+  },
   hydrationScheduler: (run) => {
     nextTick(() => run())
   }

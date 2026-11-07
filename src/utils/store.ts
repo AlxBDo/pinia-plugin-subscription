@@ -21,11 +21,6 @@ import type {
 import type { PluginStoreOptions } from "../types/plugin"
 
 
-export const itemState = {
-    '@id': undefined,
-    id: undefined
-}
-
 type DefineAStoreSetup<SS, TExtraExtensions extends Record<string, unknown> = EmptyExtensions> =
     (ctx: DefineAStoreSetupContext<SS, TExtraExtensions>) => SS
 
@@ -272,7 +267,7 @@ export function getEnhancedStore<TEnhancedStore>(
 export function getEnhancedStore<TEnhancedStore>(
     ctx: DefineAStoreSetupContext<unknown>
 ): TEnhancedStore {
-    const enhancedStore = ctx.extensions.enhancedStore ?? ctx.extensions.extending
+    const enhancedStore = ctx.extensions.enhancedStore
 
     if (!enhancedStore) {
         throw new Error(`${ctx.id}Store - getEnhancedStore - Error: enhanced store is required`)
@@ -300,23 +295,6 @@ export function setEnhancedStore(
     store: unknown
 ): void {
     ctx.extensions.enhancedStore = store
-    ctx.extensions.extending = store
-}
-
-/**
- * @deprecated Use getEnhancedStore instead.
- */
-export function getExtendingStore<TEnhancedStore>(
-    ctx: DefineAStoreSetupContext<TEnhancedStore>
-): TEnhancedStore
-export function getExtendingStore<TEnhancedStore>(
-    ctx: DefineAStoreSetupContext<unknown>
-): TEnhancedStore
-export function getExtendingStore<TEnhancedStore>(
-    ctx: DefineAStoreSetupContext<unknown>
-): TEnhancedStore {
-    console.warn(`${ctx.id}Store - getExtendingStore is deprecated. Use getEnhancedStore instead.`)
-    return getEnhancedStore<TEnhancedStore>(ctx)
 }
 
 /**

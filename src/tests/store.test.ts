@@ -101,7 +101,6 @@ describe('Store', () => {
             const setupContext = getDefineAStoreSetupContext(piniaStore)
 
             expect(setupContext?.extensions.enhancedStore).toBe(store.store)
-            expect(setupContext?.extensions.extending).toBe(store.store)
         })
 
         it('should not attach the enhanced store when enhancedStore is absent', () => {
@@ -114,7 +113,6 @@ describe('Store', () => {
             const setupContext = getDefineAStoreSetupContext(piniaStore)
 
             expect(setupContext?.extensions.enhancedStore).toBeUndefined()
-            expect(setupContext?.extensions.extending).toBeUndefined()
         })
     })
 

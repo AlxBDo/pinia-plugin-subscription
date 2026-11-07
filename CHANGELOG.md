@@ -44,7 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified that SSR tracing registries and plugin instances must be created per request, and added coverage for listener isolation between registries
 - Replaced the `Debug` abstract class with composition: `Store` and `PluginSubscription` no longer extend it and now own a `Tracer`
 - Trace errors with no matching listener, and failures in listener filters or handlers, are now reported with `console.error` instead of rethrowing the original error
-- Deprecated `createHydrationPlugin()` in favor of `createPlugin()` with hydration options
 - Trace payloads are now lazily resolved, so unobserved tracing no longer builds log arguments
 - Internal events now derive namespaces from trace labels, with `PluginSubscription` prefixed by default; store events carry `store.$id` as `scope`
 - `Tracer` now delegates all output decisions to listeners and no longer owns a console or an enabled state
@@ -87,6 +86,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Removed the internal `PluginConsole` singleton and the dead commented code of `system/log.ts`; `CustomConsole` stays exported from `helpers` for plugins not yet migrated to the tracer
+- **Breaking:** removed `createHydrationPlugin()`; use `createPlugin(subscribers, options)` with the hydration and runtime options directly
+- **Breaking:** removed `getExtendingStore()`; use `getEnhancedStore()` and `ctx.extensions.enhancedStore` instead. `getEnhancedStore()` no longer falls back to the deprecated `ctx.extensions.extending` property
+- Removed the `itemState` export from `src/utils/store`
 - **Breaking:** removed `debugLog()` and `logError()` from `Store` and `PluginSubscription` — use `trace()` and `traceError()` instead (see the migration snippet in `docs/tracing.md`)
 - **Breaking:** removed the obsolete `debug` and custom-console arguments from `createPlugin()`, `PluginSubscription`, `PluginSubscriber`, `Store`, and `Store.customizeStore()`
 - **Breaking:** removed the `debug` argument from subscriber `invoke()`, `hydrate()`, and `afterHydration()` hooks; tracing is now configured exclusively through listeners
