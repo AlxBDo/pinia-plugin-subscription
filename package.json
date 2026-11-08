@@ -71,7 +71,7 @@
     "dev:library": "vite",
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "build": "vitest run && npm run build:library && npm run build -w pinia-plugin-subscription-devtools",
+    "build": "vitest run && npm run build:library && npm run build -w pinia-plugin-subscription-devtools && npm run build -w pinia-plugin-state-snapshots",
     "build:library": "vite build && tsc --emitDeclarationOnly --outDir dist && node scripts/check-dist-leaks.mjs . && node scripts/measure-bundle.mjs",
     "check:leaks": "node scripts/check-dist-leaks.mjs . && node scripts/check-dist-leaks.mjs packages/devtools",
     "bundle:check": "vite build --config vite.config.ts && node scripts/measure-bundle.mjs",

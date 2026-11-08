@@ -46,6 +46,7 @@ export type {
     PluginExecutionEnvironment,
     PluginExecutionOptions,
     PluginHydrationTiming,
+    PluginOptions,
     PluginRuntimeEnvironment,
     PluginStoreOptions,
     PluginSubscriberInvoke,

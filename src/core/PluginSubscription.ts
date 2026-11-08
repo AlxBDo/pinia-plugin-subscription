@@ -1,6 +1,8 @@
 import RollbackStateSnapshotsHandler from "./RollbackStateSnapshotsHandler"
 import { deepClone } from '../utils/deep-clone'
 import { getActionStoreKey, getStoreKeyPrefix, getStoreScopedKey } from '../utils/store'
+import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
+import { STORE, SUBSCRIBER } from "../dictionaries/plugin-subscription-event"
 import TraceEmitter from "../system/TraceEmitter"
 import { isEmpty } from "../utils/validation"
 import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
@@ -56,6 +58,7 @@ export default class PluginSubscription extends TraceEmitter {
     private _options?: PluginSubscriptionOptions
     private _resetStoreCallback: Map<Store, Set<NonNullable<PluginSubscriber['resetStoreCallback']>>> = new Map()
     private _disposedStores: WeakSet<Store> = new WeakSet()
+    private _storeEventsSubscribersHandler = new StoreEventsSubscriberHandler()
     private _storeRollbackSnapshotsHandler: RollbackStateSnapshotsHandler = new RollbackStateSnapshotsHandler()
     private _subscribers: PluginSubscriber[] = []
     private _subscribersDelivered: Set<string> = new Set()
@@ -292,47 +295,54 @@ export default class PluginSubscription extends TraceEmitter {
      * @param subscriber The plugin subscriber.
      * @returns void
      */
-    private executeStoreOnActionSubscription(store: Store): void {
+    private executeStoreOnActionSubscription(store: Store, hasDeferredSubscribers = false): void {
         if (this._onActionStores.has(store) || typeof store.$onAction !== 'function') {
             return
         }
         const onActionSubscriptions = this._onActionSubscriptions.get(store)
         const hasRollbackSnapshots = this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)
+        const hasEventSubscribers = this._storeEventsSubscribersHandler.getSubscribers(store.$id).length > 0
 
-        if (!onActionSubscriptions?.size && !hasRollbackSnapshots) {
+        if (!onActionSubscriptions?.size && !hasRollbackSnapshots && !hasEventSubscribers && !hasDeferredSubscribers) {
             return
         }
 
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
+            const hasEventSubscribers = this._storeEventsSubscribersHandler.getSubscribers(store.$id).length > 0
+            const invocationKey = hasEventSubscribers ? Symbol(getActionStoreKey(name, store)) : undefined
+            if (invocationKey) {
+                this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_BEFORE, () => [name, invocationKey])
+            }
             const callbacks = this._onActionSubscriptions.get(store)
-            if (!callbacks?.size) {
+            if (!callbacks?.size && !invocationKey) {
                 return
             }
 
             const callId = ++this._actionSeq
             const actionId = `${store.$id}#${callId}`
+            const storageKey = getActionStoreKey(name, store)
             const groupId = traceGroups.onAction(store.$id, name, callId)
-            this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
+            if (callbacks?.size) {
+                this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
+            }
             // The group must be closed exactly once, whichever way the action ends.
             let groupClosed = false
             const closeGroup = () => {
-                if (!groupClosed) {
+                if (callbacks?.size && !groupClosed) {
                     groupClosed = true
                     this.traceGroupEnd({ groupId }, store.$id)
                 }
             }
 
             try {
-                const storageKey = getActionStoreKey(name, store)
-
-                if (this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
+                if (callbacks?.size && this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
                     this.createRollbackSnapshot(name, store)
                 }
 
                 // Callbacks are invoked synchronously so that their after/onError collectors are filled before Pinia runs the action.
                 const pending: Promise<void>[] = []
-                callbacks.forEach(callback => {
+                callbacks?.forEach(callback => {
                     const result = this.runCallbackSafely(
                         () => callback({
                             after: this.createOnActionAfterCallbackCollector(name, store),
@@ -350,10 +360,11 @@ export default class PluginSubscription extends TraceEmitter {
                 })
 
                 this.endGroupAfter(pending, closeGroup)
-                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name, actionId, callId)
-                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId, callId)
+                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name, actionId, callId, invocationKey)
+                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId, callId, invocationKey)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
             } catch (error) {
+                this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_ERROR, () => [name, error, invocationKey])
                 closeGroup()
                 throw error
             }
@@ -366,11 +377,18 @@ export default class PluginSubscription extends TraceEmitter {
         store: Store,
         name: string,
         actionId: string,
-        callId: number
+        callId: number,
+        invocationKey?: symbol
     ) {
         const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
-        if (afterCallbacks?.length) {
+        if (afterCallbacks?.length || invocationKey) {
             after((result) => {
+                if (invocationKey && !this._disposedStores.has(store)) {
+                    this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_AFTER, () => [name, invocationKey])
+                }
+                if (!afterCallbacks?.length) {
+                    return
+                }
                 this.traceGroupStart(
                     () => ({
                         actionId,
@@ -400,12 +418,19 @@ export default class PluginSubscription extends TraceEmitter {
         store: Store,
         name: string,
         actionId: string,
-        callId: number
+        callId: number,
+        invocationKey?: symbol
     ) {
         const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
 
-        if (onErrorCallbacks?.length) {
+        if (onErrorCallbacks?.length || invocationKey) {
             onError((error) => {
+                if (invocationKey && !this._disposedStores.has(store)) {
+                    this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_ON_ERROR, () => [name, error, invocationKey])
+                }
+                if (!onErrorCallbacks?.length) {
+                    return
+                }
                 this.traceGroupStart(() => ({
                     actionId,
                     'action name': name,
@@ -439,9 +464,14 @@ export default class PluginSubscription extends TraceEmitter {
         }
 
         if (
-            !subscriber.invoke(context, this._options?.tracerHandler?.createTracer)) {
+            !subscriber.invoke(context, {
+                createTracer: this._options?.tracerHandler?.createTracer,
+                eventsHandler: this._storeEventsSubscribersHandler
+            })) {
             return
         }
+
+        this._storeEventsSubscribersHandler.emit(context.store, SUBSCRIBER.INVOKED, () => [subscriber])
 
         this._subscribersDelivered.add(subscriberKey)
 
@@ -543,6 +573,7 @@ export default class PluginSubscription extends TraceEmitter {
         this._onMutationSubscriptionsTraces.set(store.$id, subscribtions.$subscribe)
 
         try {
+            let hasDeferredSubscribers = false
             this._subscribers.forEach(
                 subscriber => {
                     const subscriberKey = this.defineSubscriberKey(subscriber, store)
@@ -560,6 +591,7 @@ export default class PluginSubscription extends TraceEmitter {
                     }
 
                     if (this.shouldScheduleAfterHydration(execution)) {
+                        hasDeferredSubscribers = true
                         this.queueSubscriberExecution({ store, options } as PiniaPluginContext, subscriber, subscriberKey)
                         return
                     }
@@ -570,7 +602,7 @@ export default class PluginSubscription extends TraceEmitter {
 
             this.rewriteResetStore({ store } as PiniaPluginContext, store.$state)
             this._storeRollbackSnapshotsHandler.initFromPluginContext({ store, options } as PiniaPluginContext)
-            this.executeStoreOnActionSubscription(store)
+            this.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
             this.registerStoreCleanup(store)
         } catch (e) {
             this.traceError('plugin:invoke', e, store.$id)
@@ -629,6 +661,7 @@ export default class PluginSubscription extends TraceEmitter {
             this._disposedStores.add(store)
             this.clearStoreTracking(store)
             this._storeRollbackSnapshotsHandler.clearStoreTracking(store)
+            this._storeEventsSubscribersHandler.clearSubscribers(store.$id)
             return dispose()
         }
     }

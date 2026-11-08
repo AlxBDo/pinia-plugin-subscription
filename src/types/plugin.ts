@@ -1,3 +1,4 @@
+import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { StoreOptions } from "./store"
 import type { PluginSubscriberInterface } from "."
@@ -25,6 +26,11 @@ export interface PluginExecutionOptions {
      * @type {PluginHydrationTiming | undefined}
      */
     hydration?: PluginHydrationTiming
+}
+
+export interface PluginOptions {
+    createTracer?: (source: string) => Tracer
+    eventsHandler: StoreEventsSubscriberHandler
 }
 
 export interface PluginStoreOptions {
@@ -149,7 +155,7 @@ export interface PluginSubscriber {
     afterHydration?: (context: PiniaPluginContext) => void | Promise<void>
 }
 
-export type PluginSubscriberInvoke = (context: PiniaPluginContext, createTracer?: (source: string) => Tracer) => boolean
+export type PluginSubscriberInvoke = (context: PiniaPluginContext, pluginOptions?: PluginOptions) => boolean
 
 /**
  * Return type for native Pinia subscriptions.

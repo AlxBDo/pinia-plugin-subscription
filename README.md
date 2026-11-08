@@ -11,6 +11,8 @@ This project provides:
 
 Deferred subscribers attach their action and reset callbacks to their own store after hydration; disposing a store removes its callbacks. For both rollback APIs, `stateKeys: []` restores the full state on failure.
 
+Automatic rollback uses a separate snapshot for each action invocation, including concurrent or nested calls. It restores the state captured by the failing invocation; it does not merge changes made by other overlapping actions.
+
 ## Tested & maintained
 
 The package is fully tested with [Vitest](https://vitest.dev/): runtime behavior, type-level contracts (`*.test-d.ts`) and performance regressions are covered, and coverage reports are available in `coverage/`. The full test suite and the build run on every push and pull request through [GitHub Actions](.github/workflows/ci.yml).
@@ -69,6 +71,11 @@ app.mount('#app')
 - **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
+
+For subscriber authors, store action events are emitted even without a `storeOnActionSubscription`:
+`ACTION_BEFORE` receives `(name, invocationKey)`, `ACTION_AFTER` receives
+`(name, invocationKey)` after success, and `ACTION_ON_ERROR` receives `(name, error, invocationKey)`
+after failure. The symbol identifies one invocation.
 
 ## Tracing
 

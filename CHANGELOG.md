@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Correlate state snapshots with individual action invocations, clean them up on store disposal, and emit action completion events when actions actually settle.
+
 ### Added
 - `pinia-plugin-subscription-devtools` package with `createTraceDevtools(options?)`, `createTracerRegistry()`, `mountTraceDevtools()` and the tracing documentation (`packages/devtools/docs/tracing.md`).
 - `addScopesListener(scopes, context?, handler?)` groups events from selected store scopes and accepts a custom trace handler; custom `handler` / `filter` listeners are the supported way to consume trace events, documented in `packages/devtools/docs/tracing.md`

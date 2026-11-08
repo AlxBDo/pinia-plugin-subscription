@@ -3,6 +3,7 @@ import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type {
     PluginExecutionOptions,
     PluginHydrationScheduler,
+    PluginOptions,
     PluginSubscriber as PluginSubscriberInterface,
     PluginSubscriptions,
     StoreClassConstructorParams,
@@ -27,9 +28,9 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     private _createInstance: CreateInstance
     private _name: string
     private _pluginOptions?: StoreClassConstructorParams
-    private _storeInstance?: Instance
     /** Callback function to reset the store instance, if needed. */
     protected _resetStoreCallback?: (store?: PiniaStore) => void
+    private _storeInstance?: Instance
     private _storeOnActionSubscription?: StoreOnActionSubscription
     private _storeMutationSubscription?: StoreMutationSubscription
     private _subscriptions?: PluginSubscriptions
@@ -105,16 +106,17 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     }
 
     /**
-     * Invokes the plugin subscriber with the given context and optional tracer creation function.
+     * Invokes the plugin subscriber with the given context and optional plugin options.
      * @param context The Pinia plugin context containing the store and options.
-     * @param createTracer Optional function to create a tracer for the plugin.
+     * @param pluginOptions Optional tracer factory and events handler.
      * @returns True if the plugin was successfully invoked, otherwise false.
      */
-    public invoke({ store, options }: PiniaPluginContext, createTracer?: (name: string) => Tracer): boolean {
+    public invoke({ store, options }: PiniaPluginContext, pluginOptions?: PluginOptions): boolean {
+        const createTracer = pluginOptions?.createTracer
         this._storeInstance = this._createInstance(store, {
             ...options,
             ...this.pluginOptions,
-            createTracer: createTracer ? () => createTracer?.(this.name) : undefined
+            createTracer: createTracer ? () => createTracer(this.name) : undefined
         }) as Instance
 
         if (!this._storeInstance) {

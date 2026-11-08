@@ -5,6 +5,9 @@ import PluginSubscription from '../core/PluginSubscription'
 import { createTestTracerRegistry } from './support/testTracer'
 import type { TraceEvent } from '../types/trace'
 import { getStoreScopedKey } from '../utils/store'
+import StoreEventsSubscriberHandler from '../events/store-events-subscriber-handler'
+import StoreEventsSubscriber from '../events/store-events-subscriber'
+import { STORE } from '../dictionaries/plugin-subscription-event'
 
 function createContext(store: Store, options: Partial<PiniaPluginContext['options']> = {}): PiniaPluginContext {
     return {
@@ -188,8 +191,8 @@ describe('PluginSubscription', () => {
                 }
             })
 
-            ;(subscription as any).traceGroupStart(payload, 'cart')
-            ;(subscription as any).traceGroupEnd(payload, 'cart')
+                ; (subscription as any).traceGroupStart(payload, 'cart')
+                ; (subscription as any).traceGroupEnd(payload, 'cart')
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -424,7 +427,7 @@ describe('PluginSubscription', () => {
 
             expect(() => pluginSub.plugin(mockContext)).not.toThrow()
             await Promise.resolve()
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
         })
     })
 
@@ -494,8 +497,9 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin(mockContext)
 
-            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, createTracer)
-            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, createTracer)
+            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber1.invoke.mock.calls[0][1].eventsHandler).toBe(subscriber2.invoke.mock.calls[0][1].eventsHandler)
         })
 
         it('should skip client-only subscribers while running on the server', () => {
@@ -560,7 +564,7 @@ describe('PluginSubscription', () => {
 
             scheduledCallbacks[0]!()
 
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, createTracer)
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
         })
 
         it('should wrap a deferred subscriber execution in its own trace group', () => {
@@ -1454,8 +1458,9 @@ describe('PluginSubscription', () => {
             pluginSub.plugin(context2)
 
             expect(subscriber.invoke).toHaveBeenCalledTimes(2)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, createTracer)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, createTracer)
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber.invoke.mock.calls[0][1].eventsHandler).toBe(subscriber.invoke.mock.calls[1][1].eventsHandler)
         })
     })
 
@@ -1622,6 +1627,181 @@ describe('PluginSubscription', () => {
     })
 
     describe('executeStoreOnActionSubscription coverage', () => {
+        it('registers the Pinia action hook after every immediate subscriber has registered its callbacks', () => {
+            const order: string[] = []
+            let onActionCallback!: (params: any) => void
+            const store = {
+                $id: 'registration-order',
+                $state: {},
+                $patch: vi.fn(),
+                $onAction: vi.fn((callback: (params: any) => void) => {
+                    order.push('install')
+                    onActionCallback = callback
+                })
+            } as unknown as Store
+            const received: string[] = []
+            const subscribers: PluginSubscriber[] = ['first', 'second'].map(name => ({
+                name,
+                invoke: () => { order.push(`invoke:${name}`); return true },
+                storeOnActionSubscription: () => {
+                    order.push(`subscribe:${name}`)
+                    return { store, callback: () => { received.push(name) } }
+                }
+            }))
+
+            pluginSub.subscribers = subscribers
+            pluginSub.plugin(createContext(store))
+
+            expect(order).toEqual(['invoke:first', 'subscribe:first', 'invoke:second', 'subscribe:second', 'install'])
+            expect(store.$onAction).toHaveBeenCalledOnce()
+            onActionCallback({ name: 'run', args: [], after: vi.fn(), onError: vi.fn() })
+            expect(received).toEqual(['first', 'second'])
+        })
+
+        it('installs the action hook at the end of plugin initialization for deferred-only subscribers', () => {
+            const scheduled: Array<() => void> = []
+            let onActionCallback!: (params: any) => void
+            const store = {
+                $id: 'deferred-registration',
+                $state: {},
+                $patch: vi.fn(),
+                $onAction: vi.fn((callback: (params: any) => void) => { onActionCallback = callback })
+            } as unknown as Store
+            const callback = vi.fn()
+            const subscriber: PluginSubscriber = {
+                name: 'deferred-action',
+                execution: { hydration: 'defer' },
+                invoke: () => true,
+                storeOnActionSubscription: () => ({ store, callback })
+            }
+            pluginSub = getPluginSubscription([subscriber], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: run => { scheduled.push(run) }
+            })
+
+            pluginSub.plugin(createContext(store))
+            expect(store.$onAction).toHaveBeenCalledOnce()
+            onActionCallback({ name: 'before', args: [], after: vi.fn(), onError: vi.fn() })
+            expect(callback).not.toHaveBeenCalled()
+            scheduled[0]!()
+            expect(store.$onAction).toHaveBeenCalledOnce()
+            onActionCallback({ name: 'after', args: [], after: vi.fn(), onError: vi.fn() })
+            expect(callback).toHaveBeenCalledOnce()
+        })
+
+        it('waits for all immediate subscribers when a deferred scheduler executes synchronously', () => {
+            const order: string[] = []
+            const store = {
+                $id: 'synchronous-scheduler',
+                $state: {},
+                $patch: vi.fn(),
+                $onAction: vi.fn(() => { order.push('install') })
+            } as unknown as Store
+            const deferred: PluginSubscriber = {
+                name: 'deferred',
+                execution: { hydration: 'defer' },
+                invoke: () => { order.push('deferred'); return true },
+                storeOnActionSubscription: () => ({ store, callback: () => {} })
+            }
+            const immediate: PluginSubscriber = {
+                name: 'immediate',
+                invoke: () => { order.push('immediate'); return true },
+                storeOnActionSubscription: () => ({ store, callback: () => {} })
+            }
+            pluginSub = getPluginSubscription([deferred, immediate], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: run => run()
+            })
+
+            pluginSub.plugin(createContext(store))
+            expect(order).toEqual(['deferred', 'immediate', 'install'])
+            expect(store.$onAction).toHaveBeenCalledOnce()
+        })
+
+        it.each([false, true])('registers a single Pinia callback per outcome with event listeners (action subscriber: %s)', (withActionSubscriber) => {
+            let onActionCallback!: (params: any) => void
+            const store = {
+                $id: 'event-action-store',
+                $state: {},
+                $patch: vi.fn(),
+                $reset: vi.fn(),
+                $onAction: vi.fn((callback: (params: any) => void) => { onActionCallback = callback })
+            } as unknown as Store
+            const events: Array<[string, symbol]> = []
+            const afterCallback = vi.fn()
+            const errorCallback = vi.fn()
+            const eventSubscriber: PluginSubscriber = {
+                name: 'events',
+                invoke({ store }, options) {
+                    if (!options) throw new Error('Missing plugin options')
+                    options.eventsHandler.subscribe(store.$id, new StoreEventsSubscriber('events', store, {
+                        [STORE.ACTION_BEFORE]: (_name, key) => events.push(['before', key]),
+                        [STORE.ACTION_AFTER]: (_name, key) => events.push(['after', key]),
+                        [STORE.ACTION_ON_ERROR]: (_name, _error, key) => events.push(['error', key])
+                    }))
+                    return true
+                }
+            }
+            const actionSubscriber: PluginSubscriber = {
+                name: 'action',
+                invoke: () => true,
+                storeOnActionSubscription: () => ({
+                    store,
+                    callback: ({ after, onError }) => {
+                        after(afterCallback)
+                        onError(errorCallback)
+                    }
+                })
+            }
+            pluginSub.subscribers = withActionSubscriber ? [eventSubscriber, actionSubscriber] : [eventSubscriber]
+            pluginSub.plugin(createContext(store))
+            const after = vi.fn()
+            const onError = vi.fn()
+            onActionCallback({ after, args: [], name: 'run', onError })
+
+            expect(after).toHaveBeenCalledTimes(1)
+            expect(onError).toHaveBeenCalledTimes(1)
+            const invocationKey = events[0]![1]
+            after.mock.calls[0]![0]('result')
+            onError.mock.calls[0]![0](new Error('failed'))
+            expect(events).toEqual([['before', invocationKey], ['after', invocationKey], ['error', invocationKey]])
+            expect(afterCallback).toHaveBeenCalledTimes(withActionSubscriber ? 1 : 0)
+            expect(errorCallback).toHaveBeenCalledTimes(withActionSubscriber ? 1 : 0)
+        })
+
+        it('emits an action error when registering an event-only action outcome fails', () => {
+            let onActionCallback!: (params: any) => void
+            const store = {
+                $id: 'event-registration-error',
+                $state: {},
+                $patch: vi.fn(),
+                $onAction: vi.fn((callback: (params: any) => void) => { onActionCallback = callback })
+            } as unknown as Store
+            const before = vi.fn()
+            const onErrorEvent = vi.fn()
+            pluginSub.subscribers = [{
+                name: 'events',
+                invoke({ store }, options) {
+                    if (!options) throw new Error('Missing plugin options')
+                    options.eventsHandler.subscribe(store.$id, new StoreEventsSubscriber('events', store, {
+                        [STORE.ACTION_BEFORE]: before,
+                        [STORE.ACTION_ERROR]: onErrorEvent
+                    }))
+                    return true
+                }
+            }]
+            pluginSub.plugin(createContext(store))
+            const failure = new Error('registration failed')
+
+            expect(() => onActionCallback({
+                name: 'run',
+                args: [],
+                after: vi.fn(),
+                onError: () => { throw failure }
+            })).toThrow(failure)
+            expect(onErrorEvent).toHaveBeenCalledWith('run', failure, before.mock.calls[0]![1])
+        })
+
         it('should register rollback callbacks on $onAction when the store has rollback snapshots', () => {
             let onActionCallback: ((params: any) => void) | undefined
             const mockStore = {
