@@ -3,7 +3,12 @@
     "compilerOptions": {
         "declaration": false,
         "emitDeclarationOnly": false,
-        "noEmit": true
+        "noEmit": true,
+        "rootDir": ".",
+        "baseUrl": ".",
+        "paths": {
+            "pinia-plugin-subscription/types": ["src/types/index.ts"]
+        }
     },
     "exclude": [],
     "include": [

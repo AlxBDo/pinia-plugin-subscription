@@ -1,3 +1,5 @@
+import { isRef, toRaw } from 'vue'
+
 /**
  * Deeply clones the provided value, handling objects, arrays, maps, and sets. Uses `structuredClone` if available, otherwise falls back to a manual deep clone.
  * @template T The type of the value to deep clone.
@@ -13,34 +15,60 @@ export function deepClone<T>(value: T): T {
         }
     }
 
-    if (value === null || typeof value !== 'object') {
-        return value
+    const seen = new WeakMap<object, unknown>()
+    const activeRefs = new WeakSet<object>()
+    function clone(input: unknown): unknown {
+        if (input === null || typeof input !== 'object') {
+            return input
+        }
+        const raw = toRaw(input)
+        if (seen.has(raw)) {
+            return seen.get(raw)
+        }
+        if (isRef(raw)) {
+            if (activeRefs.has(raw)) {
+                throw new TypeError('Cannot clone a circular Vue ref')
+            }
+            activeRefs.add(raw)
+            try {
+                const result = clone(raw.value)
+                seen.set(raw, result)
+                return result
+            } finally {
+                activeRefs.delete(raw)
+            }
+        }
+        if (raw instanceof Date) {
+            const result = new Date(raw.getTime())
+            seen.set(raw, result)
+            return result
+        }
+        if (raw instanceof Map) {
+            const result = new Map()
+            seen.set(raw, result)
+            for (const [key, entry] of raw) {
+                result.set(clone(key), clone(entry))
+            }
+            return result
+        }
+        if (raw instanceof Set) {
+            const result = new Set()
+            seen.set(raw, result)
+            for (const entry of raw) {
+                result.add(clone(entry))
+            }
+            return result
+        }
+        const result: Record<string, unknown> | unknown[] = Array.isArray(raw)
+            ? new Array(raw.length)
+            : Object.create(Object.getPrototypeOf(raw))
+        seen.set(raw, result)
+        for (const [key, item] of Object.entries(input)) {
+            Object.defineProperty(result, key, {
+                value: clone(item), enumerable: true, configurable: true, writable: true
+            })
+        }
+        return result
     }
-
-    if (value instanceof Map) {
-        return new Map(
-            Array.from(value.entries(), ([key, entryValue]) => [deepClone(key), deepClone(entryValue)])
-        ) as T
-    }
-
-    if (value instanceof Set) {
-        return new Set(Array.from(value.values(), entryValue => deepClone(entryValue))) as T
-    }
-
-    if (Array.isArray(value)) {
-        return value.map(item => deepClone(item)) as T
-    }
-
-    if (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) {
-        return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, deepClone(item)])
-        ) as T
-    }
-
-    const clonedObject = Object.create(Object.getPrototypeOf(value)) as Record<string, unknown>
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-        clonedObject[key] = deepClone(item)
-    }
-
-    return clonedObject as T
+    return clone(value) as T
 }

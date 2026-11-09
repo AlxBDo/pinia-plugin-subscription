@@ -8,10 +8,18 @@ import {
     createServerVisitorSubscriber
 } from './plugins/demoPluginEnvironmentHydration'
 import { parsePreferredLocale } from './utils/parsePreferredLocale'
+import StoreEventsSubscriberHandler from '../src/events/store-events-subscriber-handler'
 
 import type { PiniaPluginContext } from 'pinia'
 import type { Tracer } from 'pinia-plugin-subscription/types'
 import type { VisitorBrowserData, VisitorServerData } from './types/plugin'
+
+vi.mock('./App.vue', async () => ({
+    default: (await import('./components/HydrationEnvironmentExample.vue')).default
+}))
+vi.mock('pinia-plugin-extending-store', () => ({
+    ExtendsPiniaStore: { name: 'unused-external-plugin', invoke: () => false }
+}))
 
 const browserData: VisitorBrowserData = {
     colorScheme: 'dark',
@@ -98,18 +106,19 @@ describe('environment-aware hydration traces', () => {
     }) as unknown as PiniaPluginContext
     const stubTracerFactory = () => {
         const tracer = { debug: vi.fn(), error: vi.fn() }
-        return { tracer, createTracer: vi.fn(() => tracer as unknown as Tracer) }
+        const createTracer = vi.fn(() => tracer as unknown as Tracer)
+        return { tracer, createTracer, pluginOptions: { createTracer, eventsHandler: new StoreEventsSubscriberHandler() } }
     }
     const namespaces = (calls: unknown[][]) => calls.map((call) => call[1])
 
     it('traces the server subscriber lifecycle with the store as scope', async () => {
-        const { tracer, createTracer } = stubTracerFactory()
+        const { tracer, createTracer, pluginOptions } = stubTracerFactory()
         const { subscriber } = createServerVisitorSubscriber(async () => ({
             locale: 'fr', pathname: '/', renderedAt: '2026-01-01T00:00:00.000Z'
         }))
         const context = storeContext()
 
-        expect(subscriber.invoke(context, createTracer)).toBe(true)
+        expect(subscriber.invoke(context, pluginOptions)).toBe(true)
         await subscriber.hydrate?.(context)
 
         expect(createTracer).toHaveBeenCalledWith('demo-plugin-server-visitor')
@@ -122,13 +131,13 @@ describe('environment-aware hydration traces', () => {
     })
 
     it('traces a failing server hydration as an error', async () => {
-        const { tracer, createTracer } = stubTracerFactory()
+        const { tracer, pluginOptions } = stubTracerFactory()
         const error = new Error('server data unavailable')
         const { ready, subscriber } = createServerVisitorSubscriber(() => Promise.reject(error))
         const context = storeContext()
         ready.catch(() => undefined)
 
-        subscriber.invoke(context, createTracer)
+        subscriber.invoke(context, pluginOptions)
         await expect(subscriber.hydrate?.(context)).rejects.toBe(error)
 
         expect(tracer.error).toHaveBeenCalledWith(
@@ -141,11 +150,11 @@ describe('environment-aware hydration traces', () => {
     })
 
     it('traces the browser subscriber lifecycle', () => {
-        const { tracer, createTracer } = stubTracerFactory()
+        const { tracer, createTracer, pluginOptions } = stubTracerFactory()
         const subscriber = createBrowserVisitorSubscriber(() => browserData)
         const context = storeContext()
 
-        subscriber.invoke(context, createTracer)
+        subscriber.invoke(context, pluginOptions)
         subscriber.hydrate?.(context)
 
         expect(createTracer).toHaveBeenCalledWith('demo-plugin-browser-visitor')
@@ -156,10 +165,10 @@ describe('environment-aware hydration traces', () => {
     })
 
     it('traces mutations', () => {
-        const { tracer, createTracer } = stubTracerFactory()
+        const { tracer, pluginOptions } = stubTracerFactory()
         const subscriber = createBrowserVisitorSubscriber(() => browserData)
 
-        subscriber.invoke(storeContext(), createTracer)
+        subscriber.invoke(storeContext(), pluginOptions)
         subscriber.storeMutationSubscription?.({} as never)?.callback({} as never, {} as never)
 
         const mutationCall = tracer.debug.mock.calls.find((call) => call[1] === 'visitorenvironmentstore:onmutation')
@@ -169,7 +178,7 @@ describe('environment-aware hydration traces', () => {
 
 
     it('does not create a tracer for stores that did not opt in', () => {
-        const { createTracer } = stubTracerFactory()
+        const { createTracer, pluginOptions } = stubTracerFactory()
         const { subscriber } = createServerVisitorSubscriber(async () => {
             throw new Error('not expected')
         })
@@ -177,7 +186,7 @@ describe('environment-aware hydration traces', () => {
         expect(subscriber.invoke({
             store: { $id: 'otherStore' },
             options: { storeOptions: {} }
-        } as unknown as PiniaPluginContext, createTracer)).toBe(false)
+        } as unknown as PiniaPluginContext, pluginOptions)).toBe(false)
         expect(createTracer).not.toHaveBeenCalled()
     })
 

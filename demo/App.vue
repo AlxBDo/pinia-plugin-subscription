@@ -19,7 +19,7 @@ const experiments = Object.values(
     <HydrationEnvironmentExample />
     <section v-if="experiments.length">
       <h2>Experiments (local)</h2>
-      <component :is="experiment" v-for="(experiment, index) in experiments" :key="index" />
+      <!-- <component :is="experiment" v-for="(experiment, index) in experiments" :key="index" /> -->
     </section>
   </main>
 </template>

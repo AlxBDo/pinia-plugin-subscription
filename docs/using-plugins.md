@@ -27,9 +27,8 @@ Plugins built on `pinia-plugin-subscription` share a common contract:
   level.
 - **SSR-safe execution** — each plugin declares where (`client`, `server`
   or `both`) and when (`immediate` or deferred after hydration) it runs.
-- **State rollback on action failure** — actions listed in the
-  `rollbackAfterFailure` store option automatically restore their state
-  snapshot when they throw.
+- **Optional state rollback** — install and register `pinia-plugin-state-snapshots`
+  to restore configured state when an action fails.
 
 ## Installation
 
@@ -91,7 +90,7 @@ defineAStore<Sto, Sta>(id, storeDefinition, options?) // explicit typings
 | --- | --- | --- |
 | `id` | `string` | Unique store identifier — same as pinia's `defineStore()`. |
 | `storeDefinition` | options object \| setup function | Same shape as pinia's `defineStore()`: an options object (`state`, `getters`, `actions`) or a setup function returning state and actions. |
-| `options` | `StoreOptions` (optional) | Per-store plugin options: the built-in `rollbackAfterFailure` key, plus any key contributed by installed plugins through `StoreOptionsExtensions`. |
+| `options` | `StoreOptions` (optional) | Per-store options contributed by installed plugins through `StoreOptionsExtensions`. |
 
 ### Type parameters (TypeScript only)
 
@@ -122,6 +121,7 @@ returned object):
 ```js
 import { ref } from 'vue'
 import { defineAStore } from 'pinia-plugin-subscription'
+import 'pinia-plugin-state-snapshots'
 
 export const useCounterStore = defineAStore('counter', () => {
   const count = ref(0)
@@ -260,13 +260,16 @@ own documentation.
 
 ## State rollback on action failure
 
-The plugin can automatically restore the previous state when an action
+Install `pinia-plugin-state-snapshots` and register `StateSnapshotsSubscriber`
+with `createPlugin` (see its [README](../packages/state-snapshots/README.md)).
+The subscriber can automatically restore the previous state when an action
 throws. Declare the state keys to snapshot per action via the
 `rollbackAfterFailure` store option:
 
 ```js
 import { ref } from 'vue'
 import { defineAStore } from 'pinia-plugin-subscription'
+import 'pinia-plugin-state-snapshots'
 
 export const useMyStore = defineAStore('myStore', () => {
   const count = ref(0)
@@ -287,8 +290,11 @@ export const useMyStore = defineAStore('myStore', () => {
 
 Before a configured action runs, the declared state keys are snapshotted.
 If the action throws (synchronously or by rejecting its returned promise),
-the snapshot is restored through `$patch`, so partial mutations are rolled
-back. The snapshot is always discarded once the action completes or fails.
+the snapshot is restored through a `$patch` mutation. The snapshot is always
+discarded once the action completes or fails. Supported values, error handling,
+and identity limitations are documented in the package README.
+If snapshot creation fails, the error is logged and the action still runs
+without that rollback snapshot.
 
 Only the actions listed in `rollbackAfterFailure` are snapshotted, so
 unrelated actions pay no cloning cost. Use `'all'` or `[]` instead of a key list to
@@ -299,7 +305,7 @@ methods.
 
 ### Manual rollback with `$rollbackAfterFailure`
 
-Every store registered by the plugin also exposes a `$rollbackAfterFailure`
+Every store registered with the subscriber also exposes a `$rollbackAfterFailure`
 method to run any action with an explicit snapshot/rollback wrapper, without
 declaring it in the store options:
 
@@ -322,7 +328,8 @@ try {
   for automatic rollback configured in store options.
 - `args` — optional; the action arguments, provided as a single array
   (forwarded to the action via `apply()`).
-- The original error is rethrown after the state is restored.
+- The original error is rethrown after the state is restored; if restoring fails,
+  an `AggregateError` contains both errors.
 
 ## Tracing
 

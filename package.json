@@ -1,6 +1,6 @@
 {
   "name": "pinia-plugin-subscription",
-  "version": "1.0.0-beta.15",
+  "version": "1.0.0-beta.16",
   "description": "Pinia plugin for Vue.js that helps building Pinia plugins by centralizing subscriber registration and providing a Store base class for store helpers.",
   "type": "module",
   "sideEffects": false,
@@ -71,7 +71,7 @@
     "dev:library": "vite",
     "test": "vitest",
     "coverage": "vitest run --coverage",
-    "build": "vitest run && npm run build:library && npm run build -w pinia-plugin-subscription-devtools",
+    "build": "vitest run && npm run build:library && npm run build -w pinia-plugin-subscription-devtools && npm run build -w pinia-plugin-state-snapshots",
     "build:library": "vite build && tsc --emitDeclarationOnly --outDir dist && node scripts/check-dist-leaks.mjs . && node scripts/measure-bundle.mjs",
     "check:leaks": "node scripts/check-dist-leaks.mjs . && node scripts/check-dist-leaks.mjs packages/devtools",
     "bundle:check": "vite build --config vite.config.ts && node scripts/measure-bundle.mjs",

@@ -85,7 +85,6 @@ describe('PluginSubscriber (abstract)', () => {
 
         const instance = {
             getSubscriptions: vi.fn().mockReturnValue(subscriptions),
-            resetCallback: (_s?: any) => { /* noop */ },
             storeSubscribe: 'storeSubscribeValue',
             onAction: 'onActionValue',
         }
@@ -97,7 +96,6 @@ describe('PluginSubscriber (abstract)', () => {
             constructor() {
                 super('ext', createInstance)
                 this.pluginCreated = pluginCreated
-                this._resetStoreCallback = (_s?: any) => { /* noop */ }
             }
         })()
 
@@ -111,7 +109,6 @@ describe('PluginSubscriber (abstract)', () => {
         expect(subscriber.storeMutationSubscription).toBe(instance.storeSubscribe)
         expect(subscriber.storeOnActionSubscription).toBe(instance.onAction)
         expect(pluginCreated).toHaveBeenCalledWith(ctx.store)
-        expect(typeof subscriber.resetStoreCallback).toBe('function')
     })
 
     it('should work when pluginCreated is not provided', () => {

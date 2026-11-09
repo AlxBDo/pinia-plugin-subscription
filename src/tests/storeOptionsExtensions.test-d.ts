@@ -1,7 +1,6 @@
 import { describe, it, expectTypeOf } from 'vitest'
 
 import type { StoreOptions, StoreOptionsExtensions } from '../types'
-import type { RollbackAfterFailureParams } from '../types/store'
 
 /**
  * Compile-only contract for the centralized store-options extension point.
@@ -20,15 +19,14 @@ describe('StoreOptionsExtensions contract', () => {
         expectTypeOf<StoreOptionsExtensions['testExtension']>().toEqualTypeOf<string | undefined>()
     })
 
-    it('flows extension keys into StoreOptions without altering built-in options', () => {
+    it('flows extension keys into StoreOptions', () => {
         expectTypeOf<StoreOptions['testExtension']>().toEqualTypeOf<string | undefined>()
-        expectTypeOf<StoreOptions['rollbackAfterFailure']>().toEqualTypeOf<RollbackAfterFailureParams | undefined>()
     })
 
     it('accepts extension keys in store options literals', () => {
         // Compile-only: this assignment fails typecheck if extension keys
         // are not accepted on StoreOptions.
-        const options: StoreOptions = { testExtension: 'value', rollbackAfterFailure: { save: 'all' } }
+        const options: StoreOptions = { testExtension: 'value' }
 
         expectTypeOf(options.testExtension).toEqualTypeOf<string | undefined>()
     })

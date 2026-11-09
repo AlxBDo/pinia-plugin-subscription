@@ -40,20 +40,22 @@ onMounted(() => {
     schedule(() => rollbackSnapshotStoreWithoutRollback.increment(), 2500)
     schedule(() => {
         withoutRollbackSnapshotStoreHistory.value.push(`$rollbackAfterFailure & increment +1 & codeError`)
-        rollbackSnapshotStoreWithoutRollback.$rollbackAfterFailure({
+        void rollbackSnapshotStoreWithoutRollback.$rollbackAfterFailure({
             action: 'codeError',
             stateKeys: ['count']
         }, ['useRollbackSnapshotStore', 'using $rollbackAfterFailure', 50])
+            .catch(error => console.error('Expected codeError action failure:', error))
     }, 3000)
     schedule(() => {
         withoutRollbackSnapshotStoreHistory.value.push(`increment +1`)
         rollbackSnapshotStoreWithoutRollback.increment()
 
         withoutRollbackSnapshotStoreHistory.value.push(`$rollbackAfterFailure & increment +24 & throwError`)
-        rollbackSnapshotStoreWithoutRollback.$rollbackAfterFailure({
+        void rollbackSnapshotStoreWithoutRollback.$rollbackAfterFailure({
             action: 'throwError',
             stateKeys: ['count']
         })
+            .catch(error => console.error('Expected throwError action failure:', error))
     }, 4000)
     schedule(() => {
         withoutRollbackSnapshotStoreHistory.value.push(`increment +1`)
@@ -63,6 +65,10 @@ onMounted(() => {
             rollbackSnapshotStoreWithoutRollback.throwError()
         } catch (error) { }
     }, 5000)
+    schedule(() => {
+        rollbackSnapshotStoreWithRollback.$reset()
+        rollbackSnapshotStoreHistory.value.push(`$reset`)
+    }, 6000)
 })
 
 onBeforeUnmount(() => timers.forEach(clearTimeout))

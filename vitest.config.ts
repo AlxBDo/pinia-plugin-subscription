@@ -10,6 +10,7 @@ export default defineConfig({
     resolve: {
         alias: [
             { find: /^pinia-plugin-subscription-devtools$/, replacement: resolve(projectRoot, 'packages/devtools/src/index.ts') },
+            { find: /^pinia-plugin-state-snapshots$/, replacement: resolve(projectRoot, 'packages/state-snapshots/src/index.ts') },
             { find: /^pinia-plugin-subscription\/helpers$/, replacement: resolve(projectRoot, 'src/helpers/index.ts') },
             { find: /^pinia-plugin-subscription\/types$/, replacement: resolve(projectRoot, 'src/types/index.ts') },
             { find: /^pinia-plugin-subscription$/, replacement: resolve(projectRoot, 'src/lib/main.ts') },

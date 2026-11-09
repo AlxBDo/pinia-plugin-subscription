@@ -10,7 +10,6 @@ import type { PluginSubscriber, PluginSubscriberInvoke } from "../types/plugin";
  * @param {PluginExecutionOptions} optionalProps.execution
  * @param {Function} optionalProps.hydrate
  * @param {PluginHydrationScheduler} optionalProps.hydrationScheduler
- * @param {Function} optionalProps.resetStoreCallback
  * @param {StoreOnActionSubscription} optionalProps.storeOnActionSubscription
  * @param {StoreMutationSubscription} optionalProps.storeMutationSubscription
  * @param {PluginSubscriptions} optionalProps.subscriptions

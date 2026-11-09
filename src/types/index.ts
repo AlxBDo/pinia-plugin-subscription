@@ -34,8 +34,6 @@ export type {
     DefineAStoreSetupContext,
     DefineAStoreSetupExtensions,
     EmptyExtensions,
-    RollbackActionParams,
-    RollbackAfterFailureParams,
     StatePropertyValue,
     StoreOptions,
     StoreOptionsPropertyValue
@@ -46,6 +44,7 @@ export type {
     PluginExecutionEnvironment,
     PluginExecutionOptions,
     PluginHydrationTiming,
+    PluginOptions,
     PluginRuntimeEnvironment,
     PluginStoreOptions,
     PluginSubscriberInvoke,

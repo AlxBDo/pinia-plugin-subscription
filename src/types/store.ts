@@ -1,5 +1,4 @@
 import type { AnyObject, StoreOptionsExtensions } from ".";
-import type { CreateStateSnapshotKeys } from "./plugin";
 import type {
     _StoreWithGetters,
     Pinia,
@@ -63,13 +62,6 @@ export type ObjectBaseProperty = Record<string, OptionBaseProperty | OptionBaseP
 
 export type OptionBaseProperty = string | number | boolean | null | undefined | object | Function
 
-export interface RollbackActionParams {
-    action: string
-    stateKeys?: CreateStateSnapshotKeys
-}
-
-export type RollbackAfterFailureParams = { [key: string]: CreateStateSnapshotKeys }
-
 export type StatePropertyValue = StdStatePropertyValue
     | Ref<StdStatePropertyValue>
     | StdStatePropertyValue[]
@@ -89,7 +81,6 @@ type StdStatePropertyValue = AnyObject | boolean | null | number | string | unde
  */
 export type StoreOptions = StoreOptionsExtensions & {
     [key: string]: StoreOptionsPropertyValue
-    rollbackAfterFailure?: RollbackAfterFailureParams
 }
 
 export type StoreOptionsPropertyValue = OptionBaseProperty | OptionBaseProperty[] | ObjectBaseProperty | ObjectBaseProperty[]

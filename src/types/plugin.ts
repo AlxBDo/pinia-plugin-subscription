@@ -1,10 +1,9 @@
+import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { StoreOptions } from "./store"
 import type { PluginSubscriberInterface } from "."
 import type { Tracer, TracerHandler } from "./trace"
 
-
-export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
 
 export type PluginHydrationScheduler = (callback: () => void) => void
 
@@ -25,6 +24,11 @@ export interface PluginExecutionOptions {
      * @type {PluginHydrationTiming | undefined}
      */
     hydration?: PluginHydrationTiming
+}
+
+export interface PluginOptions {
+    createTracer?: (source: string) => Tracer
+    eventsHandler: StoreEventsSubscriberHandler
 }
 
 export interface PluginStoreOptions {
@@ -119,12 +123,6 @@ export interface PluginSubscriber {
     pluginOptions?: StoreClassConstructorParams
 
     /**
-     * Callback to reset the store associated with the plugin subscriber.
-     * This is typically used to clean up or reinitialize the store.
-     */
-    resetStoreCallback?: (store?: Store) => void
-
-    /**
      * Subscription for store actions.
      * This is typically used to listen for and respond to actions dispatched in the store.
      */
@@ -149,7 +147,7 @@ export interface PluginSubscriber {
     afterHydration?: (context: PiniaPluginContext) => void | Promise<void>
 }
 
-export type PluginSubscriberInvoke = (context: PiniaPluginContext, createTracer?: (source: string) => Tracer) => boolean
+export type PluginSubscriberInvoke = (context: PiniaPluginContext, pluginOptions?: PluginOptions) => boolean
 
 /**
  * Return type for native Pinia subscriptions.

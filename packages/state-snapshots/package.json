@@ -1,0 +1,65 @@
+{
+  "name": "pinia-plugin-state-snapshots",
+  "version": "1.0.0-beta.0",
+  "type": "module",
+  "sideEffects": false,
+  "author": "Alexandre Bidaud <alexbidaud85@gmail.com> (https://github.com/AlxBDo)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AlxBDo/pinia-plugin-subscription.git",
+    "directory": "packages/state-snapshots"
+  },
+  "homepage": "https://github.com/AlxBDo/pinia-plugin-subscription/tree/main/packages/state-snapshots",
+  "bugs": {
+    "url": "https://github.com/AlxBDo/pinia-plugin-subscription/issues"
+  },
+  "keywords": [
+    "pinia",
+    "vue",
+    "state-snapshot",
+    "debug",
+    "trace",
+    "pinia-plugin-subscription"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/pinia-plugin-state-snapshots.js"
+    }
+  },
+  "main": "./dist/pinia-plugin-state-snapshots.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "docs",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "vite build && tsc --emitDeclarationOnly --outDir dist && node ../../scripts/check-dist-leaks.mjs packages/state-snapshots"
+  },
+  "peerDependencies": {
+    "pinia": "^2.0.0 || ^3.0.0",
+    "pinia-plugin-subscription": ">=1.0.0-beta.16",
+    "vue": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pinia": {
+      "optional": false
+    },
+    "vue": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "pinia-plugin-subscription": "file:../.."
+  }
+}
