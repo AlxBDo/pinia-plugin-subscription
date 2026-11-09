@@ -1,8 +1,6 @@
-import RollbackStateSnapshotsHandler from "./RollbackStateSnapshotsHandler"
-import { deepClone } from '../utils/deep-clone'
 import { getActionStoreKey, getStoreKeyPrefix, getStoreScopedKey } from '../utils/store'
 import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
-import { STORE, SUBSCRIBER } from "../dictionaries/plugin-subscription-event"
+import { PLUGIN, STORE, SUBSCRIBER } from "../dictionaries/plugin-subscription-event"
 import TraceEmitter from "../system/TraceEmitter"
 import { isEmpty } from "../utils/validation"
 import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
@@ -56,10 +54,8 @@ export default class PluginSubscription extends TraceEmitter {
     private _onMutationSubscriptionsTraces: Map<string, string[]> = new Map()
     private _onMutationUnsubscribes: Map<Store, () => void> = new Map()
     private _options?: PluginSubscriptionOptions
-    private _resetStoreCallback: Map<Store, Set<NonNullable<PluginSubscriber['resetStoreCallback']>>> = new Map()
     private _disposedStores: WeakSet<Store> = new WeakSet()
     private _storeEventsSubscribersHandler = new StoreEventsSubscriberHandler()
-    private _storeRollbackSnapshotsHandler: RollbackStateSnapshotsHandler = new RollbackStateSnapshotsHandler()
     private _subscribers: PluginSubscriber[] = []
     private _subscribersDelivered: Set<string> = new Set()
     private _subscribersScheduled: Set<string> = new Set()
@@ -103,13 +99,6 @@ export default class PluginSubscription extends TraceEmitter {
         this._onActionOnErrorSubscriptions[key]?.push(callback)
     }
 
-    private addResetStoreCallback(store: Store, callback: NonNullable<PluginSubscriber['resetStoreCallback']>): void {
-        if (!this._resetStoreCallback.has(store)) {
-            this._resetStoreCallback.set(store, new Set())
-        }
-        this._resetStoreCallback.get(store)!.add(callback)
-    }
-
     private clearOnActionCallbacksSubscriptions(storageKey: string): void {
         delete this._onActionAfterSubscriptions[storageKey]
         delete this._onActionOnErrorSubscriptions[storageKey]
@@ -121,7 +110,6 @@ export default class PluginSubscription extends TraceEmitter {
         this._onMutationUnsubscribes.get(store)?.()
         this._onMutationUnsubscribes.delete(store)
         this._onMutationSubscriptions.delete(store)
-        this._resetStoreCallback.delete(store)
         this._onActionSubscriptionsTraces.delete(store.$id)
         this._onMutationSubscriptionsTraces.delete(store.$id)
         const keyPrefix = getStoreKeyPrefix(store)
@@ -222,33 +210,6 @@ export default class PluginSubscription extends TraceEmitter {
         }
     }
 
-    /**
-     * Rolls back the state snapshot for a given action if an error occurs, and removes the snapshot after the action completes or fails.
-     * @param actionName The name of the action being executed.
-     * @param store The Pinia store instance.
-     * @returns void
-     */
-    private createRollbackSnapshot(
-        actionName: string,
-        store: Store
-    ) {
-        const {
-            after,
-            onError
-        } = this._storeRollbackSnapshotsHandler.createOnActionCallbacks(
-            actionName,
-            store
-        ) ?? {}
-
-        if (!after || !onError) {
-            return
-        }
-
-        this.addOnActionAfterCallback(actionName, store, after)
-        this.addOnActionOnErrorCallback(actionName, store, onError)
-        this.trace('store:onAction:rollbackSnapshot:created', store.$id)
-    }
-
     private defineCurrentEnvironment(): PluginRuntimeEnvironment {
         return this._options?.runtimeEnvironment
             ?? (typeof window === 'undefined' ? 'server' : 'client')
@@ -285,8 +246,12 @@ export default class PluginSubscription extends TraceEmitter {
         }
     }
 
-    private executeResetStoreCallbacks(store: Store): void {
-        this._resetStoreCallback.get(store)?.forEach(callback => callback(store))
+    private emitActionError(store: Store, name: string, error: unknown, invocationKey?: symbol): void {
+        try {
+            this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_ERROR, () => [name, error, invocationKey])
+        } catch (cleanupError) {
+            throw new AggregateError([error, cleanupError], `Failed to clean up action '${name}'`)
+        }
     }
 
     /**
@@ -300,10 +265,9 @@ export default class PluginSubscription extends TraceEmitter {
             return
         }
         const onActionSubscriptions = this._onActionSubscriptions.get(store)
-        const hasRollbackSnapshots = this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)
         const hasEventSubscribers = this._storeEventsSubscribersHandler.getSubscribers(store.$id).length > 0
 
-        if (!onActionSubscriptions?.size && !hasRollbackSnapshots && !hasEventSubscribers && !hasDeferredSubscribers) {
+        if (!onActionSubscriptions?.size && !hasEventSubscribers && !hasDeferredSubscribers) {
             return
         }
 
@@ -312,7 +276,12 @@ export default class PluginSubscription extends TraceEmitter {
             const hasEventSubscribers = this._storeEventsSubscribersHandler.getSubscribers(store.$id).length > 0
             const invocationKey = hasEventSubscribers ? Symbol(getActionStoreKey(name, store)) : undefined
             if (invocationKey) {
-                this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_BEFORE, () => [name, invocationKey])
+                try {
+                    this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_BEFORE, () => [name, invocationKey])
+                } catch (error) {
+                    this.emitActionError(store, name, error, invocationKey)
+                    throw error
+                }
             }
             const callbacks = this._onActionSubscriptions.get(store)
             if (!callbacks?.size && !invocationKey) {
@@ -336,10 +305,6 @@ export default class PluginSubscription extends TraceEmitter {
             }
 
             try {
-                if (callbacks?.size && this._storeRollbackSnapshotsHandler.storeHasRollbackSnapshots(store)) {
-                    this.createRollbackSnapshot(name, store)
-                }
-
                 // Callbacks are invoked synchronously so that their after/onError collectors are filled before Pinia runs the action.
                 const pending: Promise<void>[] = []
                 callbacks?.forEach(callback => {
@@ -364,8 +329,11 @@ export default class PluginSubscription extends TraceEmitter {
                 this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId, callId, invocationKey)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
             } catch (error) {
-                this._storeEventsSubscribersHandler.emit(store, STORE.ACTION_ERROR, () => [name, error, invocationKey])
-                closeGroup()
+                try {
+                    this.emitActionError(store, name, error, invocationKey)
+                } finally {
+                    closeGroup()
+                }
                 throw error
             }
         })
@@ -517,10 +485,6 @@ export default class PluginSubscription extends TraceEmitter {
 
         this.storeOnActionSubscription(subscriber, context)
 
-        if (subscriber.resetStoreCallback) {
-            this.addResetStoreCallback(context.store, subscriber.resetStoreCallback)
-        }
-
         return pending
     }
 
@@ -600,10 +564,9 @@ export default class PluginSubscription extends TraceEmitter {
                 }
             )
 
-            this.rewriteResetStore({ store } as PiniaPluginContext, store.$state)
-            this._storeRollbackSnapshotsHandler.initFromPluginContext({ store, options } as PiniaPluginContext)
             this.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
             this.registerStoreCleanup(store)
+            this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.END)
         } catch (e) {
             this.traceError('plugin:invoke', e, store.$id)
         }
@@ -660,24 +623,8 @@ export default class PluginSubscription extends TraceEmitter {
         store.$dispose = () => {
             this._disposedStores.add(store)
             this.clearStoreTracking(store)
-            this._storeRollbackSnapshotsHandler.clearStoreTracking(store)
             this._storeEventsSubscribersHandler.clearSubscribers(store.$id)
             return dispose()
-        }
-    }
-
-    private rewriteResetStore({ store }: PiniaPluginContext, initState: StateTree): void {
-        const safeState = deepClone(initState)
-
-        store.$reset = () => {
-            const groupId = traceGroups.reset(store.$id, ++this._actionSeq)
-            this.traceGroupStart(() => ({ initialState: safeState, groupId }), store.$id, 'store:reset')
-            try {
-                this.executeResetStoreCallbacks(store)
-                store.$patch(deepClone(safeState))
-            } finally {
-                this.traceGroupEnd(() => ({ groupId }), store.$id)
-            }
         }
     }
 

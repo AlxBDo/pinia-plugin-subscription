@@ -1,6 +1,9 @@
 import { ref } from 'vue'
 import { defineAStore } from 'pinia-plugin-subscription'
 
+import type { Store } from 'pinia'
+
+
 export const useRollbackSnapshotStore = (rollback = false) => defineAStore(
     'rollbackSnapshotStore' + (rollback ? 'WithRollback' : ''),
     () => {
@@ -36,6 +39,9 @@ export const useRollbackSnapshotStore = (rollback = false) => defineAStore(
     }, {
     active: true,
     demo: true,
+    onResetStore: (store: Store) => {
+        console.log('Store has been reset and onResetStore are defined by store options', store)
+    },
     rollbackAfterFailure: rollback ? {
         codeError: ['count'],
         throwError: ['all']

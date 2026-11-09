@@ -7,11 +7,11 @@ This project provides:
 - a `Store` base class (helper wrapper) to ease interacting with Pinia stores from subscribers or other plugin code;
 - an API to create a Pinia plugin from a list of subscribers;
 - the `$reset` method on all stores modified by the plugin;
-- automatic state rollback on action failure via the `rollbackAfterFailure` store option and the `$rollbackAfterFailure` method.
+- optional state rollback through the separate [`pinia-plugin-state-snapshots`](packages/state-snapshots/) package.
 
-Deferred subscribers attach their action and reset callbacks to their own store after hydration; disposing a store removes its callbacks. For both rollback APIs, `stateKeys: []` restores the full state on failure.
-
-Automatic rollback uses a separate snapshot for each action invocation, including concurrent or nested calls. It restores the state captured by the failing invocation; it does not merge changes made by other overlapping actions.
+Deferred subscribers attach their action and reset callbacks to their own store after hydration; disposing a store removes its callbacks.
+If a snapshot cannot be created, the state-snapshots subscriber logs the error
+and lets the action run without that rollback snapshot.
 
 ## Tested & maintained
 
@@ -35,7 +35,7 @@ The package serves two audiences:
 
 | You want to… | Guide |
 | --- | --- |
-| Use a compatible plugin (e.g. `pinia-plugin-extending-store`, `pinia-plugin-persist-state`) or this package's built-in store features (`defineAStore`, `$reset`, state rollback) in your app | [Using compatible plugins](docs/using-plugins.md) |
+| Use a compatible plugin (e.g. `pinia-plugin-extending-store`, `pinia-plugin-persist-state`, `pinia-plugin-state-snapshots`) or built-in store features (`defineAStore`, `$reset`) | [Using compatible plugins](docs/using-plugins.md) |
 | Build your own pinia plugin on top of `pinia-plugin-subscription` (API reference, `Store` class, import subpaths, development and testing) | [Plugin authoring guide](docs/authoring-plugins.md) |
 | Debug stores and plugins with structured trace events | [Tracing](packages/devtools/docs/tracing.md) |
 
@@ -68,7 +68,7 @@ app.mount('#app')
 ## Advanced Features
 
 - **Structured tracing:** the plugin and `Store` emit typed trace events through an optional `tracerHandler`. Tracing itself (listeners, journal, redaction, in-page panel) lives in the separate [`pinia-plugin-subscription-devtools`](packages/devtools/) package, so apps that do not debug stay lean — see [Tracing](#tracing).
-- **Reset callbacks:** Define `resetStoreCallback` to run custom logic when a store is reset.
+- **Reset callbacks:** Define `resetStoreCallback` to run custom logic when the registered [`StateSnapshotsSubscriber`](packages/state-snapshots/README.md) resets a store. `PluginSubscription` itself does not replace or reset the store's `$reset` method.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 
@@ -76,6 +76,9 @@ For subscriber authors, store action events are emitted even without a `storeOnA
 `ACTION_BEFORE` receives `(name, invocationKey)`, `ACTION_AFTER` receives
 `(name, invocationKey)` after success, and `ACTION_ON_ERROR` receives `(name, error, invocationKey)`
 after failure. The symbol identifies one invocation.
+Event subscribers may override `shouldPropagateError(event)` to make errors critical;
+other subscriber errors continue to be logged. A critical `ACTION_BEFORE` error
+aborts the action and emits `ACTION_ERROR` for cleanup.
 
 ## Tracing
 

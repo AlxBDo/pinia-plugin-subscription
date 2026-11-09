@@ -12,6 +12,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: /^pinia-plugin-subscription-devtools$/, replacement: resolve(__dirname, 'packages/devtools/src/index.ts') },
+      { find: /^pinia-plugin-state-snapshots$/, replacement: resolve(__dirname, 'packages/state-snapshots/src/index.ts') },
       { find: /^pinia-plugin-subscription\/helpers$/, replacement: resolve(__dirname, 'src/helpers/index.ts') },
       { find: /^pinia-plugin-subscription\/types$/, replacement: resolve(__dirname, 'src/types/index.ts') },
       { find: /^pinia-plugin-subscription$/, replacement: resolve(__dirname, 'src/lib/main.ts') },

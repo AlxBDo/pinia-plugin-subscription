@@ -439,7 +439,7 @@ directly in the store definition:
 
 ```ts
 export const useMyStore = defineAStore('myStore', () => { /* ... */ }, {
-  rollbackAfterFailure: { save: 'all' },  // built-in option
+  rollbackAfterFailure: { save: 'all' },  // provided by pinia-plugin-state-snapshots
   myPluginOption: 'value',                // typed via your augmentation
 })
 ```

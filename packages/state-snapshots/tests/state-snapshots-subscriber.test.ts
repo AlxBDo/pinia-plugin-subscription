@@ -28,10 +28,14 @@ function createContext(rollback = true): PiniaPluginContext {
 }
 
 describe('state snapshots subscriber', () => {
-    it('does not subscribe stores without snapshot options', () => {
+    it('adds manual rollback and disposal cleanup without snapshot options', () => {
         const subscriber = new StateSnapshotsSubscriberClass()
-
-        expect(subscriber.invoke(createContext(false))).toBe(false)
+        const context = createContext(false)
+        const subscribe = vi.spyOn(StoreEventsSubscriberHandler.prototype, 'subscribe')
+        new PluginSubscription([subscriber]).plugin(context)
+        expect(context.store.$rollbackAfterFailure).toBeTypeOf('function')
+        expect(subscribe).toHaveBeenCalledOnce()
+        subscribe.mockRestore()
     })
 
     it('registers the store event subscriber', () => {
@@ -56,6 +60,45 @@ describe('state snapshots subscriber', () => {
         new PluginSubscription([subscriber]).plugin(context)
         expect(subscribe).toHaveBeenCalledOnce()
         subscribe.mockRestore()
+    })
+})
+
+describe('state reset', () => {
+    it('restores the initial state and executes the configured reset callback', () => {
+        const context = createContext(false)
+        const resetCallback = vi.fn()
+        context.options.storeOptions = { overrideReset: true, onResetStore: resetCallback }
+        const originalReset = context.store.$reset
+        const plugin = new PluginSubscription([new StateSnapshotsSubscriberClass()])
+
+        plugin.plugin(context)
+        expect(context.store.$reset).not.toBe(originalReset)
+        context.store.count = 5
+        context.store.$reset()
+
+        expect(context.store.count).toBe(0)
+        expect(resetCallback).toHaveBeenCalledWith(context.store)
+    })
+
+    it('clones structured values when resetting the store', () => {
+        const context = createContext(false)
+        const initialMap = new Map([['first', { nested: 1 }]])
+        const initialSet = new Set([{ nested: 2 }, 'ready'])
+        context.store.$state.records = initialMap
+        context.store.$state.tags = initialSet
+        const stateSnapshotsSubscriber = new StateSnapshotsSubscriberClass()
+        stateSnapshotsSubscriber.overrideReset = true
+        const plugin = new PluginSubscription([stateSnapshotsSubscriber])
+
+        plugin.plugin(context)
+        context.store.$state.records = new Map()
+        context.store.$state.tags = new Set()
+        context.store.$reset()
+
+        expect(context.store.$state.records).not.toBe(initialMap)
+        expect(context.store.$state.tags).not.toBe(initialSet)
+        expect(context.store.$state.records.get('first')).toEqual({ nested: 1 })
+        expect(context.store.$state.tags.has('ready')).toBe(true)
     })
 })
 

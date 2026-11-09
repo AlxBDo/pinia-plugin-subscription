@@ -37,6 +37,10 @@ export default class StoreEventsSubscriber {
         return this._storeId === store.$id && Object.keys(this._subscriptions ?? {}).length > 0;
     }
 
+    public shouldPropagateError(_event: string): boolean {
+        return false
+    }
+
     subscribe(event: string, handler: (...args: any[]) => void) {
         this._subscriptions[event] = handler;
     }

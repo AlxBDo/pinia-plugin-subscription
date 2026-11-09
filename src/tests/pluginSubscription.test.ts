@@ -152,16 +152,19 @@ describe('PluginSubscription', () => {
             expect(events).toHaveLength(0)
         })
 
-        it('emits store:reset when the rewritten $reset runs', () => {
+        it('does not trace resets owned outside PluginSubscription', () => {
             const events: TraceEvent[] = []
             addListener({ filter: () => true, handler: (event) => { events.push(event) } })
             const store = createTracedStore()
-            pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true), subscriptions: undefined }]
+            const reset = store.$reset
 
+            pluginSub.subscribers = [{ name: 's', invoke: vi.fn().mockReturnValue(true) }]
             pluginSub.plugin(createContext(store))
             store.$reset()
 
-            expect(events.some(event => (event.label?.endsWith(':store:reset') || event.namespace?.endsWith(':store:reset')) && event.scope === 'cart')).toBe(true)
+            expect(store.$reset).toBe(reset)
+            expect(reset).toHaveBeenCalledOnce()
+            expect(events.some(event => event.label?.endsWith(':store:reset') || event.namespace?.endsWith(':store:reset'))).toBe(false)
         })
 
         it('reports subscriber failures as error events without throwing', () => {
@@ -224,85 +227,6 @@ describe('PluginSubscription', () => {
         })
     })
 
-    describe('reset callbacks via plugin', () => {
-        it('should register reset callback provided by subscriber during plugin init', () => {
-            const callback = vi.fn()
-            const subscriber: PluginSubscriber = { name: 's', invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback, subscriptions: undefined }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
-                $state: { count: 0 },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store
-
-            pluginSub.plugin({ store: mockStore, options: {} } as any)
-
-            expect((pluginSub as any)._resetStoreCallback.get(mockStore)).toContain(callback)
-        })
-
-        it('should execute multiple reset callbacks when $reset is called', () => {
-            const callback1 = vi.fn()
-            const callback2 = vi.fn()
-            const subscriber1: PluginSubscriber = { name: 's1', invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback1, subscriptions: undefined }
-            const subscriber2: PluginSubscriber = { name: 's2', invoke: vi.fn().mockReturnValue(true), resetStoreCallback: callback2, subscriptions: undefined }
-
-            pluginSub.subscribers = [subscriber1, subscriber2]
-
-            const mockStore = {
-                $state: { count: 0 },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store
-
-            pluginSub.plugin({ store: mockStore, options: {} } as any)
-
-            mockStore.$reset!()
-
-            expect(callback1).toHaveBeenCalledWith(mockStore)
-            expect(callback2).toHaveBeenCalledWith(mockStore)
-        })
-
-        it('should deduplicate callbacks per store and release them on disposal', () => {
-            const callback = vi.fn()
-            const subscriber: PluginSubscriber = {
-                name: 'reset',
-                invoke: vi.fn().mockReturnValue(true),
-                resetStoreCallback: callback
-            }
-            pluginSub.subscribers = [subscriber, { ...subscriber, name: 'reset-again' }]
-            const makeStore = () => ({
-                $id: 'reset-store',
-                $state: { count: 0 },
-                $patch: vi.fn(),
-                $dispose: vi.fn()
-            } as unknown as Store)
-            const first = makeStore()
-            const other = { ...makeStore(), $id: 'other' } as Store
-
-            pluginSub.plugin(createContext(first))
-            pluginSub.plugin(createContext(other))
-            first.$reset!()
-            expect(callback).toHaveBeenCalledTimes(1)
-            expect(callback).toHaveBeenCalledWith(first)
-            expect((pluginSub as any)._resetStoreCallback.get(first).size).toBe(1)
-
-            first.$dispose!()
-            expect((pluginSub as any)._resetStoreCallback.has(first)).toBe(false)
-            const recreated = makeStore()
-            pluginSub.plugin(createContext(recreated))
-            recreated.$reset!()
-            other.$reset!()
-            expect(callback.mock.calls.map(([store]) => store)).toEqual([first, recreated, other])
-            other.$dispose!()
-            recreated.$dispose!()
-            expect((pluginSub as any)._resetStoreCallback.size).toBe(0)
-        })
-    })
-
-
-
     describe('edge cases', () => {
         it('keeps subscriber delivery and cleanup keys distinct when names and store ids contain separators', () => {
             const firstInvoke = vi.fn().mockReturnValue(true)
@@ -332,42 +256,6 @@ describe('PluginSubscription', () => {
             expect((pluginSub as any)._subscribersDelivered.has(getStoreScopedKey('x', secondStore))).toBe(true)
             pluginSub.plugin(createContext(secondStore))
             expect(secondInvoke).toHaveBeenCalledTimes(2)
-        })
-
-        it('should clone Map and Set values when $reset is executed', () => {
-            const subscriber: PluginSubscriber = {
-                name: 'map-set-reset',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const initialMap = new Map<string, { nested: number }>([['first', { nested: 1 }]])
-            const initialSet = new Set([{ nested: 2 }, 'ready'])
-            const mockStore = {
-                $id: 'reset-maps',
-                $state: {
-                    records: initialMap,
-                    tags: initialSet,
-                },
-                $patch: vi.fn(),
-                $reset: vi.fn(),
-            } as unknown as Store
-
-            pluginSub.plugin(createContext(mockStore))
-            mockStore.$reset!()
-
-            expect(mockStore.$patch).toHaveBeenCalledWith(expect.objectContaining({
-                records: expect.any(Map),
-                tags: expect.any(Set),
-            }))
-
-            const resetState = (mockStore.$patch as any).mock.calls[0][0]
-            expect(resetState.records).not.toBe(initialMap)
-            expect(resetState.tags).not.toBe(initialSet)
-            expect(resetState.records.get('first')).toEqual({ nested: 1 })
-            expect(resetState.tags.has('ready')).toBe(true)
         })
 
         it('should allow a new store instance with the same $id after dispose', () => {
@@ -427,50 +315,10 @@ describe('PluginSubscription', () => {
 
             expect(() => pluginSub.plugin(mockContext)).not.toThrow()
             await Promise.resolve()
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
-        })
-    })
-
-    describe('executeResetStoreCallbacks', () => {
-        it('should execute all reset store callbacks', () => {
-            const callback1 = vi.fn()
-            const callback2 = vi.fn()
-            const callback3 = vi.fn()
-
-            const mockStore = { $state: {} }
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback1)
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback2)
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback3)
-
-                ; (pluginSub as any).executeResetStoreCallbacks(mockStore)
-
-            expect(callback1).toHaveBeenCalledWith(mockStore)
-            expect(callback2).toHaveBeenCalledWith(mockStore)
-            expect(callback3).toHaveBeenCalledWith(mockStore)
-        })
-
-        it('should execute callbacks in the correct order', () => {
-            const callOrder: number[] = []
-            const callback1 = vi.fn(() => callOrder.push(1))
-            const callback2 = vi.fn(() => callOrder.push(2))
-            const callback3 = vi.fn(() => callOrder.push(3))
-
-            const mockStore = { $state: {} } as Store
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback1)
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback2)
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback3)
-
-                ; (pluginSub as any).executeResetStoreCallbacks(mockStore)
-
-            expect(callOrder).toEqual([1, 2, 3])
-        })
-
-        it('should handle empty callbacks array', () => {
-            const mockStore = { $state: {} } as Store
-
-            expect(() => {
-                ; (pluginSub as any).executeResetStoreCallbacks(mockStore)
-            }).not.toThrow()
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
+                createTracer,
+                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+            }))
         })
     })
 
@@ -497,8 +345,14 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin(mockContext)
 
-            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
-            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
+                createTracer,
+                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+            }))
+            expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
+                createTracer,
+                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+            }))
             expect(subscriber1.invoke.mock.calls[0][1].eventsHandler).toBe(subscriber2.invoke.mock.calls[0][1].eventsHandler)
         })
 
@@ -564,7 +418,10 @@ describe('PluginSubscription', () => {
 
             scheduledCallbacks[0]!()
 
-            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
+                createTracer,
+                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+            }))
         })
 
         it('should wrap a deferred subscriber execution in its own trace group', () => {
@@ -769,35 +626,6 @@ describe('PluginSubscription', () => {
             expect(recreated.$onAction).toHaveBeenCalledTimes(1)
         })
 
-        it('should retain automatic rollback when an immediate action subscriber is registered first', () => {
-            let onActionCallback: ((params: any) => void) | undefined
-            const callback = vi.fn()
-            const store = {
-                $id: 'action-rollback',
-                $state: { count: 0 },
-                $patch: vi.fn((state: { count: number }) => { store.$state.count = state.count }),
-                $onAction: vi.fn((handler: (params: any) => void) => { onActionCallback = handler }),
-                $dispose: vi.fn()
-            } as unknown as Store & { $state: { count: number } }
-            pluginSub.subscribers = [{
-                name: 'immediate',
-                invoke: vi.fn().mockReturnValue(true),
-                storeOnActionSubscription: () => ({ store, callback })
-            }]
-
-            pluginSub.plugin(createContext(store, {
-                storeOptions: { rollbackAfterFailure: { fail: [] } }
-            }))
-            const onError = vi.fn()
-            onActionCallback!({ name: 'fail', args: [], after: vi.fn(), onError })
-            store.$state.count = 10
-            onError.mock.calls[0]![0](new Error('failed'))
-
-            expect(callback).toHaveBeenCalledTimes(1)
-            expect(store.$state.count).toBe(0)
-            expect(store.$patch).toHaveBeenCalledTimes(1)
-        })
-
         it('should deliver immediate and deferred action callbacks once each on the same store', () => {
             const scheduled: Array<() => void> = []
             const immediate = vi.fn()
@@ -866,51 +694,6 @@ describe('PluginSubscription', () => {
             scheduled[1]!()
             expect(subscriber.invoke).toHaveBeenCalledOnce()
             expect((subscriber.invoke as ReturnType<typeof vi.fn>).mock.calls[0]![0].store).toBe(newStore)
-        })
-
-        it('should add reset store callback from subscriber if provided', () => {
-            const resetCallback = vi.fn()
-            const subscriber: PluginSubscriber = {
-                name: 'r',
-                invoke: vi.fn().mockReturnValue(true),
-                resetStoreCallback: resetCallback,
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockContext = createContext({
-                $state: { count: 0 },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store)
-
-            pluginSub.plugin(mockContext)
-
-            expect((pluginSub as any)._resetStoreCallback.get(mockContext.store)).toContain(resetCallback)
-        })
-
-        it('should rewrite store $reset method', () => {
-            const subscriber: PluginSubscriber = {
-                name: 'x',
-                invoke: vi.fn(),
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
-                $state: { count: 0, name: 'test' },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store
-
-            const mockContext = createContext(mockStore)
-
-            pluginSub.plugin(mockContext)
-
-            expect(typeof mockStore.$reset).toBe('function')
-            expect(mockStore.$reset).not.toEqual(vi.fn())
         })
 
         it('should handle errors gracefully', () => {
@@ -1239,163 +1022,32 @@ describe('PluginSubscription', () => {
         })
     })
 
-    describe('$reset rewritten method', () => {
-        it('should execute all reset store callbacks when $reset is called', () => {
-            const callback1 = vi.fn()
-            const callback2 = vi.fn()
-
-            const subscriber: PluginSubscriber = {
-                name: 'a',
-                invoke: vi.fn().mockReturnValue(true),
-                resetStoreCallback: callback1,
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
+    describe('store reset ownership', () => {
+        it('does not rewrite $reset without a reset-owning subscriber', () => {
+            const reset = vi.fn()
+            const store = {
+                $id: 'reset-unowned',
                 $state: { count: 0 },
-                $reset: vi.fn(),
                 $patch: vi.fn(),
+                $reset: reset,
             } as unknown as Store
+            pluginSub.subscribers = [{ name: 'generic', invoke: vi.fn().mockReturnValue(true) }]
 
-            const mockContext = createContext(mockStore)
+            pluginSub.plugin(createContext(store))
 
-            pluginSub.plugin(mockContext)
-                ; (pluginSub as any).addResetStoreCallback(mockStore, callback2)
-
-            // Call the new $reset
-            mockStore.$reset!()
-
-            expect(callback1).toHaveBeenCalledWith(mockStore)
-            expect(callback2).toHaveBeenCalledWith(mockStore)
-        })
-
-        it('should restore initial state with $patch', () => {
-            const subscriber: PluginSubscriber = {
-                name: 'b',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
-                $state: { count: 0, name: 'initial' },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store
-
-            const mockContext = createContext(mockStore)
-
-            pluginSub.plugin(mockContext)
-
-                // Simulate state change by modifying $state
-                ; (mockStore.$state as any).count = 5
-                ; (mockStore.$state as any).name = 'changed'
-
-            // Call the new $reset
-            mockStore.$reset!()
-
-            expect(mockStore.$patch).toHaveBeenCalled()
-        })
-
-        it('should skip properties starting with $ or _', () => {
-            const subscriber: PluginSubscriber = {
-                name: 'c',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
-                $state: { count: 0, _private: 'hidden' },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-                $subscribe: vi.fn(),
-            } as unknown as Store
-
-            const mockContext = createContext(mockStore)
-
-            pluginSub.plugin(mockContext)
-
-            // Call the new $reset
-            mockStore.$reset!()
-
-            // Properties starting with $ or _ should be skipped
-            expect(mockStore.$patch).toHaveBeenCalled()
-        })
-
-        it('should use initial state value if available', () => {
-            const subscriber: PluginSubscriber = {
-                name: 's',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-            }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
-                $state: { count: 10, name: 'test' },
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store
-
-            const mockContext = createContext(mockStore)
-
-            pluginSub.plugin(mockContext)
-
-                // Change state via $state
-                ; (mockStore.$state as any).count = 999
-
-            // Call the new $reset
-            mockStore.$reset!()
-
-            expect(mockStore.$patch).toHaveBeenCalledWith(
-                expect.objectContaining({ count: 10, name: 'test' })
-            )
-        })
-
-        it('should preserve structured values when restoring the initial state', () => {
-            const subscriber: PluginSubscriber = {
-                name: 'structured-reset',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-            }
-
-            const initialDate = new Date('2024-01-01T00:00:00.000Z')
-            const snapshot = { count: 1, meta: { createdAt: initialDate, tags: ['a', 'b'] } }
-
-            pluginSub.subscribers = [subscriber]
-
-            const mockStore = {
-                $state: snapshot,
-                $reset: vi.fn(),
-                $patch: vi.fn(),
-            } as unknown as Store
-
-            pluginSub.plugin(createContext(mockStore))
-
-                ; (mockStore.$state as any).meta.createdAt = new Date('2024-02-02T00:00:00.000Z')
-                ; (mockStore.$state as any).meta.tags = ['x']
-
-            mockStore.$reset!()
-
-            const resetState = (mockStore.$patch as any).mock.calls[0][0]
-            expect(resetState.meta.createdAt instanceof Date).toBe(true)
-            expect(resetState.meta.createdAt.getTime()).toBe(initialDate.getTime())
-            expect(resetState.meta.tags).toEqual(['a', 'b'])
+            expect(store.$reset).toBe(reset)
+            store.$reset()
+            expect(reset).toHaveBeenCalledOnce()
+            expect(store.$patch).not.toHaveBeenCalled()
         })
     })
 
     describe('integration tests', () => {
         it('should handle complete plugin lifecycle', () => {
-            const resetCallback = vi.fn()
+            const reset = vi.fn()
             const subscriber1: PluginSubscriber = {
                 name: 'a',
                 invoke: vi.fn().mockReturnValue(true),
-                resetStoreCallback: resetCallback,
                 subscriptions: undefined,
             }
             const subscriber2: PluginSubscriber = {
@@ -1408,7 +1060,7 @@ describe('PluginSubscription', () => {
 
             const mockStore = {
                 $state: { count: 0, data: 'test' },
-                $reset: vi.fn(),
+                $reset: reset,
                 $patch: vi.fn(),
             } as unknown as Store
 
@@ -1420,11 +1072,11 @@ describe('PluginSubscription', () => {
             expect(subscriber1.invoke).toHaveBeenCalled()
             expect(subscriber2.invoke).toHaveBeenCalled()
 
-            // Simulate reset
+            // Reset behavior remains owned by the store or another plugin.
             mockStore.$reset!()
 
-            expect(resetCallback).toHaveBeenCalledWith(mockStore)
-            expect(mockStore.$patch).toHaveBeenCalled()
+            expect(reset).toHaveBeenCalledOnce()
+            expect(mockStore.$patch).not.toHaveBeenCalled()
         })
 
         it('should handle multiple stores with different states', () => {
@@ -1458,8 +1110,14 @@ describe('PluginSubscription', () => {
             pluginSub.plugin(context2)
 
             expect(subscriber.invoke).toHaveBeenCalledTimes(2)
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
-            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, { createTracer, eventsHandler: expect.any(StoreEventsSubscriberHandler) })
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, expect.objectContaining({
+                createTracer,
+                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+            }))
+            expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, expect.objectContaining({
+                createTracer,
+                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+            }))
             expect(subscriber.invoke.mock.calls[0][1].eventsHandler).toBe(subscriber.invoke.mock.calls[1][1].eventsHandler)
         })
     })
@@ -1701,12 +1359,12 @@ describe('PluginSubscription', () => {
                 name: 'deferred',
                 execution: { hydration: 'defer' },
                 invoke: () => { order.push('deferred'); return true },
-                storeOnActionSubscription: () => ({ store, callback: () => {} })
+                storeOnActionSubscription: () => ({ store, callback: () => { } })
             }
             const immediate: PluginSubscriber = {
                 name: 'immediate',
                 invoke: () => { order.push('immediate'); return true },
-                storeOnActionSubscription: () => ({ store, callback: () => {} })
+                storeOnActionSubscription: () => ({ store, callback: () => { } })
             }
             pluginSub = getPluginSubscription([deferred, immediate], {
                 runtimeEnvironment: 'client',
@@ -1802,41 +1460,6 @@ describe('PluginSubscription', () => {
             expect(onErrorEvent).toHaveBeenCalledWith('run', failure, before.mock.calls[0]![1])
         })
 
-        it('should register rollback callbacks on $onAction when the store has rollback snapshots', () => {
-            let onActionCallback: ((params: any) => void) | undefined
-            const mockStore = {
-                $id: 'rollback-store',
-                $state: { count: 0 },
-                $patch: vi.fn(),
-                $reset: vi.fn(),
-                $onAction: vi.fn((cb: (params: any) => void) => { onActionCallback = cb })
-            } as unknown as Store
-            const subscriber: PluginSubscriber = {
-                name: 'rollback-trigger',
-                invoke: vi.fn().mockReturnValue(true),
-                subscriptions: undefined,
-                storeOnActionSubscription: () => ({
-                    store: mockStore,
-                    callback: vi.fn(),
-                }),
-            }
-
-            pluginSub.subscribers = [subscriber]
-            pluginSub.plugin({
-                store: mockStore,
-                options: { storeOptions: { rollbackAfterFailure: { update: ['count'] } } }
-            } as any)
-
-            expect(mockStore.$onAction).toHaveBeenCalledTimes(1)
-
-            const after = vi.fn()
-            const onError = vi.fn()
-            onActionCallback!({ after, args: [], name: 'update', onError })
-
-            expect(after).toHaveBeenCalledTimes(1)
-            expect(onError).toHaveBeenCalledTimes(1)
-        })
-
         it('should trace async callback rejections and still register after callbacks', async () => {
             let onActionCallback: ((params: any) => void) | undefined
             const mockStore = {
@@ -1873,7 +1496,7 @@ describe('PluginSubscription', () => {
             )
         })
 
-        it('should skip $onAction wiring when there are no subscriptions and no rollback snapshots', () => {
+        it('should skip $onAction wiring when there are no subscriptions', () => {
             const subscriber: PluginSubscriber = {
                 name: 'no-action-subs',
                 invoke: vi.fn().mockReturnValue(true),

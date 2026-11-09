@@ -47,8 +47,17 @@
     "build": "vite build && tsc --emitDeclarationOnly --outDir dist && node ../../scripts/check-dist-leaks.mjs packages/state-snapshots"
   },
   "peerDependencies": {
-    "pinia-plugin-subscription": ">=1.0.0-beta.15",
+    "pinia": "^2.0.0 || ^3.0.0",
+    "pinia-plugin-subscription": ">=1.0.0-beta.16",
     "vue": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pinia": {
+      "optional": false
+    },
+    "vue": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "pinia-plugin-subscription": "file:../.."

@@ -1,1 +1,5 @@
-export { RollbackActionParams, RollbackAfterFailureParams } from './store'
+export {
+    RollbackActionParams,
+    RollbackAfterFailureParams,
+    StateRestoredStoreOptions
+} from './store'

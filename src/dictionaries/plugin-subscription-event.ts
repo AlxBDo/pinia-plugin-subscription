@@ -2,6 +2,11 @@ function namespacesToString(namespaces: string[]) {
     return namespaces.join(':')
 }
 
+
+function plugin(namespaces: string[]) {
+    return namespacesToString(['plugin', ...namespaces])
+}
+
 function store(namespaces: string[]) {
     return namespacesToString(['store', ...namespaces])
 }
@@ -14,6 +19,14 @@ const ACTION_AFTER = store(['action', 'after'])
 const ACTION_BEFORE = store(['action', 'before'])
 const ACTION_ERROR = store(['action', 'error'])
 const ACTION_ON_ERROR = store(['action', 'onError'])
+
+
+export const PLUGIN = {
+    EXECUTION: {
+        END: plugin(['execution', 'end']),
+        START: plugin(['execution', 'start'])
+    }
+}
 
 export const STORE = {
     ACTION_AFTER,

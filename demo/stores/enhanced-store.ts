@@ -1,6 +1,9 @@
 import { ref } from 'vue'
 import { defineAStoreCtx, getEnhancedStore } from 'pinia-plugin-subscription'
 
+import type { Store } from 'pinia'
+
+
 interface EnhancedStore {
     pluginIsActive: boolean
     pluginIsActiveToggle: () => void
@@ -20,5 +23,9 @@ export const useEnhancedStore = defineAStoreCtx('enhancedStore', (ctx) => {
         label.value = enhanced.pluginIsActive ? 'plugin enabled' : 'plugin disabled'
     }
 
-    return { label, toggle }
+    function onResetStore(store: Store) {
+        console.log('Store has been reset and onResetStore call store action', store)
+    }
+
+    return { label, toggle, onResetStore }
 }, { active: true, demo: true })

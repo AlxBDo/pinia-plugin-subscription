@@ -1,18 +1,17 @@
 import {
     getActionStoreKey,
-    getStoreKeyPrefix,
     hasDeniedFirstChar,
     STORE_EVENTS,
     StoreEventsSubscriber
 } from 'pinia-plugin-subscription/helpers'
-import { createStateSnapshot } from "../factories/state-snapshot"
+import { createStateSnapshot, restoreStateSnapshot } from "../factories/state-snapshot"
 import { createStoreEventsSubscriber } from '../factories/store-events-subscriber'
 
 
 import type { PiniaPluginContext, StateTree, Store } from 'pinia'
 import type { } from 'pinia-plugin-subscription'
 import type { AnyObject } from 'pinia-plugin-subscription/types'
-import type { CreateStateSnapshotKeys } from '../types/plugin'
+import type { CreateStateSnapshotKeys, StateSnapshot } from '../types/plugin'
 import type { RollbackActionParams } from '../types/store'
 
 
@@ -22,9 +21,9 @@ import type { RollbackActionParams } from '../types/store'
  * create rollback snapshots, and manage the state snapshots internally.
  */
 export default class RollbackStateSnapshotsHandler {
-    private _stateSnapshots: Map<symbol, StateTree> = new Map()
-    private _storeHasRollbackSnapshots: Set<string> = new Set()
-    private _storeRollbackSnapshotsParams: Map<string, CreateStateSnapshotKeys> = new Map()
+    private _stateSnapshots: Map<symbol, { store: Store, snapshot: StateSnapshot }> = new Map()
+    private _storeHasRollbackSnapshots: WeakSet<Store> = new WeakSet()
+    private _storeRollbackSnapshotsParams: WeakMap<Store, Map<string, unknown>> = new WeakMap()
 
 
     /**
@@ -42,16 +41,24 @@ export default class RollbackStateSnapshotsHandler {
         store.$rollbackAfterFailure = async ({ action, stateKeys }: RollbackActionParams, args: any[] = []) => {
             const actionFn = (store as AnyObject)[action]
             if (typeof actionFn !== 'function' || hasDeniedFirstChar(action)) {
-                return
+                throw new TypeError(`Invalid rollback action: ${action}`)
             }
 
-            const keys: CreateStateSnapshotKeys = !stateKeys || stateKeys.length === 0 ? 'all' : stateKeys
+            const keys: CreateStateSnapshotKeys = stateKeys === undefined || (Array.isArray(stateKeys) && stateKeys.length === 0)
+                ? 'all'
+                : stateKeys
 
-            const snapshotKey = this.saveStateSnapshot(store, action, keys)
+            const snapshotKey = this.tryCreateStateSnapshot(store, action, () => this.saveStateSnapshot(store, action, keys))
             try {
                 await actionFn.apply(store, args)
             } catch (error) {
-                this.patchStore(snapshotKey, store)
+                if (snapshotKey) {
+                    try {
+                        this.patchStore(snapshotKey, store)
+                    } catch (restoreError) {
+                        throw new AggregateError([error, restoreError], `Failed to restore snapshot for action '${action}'`)
+                    }
+                }
                 throw error
             } finally {
                 this.removeStateSnapshot(snapshotKey)
@@ -60,30 +67,47 @@ export default class RollbackStateSnapshotsHandler {
     }
 
     private createStateSnapshot(store: Store, actionName: string, snapshotKey: symbol) {
-        const stateKeys = this._storeRollbackSnapshotsParams.get(
-            getActionStoreKey(actionName, store)
-        )
-
-        if (!stateKeys) {
+        const params = this._storeRollbackSnapshotsParams.get(store)
+        if (!params?.has(actionName)) {
             return
+        }
+        const stateKeys = params.get(actionName)
+        if (stateKeys !== 'all' && !Array.isArray(stateKeys)) {
+            throw new TypeError(`Invalid snapshot keys for action '${actionName}'`)
         }
 
         const keys: CreateStateSnapshotKeys = (stateKeys.length === 0 || stateKeys[0] === 'all') ? 'all' : stateKeys
         return this.saveStateSnapshot(store, actionName, keys, snapshotKey)
     }
 
+    private tryCreateStateSnapshot(store: Store, actionName: string, capture: () => symbol | undefined): symbol | undefined {
+        try {
+            return capture()
+        } catch (error) {
+            console.error(
+                `Failed to create rollback snapshot for action '${actionName}' in store '${store.$id}'; the action will run without this rollback snapshot.`,
+                error
+            )
+        }
+    }
+
     private createStoreEventsSubscriber(store: Store) {
-        const patchStoreAndRemoveSnapshot = (_actionName: string, _error: unknown, snapshotKey: symbol) => {
-            this.patchStore(snapshotKey, store)
-            this.removeStateSnapshot(snapshotKey)
+        const patchStoreAndRemoveSnapshot = (actionName: string, error: unknown, snapshotKey: symbol) => {
+            try {
+                this.patchStore(snapshotKey, store)
+            } catch (restoreError) {
+                throw new AggregateError([error, restoreError], `Failed to restore snapshot for action '${actionName}'`)
+            } finally {
+                this.removeStateSnapshot(snapshotKey)
+            }
         }
 
         return createStoreEventsSubscriber(store, {
             [STORE_EVENTS.ACTION_BEFORE]: (actionName: string, snapshotKey: symbol) => {
-                this.createStateSnapshot(store, actionName, snapshotKey)
+                this.tryCreateStateSnapshot(store, actionName, () => this.createStateSnapshot(store, actionName, snapshotKey))
             },
             [STORE_EVENTS.ACTION_AFTER]: (_actionName: string, snapshotKey: symbol) => this.removeStateSnapshot(snapshotKey),
-            [STORE_EVENTS.ACTION_ERROR]: patchStoreAndRemoveSnapshot,
+            [STORE_EVENTS.ACTION_ERROR]: (_actionName: string, _error: unknown, snapshotKey: symbol) => this.removeStateSnapshot(snapshotKey),
             [STORE_EVENTS.ACTION_ON_ERROR]: patchStoreAndRemoveSnapshot
         }, () => this.clearStoreTracking(store))
     }
@@ -92,23 +116,21 @@ export default class RollbackStateSnapshotsHandler {
      * Initializes the rollback state snapshots handler from the given Pinia plugin context.
      * This method extracts the rollback snapshot parameters from the store options and stores them internally.
      * @param {PiniaPluginContext} param0 The Pinia plugin context containing the store and its options.
-     * @returns {StoreEventsSubscriber | undefined} The event subscriber for the store, or `undefined` if no rollback snapshots are configured.
+     * @returns {StoreEventsSubscriber | undefined} The event subscriber for the store, or `undefined` if it is already initialized.
      */
     initFromPluginContext({ options, store }: PiniaPluginContext) {
         let eventSubscriber: StoreEventsSubscriber | undefined
         const rollbackSnapshotParams = options?.storeOptions?.rollbackAfterFailure as Record<string, CreateStateSnapshotKeys>
-        if (rollbackSnapshotParams && !this._storeHasRollbackSnapshots.has(store.$id)) {
+        if (rollbackSnapshotParams && !this._storeHasRollbackSnapshots.has(store)) {
+            const params = new Map<string, unknown>()
             Object.keys(rollbackSnapshotParams).forEach(key => {
-                const stateKeys = rollbackSnapshotParams[key]
-                if (stateKeys) {
-                    this._storeRollbackSnapshotsParams.set(
-                        getActionStoreKey(key, store),
-                        stateKeys
-                    )
-                }
+                params.set(key, rollbackSnapshotParams[key])
             })
-            this._storeHasRollbackSnapshots.add(store.$id)
+            this._storeRollbackSnapshotsParams.set(store, params)
+            this._storeHasRollbackSnapshots.add(store)
             eventSubscriber = this.createStoreEventsSubscriber(store)
+        } else if (!rollbackSnapshotParams) {
+            eventSubscriber = createStoreEventsSubscriber(store, undefined, () => this.clearStoreTracking(store))
         }
         this.addRollbackAction(store)
         return eventSubscriber
@@ -121,34 +143,22 @@ export default class RollbackStateSnapshotsHandler {
      * @returns void
      */
     clearStoreTracking(store: Store): void {
-        const keyPrefix = getStoreKeyPrefix(store)
-
-        for (const key of Array.from(this._storeRollbackSnapshotsParams.keys())) {
-            if (key.startsWith(keyPrefix)) {
-                this._storeRollbackSnapshotsParams.delete(key)
-            }
-        }
-
-        this._storeHasRollbackSnapshots.delete(store.$id)
-
-        for (const snapshotKey of Array.from(this._stateSnapshots.keys())) {
-            if (snapshotKey.description?.startsWith(keyPrefix)) {
+        this._storeRollbackSnapshotsParams.delete(store)
+        this._storeHasRollbackSnapshots.delete(store)
+        for (const [snapshotKey, entry] of this._stateSnapshots) {
+            if (entry.store === store) {
                 this._stateSnapshots.delete(snapshotKey)
             }
         }
     }
 
     private patchStore(snapshotKey: symbol, store: Store): void {
-        const stateSnapshot = this._stateSnapshots.get(snapshotKey)
-        if (!stateSnapshot) {
+        const entry = this._stateSnapshots.get(snapshotKey)
+        if (!entry || entry.store !== store) {
             return
         }
 
-        try {
-            store.$patch(stateSnapshot)
-        } catch (error) {
-            console.error(`Failed to patch store with snapshot ${String(snapshotKey)}`, error)
-        }
+        store.$patch((state: StateTree) => restoreStateSnapshot(state, entry.snapshot))
     }
 
     /**
@@ -183,7 +193,7 @@ export default class RollbackStateSnapshotsHandler {
             stateKeys
         )
 
-        this._stateSnapshots.set(snapshotKey, stateSnapshot)
+        this._stateSnapshots.set(snapshotKey, { store, snapshot: stateSnapshot })
         return snapshotKey
     }
 
@@ -193,6 +203,6 @@ export default class RollbackStateSnapshotsHandler {
      * @returns True if the store has rollback snapshots, false otherwise.
      */
     storeHasRollbackSnapshots(store: Store): boolean {
-        return this._storeHasRollbackSnapshots.has(store.$id)
+        return this._storeHasRollbackSnapshots.has(store)
     }
 }

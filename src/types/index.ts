@@ -34,8 +34,6 @@ export type {
     DefineAStoreSetupContext,
     DefineAStoreSetupExtensions,
     EmptyExtensions,
-    RollbackActionParams,
-    RollbackAfterFailureParams,
     StatePropertyValue,
     StoreOptions,
     StoreOptionsPropertyValue

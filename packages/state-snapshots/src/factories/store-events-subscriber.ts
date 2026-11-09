@@ -1,5 +1,6 @@
 import {
-    StoreEventsSubscriber
+    StoreEventsSubscriber,
+    STORE_EVENTS
 } from 'pinia-plugin-subscription/helpers'
 import { STORE_EVENTS_SUBSCRIBER_ID_PREFIX } from '../utils/constants'
 
@@ -18,6 +19,10 @@ class SnapshotEventsSubscriber extends StoreEventsSubscriber {
     clear(): void {
         super.clear()
         this.onClear?.()
+    }
+
+    shouldPropagateError(event: string): boolean {
+        return event === STORE_EVENTS.ACTION_BEFORE || event === STORE_EVENTS.ACTION_ON_ERROR
     }
 }
 

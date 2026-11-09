@@ -28,8 +28,6 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
     private _createInstance: CreateInstance
     private _name: string
     private _pluginOptions?: StoreClassConstructorParams
-    /** Callback function to reset the store instance, if needed. */
-    protected _resetStoreCallback?: (store?: PiniaStore) => void
     private _storeInstance?: Instance
     private _storeOnActionSubscription?: StoreOnActionSubscription
     private _storeMutationSubscription?: StoreMutationSubscription
@@ -59,10 +57,6 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
 
     set pluginOptions(options: StoreClassConstructorParams | undefined) {
         this._pluginOptions = options;
-    }
-
-    get resetStoreCallback(): ((store?: PiniaStore) => void) | undefined {
-        return this._resetStoreCallback as ((store?: PiniaStore) => void) | undefined;
     }
 
     get storeOnActionSubscription(): StoreOnActionSubscription | undefined {

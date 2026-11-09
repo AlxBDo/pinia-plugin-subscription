@@ -5,8 +5,6 @@ import type { PluginSubscriberInterface } from "."
 import type { Tracer, TracerHandler } from "./trace"
 
 
-export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
-
 export type PluginHydrationScheduler = (callback: () => void) => void
 
 export type PluginHydrationTiming = 'defer' | 'immediate'
@@ -123,12 +121,6 @@ export interface PluginSubscriber {
      * Options the plugin subscriber was created with (used for tracing).
      */
     pluginOptions?: StoreClassConstructorParams
-
-    /**
-     * Callback to reset the store associated with the plugin subscriber.
-     * This is typically used to clean up or reinitialize the store.
-     */
-    resetStoreCallback?: (store?: Store) => void
 
     /**
      * Subscription for store actions.
