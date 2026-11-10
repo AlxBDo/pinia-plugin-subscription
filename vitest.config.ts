@@ -32,7 +32,8 @@ export default defineConfig({
                 'scripts/**',
                 '**/demo/**',
                 '**/log/**',
-                '**/helpers/**'
+                '**/helpers/**',
+                '**/src/index.ts'
             ],
             thresholds: {
                 lines: 80,

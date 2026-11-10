@@ -187,7 +187,7 @@ describe('environment-aware hydration traces', () => {
             store: { $id: 'otherStore' },
             options: { storeOptions: {} }
         } as unknown as PiniaPluginContext, pluginOptions)).toBe(false)
-        expect(createTracer).not.toHaveBeenCalled()
+        expect(createTracer).toHaveBeenCalled()
     })
 
     it('still hydrates when tracing is not connected', async () => {

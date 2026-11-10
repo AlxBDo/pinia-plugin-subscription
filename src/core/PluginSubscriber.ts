@@ -1,17 +1,8 @@
+import PluginSubscriberWithoutInstance from "./PluginSubscriberWithoutInstance";
 import Store from "./Store";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
-import type {
-    PluginExecutionOptions,
-    PluginHydrationScheduler,
-    PluginOptions,
-    PluginSubscriber as PluginSubscriberInterface,
-    PluginSubscriptions,
-    StoreClassConstructorParams,
-    StoreMutationSubscription,
-    StoreOnActionSubscription
-} from "../types/plugin";
+import type { PluginOptions, StoreClassConstructorParams } from "../types/plugin";
 import type { Tracer } from "../types/trace";
-
 
 
 type CreateInstance<Instance = Store> = (store: PiniaStore, options: StoreClassConstructorParams) => Instance | undefined
@@ -24,79 +15,18 @@ type CreateInstance<Instance = Store> = (store: PiniaStore, options: StoreClassC
  * @param options Additional options for creating the store instance.
  * @returns The created store instance or undefined if creation fails.
  */
-export default abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
+export default abstract class PluginSubscriber<Instance extends Store> extends PluginSubscriberWithoutInstance {
     private _createInstance: CreateInstance
-    private _name: string
-    private _pluginOptions?: StoreClassConstructorParams
     private _storeInstance?: Instance
-    private _storeOnActionSubscription?: StoreOnActionSubscription
-    private _storeMutationSubscription?: StoreMutationSubscription
-    private _subscriptions?: PluginSubscriptions
-    /**
-     * Called when the plugin subscriber has been created for a specific store.
-     * This callback can be used to perform any initialization or setup required for the plugin subscriber.
-     */
-    protected pluginCreated?: (store: PiniaStore) => void
-    /** Options for the plugin subscriber's execution. */
-    public execution?: PluginExecutionOptions
-    /** Scheduler for handling the hydration process of the plugin subscriber. */
-    public hydrationScheduler?: PluginHydrationScheduler
-
-
-    get name(): string {
-        return this._name;
-    }
 
     get storeInstance(): Instance | undefined {
         return this._storeInstance
     }
 
-    get pluginOptions(): StoreClassConstructorParams | undefined {
-        return this._pluginOptions;
-    }
-
-    set pluginOptions(options: StoreClassConstructorParams | undefined) {
-        this._pluginOptions = options;
-    }
-
-    get storeOnActionSubscription(): StoreOnActionSubscription | undefined {
-        return this._storeOnActionSubscription;
-    }
-
-    get storeMutationSubscription(): StoreMutationSubscription | undefined {
-        return this._storeMutationSubscription;
-    }
-
-    get subscriptions(): PluginSubscriptions | undefined {
-        return this._subscriptions
-    }
-
-    set subscriptions(subscriptions: PluginSubscriptions) {
-        this._subscriptions = subscriptions
-    }
-
 
     constructor(pluginName: string, createInstanceFunction: CreateInstance) {
-        this._name = pluginName
+        super(pluginName)
         this._createInstance = createInstanceFunction
-    }
-
-    /**
-     * Called after the store has been hydrated.
-     * @param context The Pinia plugin context containing the store and options.
-     * @returns A promise that resolves when the post-hydration process is complete, or void if synchronous.
-     */
-    public afterHydration(_context: PiniaPluginContext): void | Promise<void> {
-        return
-    }
-
-    /**
-     * Called when the plugin subscriber needs to hydrate its state.
-     * @param context The Pinia plugin context containing the store and options.
-     * @returns A promise that resolves when the hydration process is complete, or void if synchronous.
-     */
-    public hydrate(_context: PiniaPluginContext): void | Promise<void> {
-        return
     }
 
     /**
@@ -105,12 +35,12 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
      * @param pluginOptions Optional tracer factory and events handler.
      * @returns True if the plugin was successfully invoked, otherwise false.
      */
-    public invoke({ store, options }: PiniaPluginContext, pluginOptions?: PluginOptions): boolean {
-        const createTracer = pluginOptions?.createTracer
+    public override invoke({ store, options }: PiniaPluginContext, pluginOptions?: PluginOptions): boolean {
+        super.invoke({ store } as PiniaPluginContext, pluginOptions)
         this._storeInstance = this._createInstance(store, {
             ...options,
             ...this.pluginOptions,
-            createTracer: createTracer ? () => createTracer(this.name) : undefined
+            createTracer: this._tracer ? (() => (this._tracer as Tracer)) : undefined
         }) as Instance
 
         if (!this._storeInstance) {

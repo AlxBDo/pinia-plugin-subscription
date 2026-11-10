@@ -1,6 +1,6 @@
 import type { StateTree } from "pinia"
 import type { Ref } from "vue"
-import type { StateRestoredStoreOptions, RollbackActionParams } from "./store"
+import type { StateRestoredStoreOptions, RollbackActionParams, ResetStoreCallback } from "./store"
 
 
 export type CreateStateSnapshotKeys = (keyof StateTree)[] | 'all'
@@ -20,5 +20,6 @@ declare module 'pinia-plugin-subscription/types' {
 declare module 'pinia' {
     interface PiniaCustomProperties {
         $rollbackAfterFailure: (params: RollbackActionParams, args?: any[]) => Promise<void>
+        $onResetStore?: (callback: ResetStoreCallback) => void
     }
 }

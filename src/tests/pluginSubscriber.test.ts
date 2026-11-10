@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { PiniaPluginContext } from 'pinia'
 import PluginSubscriber from '../core/PluginSubscriber'
+import StoreEventsSubscriberHandler from '../events/store-events-subscriber-handler'
+import { createTestTracerRegistry } from './support/testTracer'
 
 function createContext(store: any): PiniaPluginContext {
     return {
@@ -44,6 +46,30 @@ describe('PluginSubscriber (abstract)', () => {
 
         subscriber.pluginOptions = { storeOptions: { optionA: 'valueA' } }
         expect(subscriber.pluginOptions).toEqual({ storeOptions: { optionA: 'valueA' } })
+    })
+
+    it('creates and exposes the subscriber tracer and passes it to the store factory', () => {
+        const registry = createTestTracerRegistry()
+        const tracer = registry.tracerHandler.createTracer('my-plugin')
+        const createTracer = vi.fn(() => tracer)
+        const instance = {
+            getSubscriptions: vi.fn().mockReturnValue({}),
+            storeSubscribe: undefined,
+            onAction: undefined,
+        }
+        const createInstance = vi.fn().mockReturnValue(instance)
+        const subscriber = new (class extends PluginSubscriber<any> {
+            constructor() { super('my-plugin', createInstance) }
+        })()
+
+        subscriber.invoke(createContext({ $state: {} }), {
+            createTracer,
+            eventsHandler: new StoreEventsSubscriberHandler(),
+        })
+
+        expect(createTracer).toHaveBeenCalledWith('my-plugin')
+        expect(subscriber.tracer).toBe(tracer)
+        expect(createInstance.mock.calls[0]?.[1].createTracer?.()).toBe(tracer)
     })
 
     it('should set and get subscriptions', () => {

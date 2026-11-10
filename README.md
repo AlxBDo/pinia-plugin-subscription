@@ -68,7 +68,7 @@ app.mount('#app')
 ## Advanced Features
 
 - **Structured tracing:** the plugin and `Store` emit typed trace events through an optional `tracerHandler`. Tracing itself (listeners, journal, redaction, in-page panel) lives in the separate [`pinia-plugin-subscription-devtools`](packages/devtools/) package, so apps that do not debug stay lean — see [Tracing](#tracing).
-- **Reset callbacks:** Define `resetStoreCallback` to run custom logic when the registered [`StateSnapshotsSubscriber`](packages/state-snapshots/README.md) resets a store. `PluginSubscription` itself does not replace or reset the store's `$reset` method.
+- **Reset callbacks:** The separate [`pinia-plugin-state-snapshots`](packages/state-snapshots/README.md) package owns reset behavior. Register callbacks with the store's `$onResetStore()` method; `PluginSubscription` itself does not replace or reset `$reset`.
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 

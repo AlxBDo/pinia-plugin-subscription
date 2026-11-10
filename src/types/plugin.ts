@@ -24,6 +24,12 @@ export interface PluginExecutionOptions {
      * @type {PluginHydrationTiming | undefined}
      */
     hydration?: PluginHydrationTiming
+    /**
+     * Order of execution for the plugin subscriber.
+     * Lower numbers are executed first.
+     * @type {number | undefined}
+     */
+    order?: number
 }
 
 export interface PluginOptions {
@@ -139,6 +145,12 @@ export interface PluginSubscriber {
      * This is typically used to manage and respond to various plugin-specific events or changes.
      */
     subscriptions?: PluginSubscriptions
+
+    /**
+     * Tracer for the plugin subscriber.
+     * This is typically used for tracing and debugging purposes.
+     */
+    tracer?: Tracer
 
     /**
      * Callback to be executed after the hydration of the plugin subscriber.

@@ -2,9 +2,9 @@ import { createPinia, defineStore } from 'pinia'
 import { PluginSubscription, STORE_EVENTS, StoreEventsSubscriber } from 'pinia-plugin-subscription/helpers'
 import { createApp } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import StoreEventsSubscriberHandler from '../../../src/events/store-events-subscriber-handler'
-import RollbackStateSnapshotsHandler from '../src/core/RollbackStateSnapshotsHandler'
-import { StateSnapshotsSubscriberClass } from '../src/plugin/state-snapshots-subscriber'
+import StoreEventsSubscriberHandler from '../../../../src/events/store-events-subscriber-handler'
+import RollbackStateSnapshotsHandler from '../core/RollbackStateSnapshotsHandler'
+import { StateSnapshotsSubscriberClass } from '../plugin/state-snapshots-subscriber'
 
 import type { PiniaPluginContext } from 'pinia'
 import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
@@ -64,20 +64,47 @@ describe('state snapshots subscriber', () => {
 })
 
 describe('state reset', () => {
-    it('restores the initial state and executes the configured reset callback', () => {
+    it('restores the initial state before running registered reset callbacks', () => {
         const context = createContext(false)
-        const resetCallback = vi.fn()
-        context.options.storeOptions = { overrideReset: true, onResetStore: resetCallback }
+        const observedCounts: number[] = []
+        const firstResetCallback = vi.fn((store?: PiniaPluginContext['store']) => {
+            observedCounts.push(store?.count)
+        })
+        const secondResetCallback = vi.fn((store?: PiniaPluginContext['store']) => {
+            observedCounts.push(store?.count)
+        })
+        context.options.storeOptions = { overrideReset: true }
         const originalReset = context.store.$reset
         const plugin = new PluginSubscription([new StateSnapshotsSubscriberClass()])
 
         plugin.plugin(context)
+        expect(context.store.$onResetStore).toBeTypeOf('function')
+        context.store.$onResetStore?.(firstResetCallback)
+        context.store.$onResetStore?.(secondResetCallback)
         expect(context.store.$reset).not.toBe(originalReset)
         context.store.count = 5
         context.store.$reset()
 
         expect(context.store.count).toBe(0)
-        expect(resetCallback).toHaveBeenCalledWith(context.store)
+        expect(firstResetCallback).toHaveBeenCalledWith(context.store)
+        expect(secondResetCallback).toHaveBeenCalledWith(context.store)
+        expect(observedCounts).toEqual([0, 0])
+    })
+
+    it('does not install reset wrapping just because a callback is registered', () => {
+        const context = createContext(false)
+        const resetCallback = vi.fn()
+        const originalReset = context.store.$reset
+        const plugin = new PluginSubscription([new StateSnapshotsSubscriberClass()])
+
+        plugin.plugin(context)
+        context.store.$onResetStore?.(resetCallback)
+        expect(context.store.$reset).toBe(originalReset)
+
+        context.store.count = 5
+        context.store.$reset()
+
+        expect(resetCallback).not.toHaveBeenCalled()
     })
 
     it('clones structured values when resetting the store', () => {

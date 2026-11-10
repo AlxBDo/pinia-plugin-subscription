@@ -27,7 +27,8 @@ import type {
 const className = pluginSubscriptionClassName
 const defaultPluginExecution: Required<PluginExecutionOptions> = {
     environment: 'both',
-    hydration: 'immediate'
+    hydration: 'immediate',
+    order: 9
 }
 
 const defaultDeferredTraceGroupTimeout = 2500
@@ -79,7 +80,20 @@ export default class PluginSubscription extends TraceEmitter {
         super()
         this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
-        this._subscribers = subscribers
+        this._subscribers = subscribers.sort((a, b) => {
+            if (typeof a?.execution === 'undefined') {
+                a.execution = { order: 9 }
+            } else if (a.execution && typeof a.execution?.order === 'undefined') {
+                a.execution.order = 9
+            }
+            if (typeof b?.execution === 'undefined') {
+                b.execution = { order: 9 }
+            } else if (b.execution && typeof b.execution?.order === 'undefined') {
+                b.execution.order = 9
+            }
+
+            return (a.execution.order ?? 0) - (b.execution?.order ?? 0)
+        })
         this.initializeTracer()
     }
 
@@ -149,6 +163,8 @@ export default class PluginSubscription extends TraceEmitter {
                 delete this._onActionOnErrorSubscriptions[key]
             }
         }
+
+        this._storeEventsSubscribersHandler.emit(store, STORE.DISPOSE)
     }
 
     /**
@@ -492,7 +508,9 @@ export default class PluginSubscription extends TraceEmitter {
         try {
             return this.executeSubscriber(context, subscriber)
         } catch (e) {
-            this.traceError('subscriber:execute', e, context.store.$id)
+            this.traceError('subscriber:execute', e, context.store.$id, () => ({
+                subscriber: subscriber.name,
+            }))
         }
     }
 
@@ -532,6 +550,7 @@ export default class PluginSubscription extends TraceEmitter {
             options
         })
         this.traceGroupStart(() => ({ groupId: pluginGroupId }), store.$id, undefined, false)
+        this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.START, () => [this._subscribers])
 
         this._onActionSubscriptionsTraces.set(store.$id, subscribtions.$onAction)
         this._onMutationSubscriptionsTraces.set(store.$id, subscribtions.$subscribe)
@@ -566,12 +585,13 @@ export default class PluginSubscription extends TraceEmitter {
 
             this.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
             this.registerStoreCleanup(store)
-            this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.END)
         } catch (e) {
             this.traceError('plugin:invoke', e, store.$id)
+            this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.ERROR, () => [e])
         }
         this.trace('context', store.$id, contextPayload)
         this.traceGroupEnd(() => ({ groupId: pluginGroupId }), store.$id)
+        this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.END)
     }
 
     private queueSubscriberExecution(
@@ -700,6 +720,7 @@ export default class PluginSubscription extends TraceEmitter {
 
             const groupId = traceGroups.onMutation(store.$id, ++this._actionSeq)
             this.traceGroupStart(() => ({ mutation, groupId }), store.$id, 'store:onMutation')
+            this._storeEventsSubscribersHandler.emit(store, STORE.MUTATION, () => [mutation])
             try {
                 await Promise.all([...callbacks].map(async (mutationCallback) => {
                     try {

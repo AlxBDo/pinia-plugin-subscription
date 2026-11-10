@@ -52,6 +52,26 @@ describe('PluginSubscription', () => {
         pluginSub = getPluginSubscription([])
     })
 
+    it('invokes subscribers in ascending execution order with a default order of 9', () => {
+        const invoked: string[] = []
+        const subscribers: PluginSubscriber[] = [
+            { name: 'default-first', invoke: () => { invoked.push('default-first'); return true } },
+            { name: 'default-second', invoke: () => { invoked.push('default-second'); return true } },
+            { name: 'late', execution: { order: 20 }, invoke: () => { invoked.push('late'); return true } },
+            { name: 'early', execution: { order: 0 }, invoke: () => { invoked.push('early'); return true } },
+        ]
+        const store = {
+            $id: 'execution-order',
+            $state: {},
+            $patch: vi.fn(),
+            $dispose: vi.fn(),
+        } as unknown as Store
+
+        getPluginSubscription(subscribers).plugin(createContext(store))
+
+        expect(invoked).toEqual(['early', 'default-first', 'default-second', 'late'])
+    })
+
     it('does not expose the removed debug configuration', () => {
         expect((pluginSub as any).debug).toBeUndefined()
         expect((pluginSub as any).console).toBeUndefined()
@@ -1357,7 +1377,7 @@ describe('PluginSubscription', () => {
             } as unknown as Store
             const deferred: PluginSubscriber = {
                 name: 'deferred',
-                execution: { hydration: 'defer' },
+                execution: { hydration: 'defer', order: 0 },
                 invoke: () => { order.push('deferred'); return true },
                 storeOnActionSubscription: () => ({ store, callback: () => { } })
             }
