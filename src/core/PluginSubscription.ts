@@ -27,7 +27,8 @@ import type {
 const className = pluginSubscriptionClassName
 const defaultPluginExecution: Required<PluginExecutionOptions> = {
     environment: 'both',
-    hydration: 'immediate'
+    hydration: 'immediate',
+    order: 9
 }
 
 const defaultDeferredTraceGroupTimeout = 2500
@@ -79,7 +80,20 @@ export default class PluginSubscription extends TraceEmitter {
         super()
         this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
-        this._subscribers = subscribers
+        this._subscribers = subscribers.sort((a, b) => {
+            if (typeof a?.execution === 'undefined') {
+                a.execution = { order: 9 }
+            } else if (a.execution && typeof a.execution?.order === 'undefined') {
+                a.execution.order = 9
+            }
+            if (typeof b?.execution === 'undefined') {
+                b.execution = { order: 9 }
+            } else if (b.execution && typeof b.execution?.order === 'undefined') {
+                b.execution.order = 9
+            }
+
+            return (a.execution.order ?? 0) - (b.execution?.order ?? 0)
+        })
         this.initializeTracer()
     }
 

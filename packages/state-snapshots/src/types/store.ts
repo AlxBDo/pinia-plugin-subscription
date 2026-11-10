@@ -9,12 +9,9 @@ export interface RollbackActionParams {
 
 export type RollbackAfterFailureParams = { [key: string]: CreateStateSnapshotKeys }
 
+export type ResetStoreCallback = (store?: Store) => void
+
 export interface StateRestoredStoreOptions {
-    /**
-     * Callback to reset the store associated with the plugin subscriber.
-     * This is typically used to clean up or reinitialize the store.
-     */
-    onResetStore?: (store?: Store) => void
     /**
      * Whether to override the default reset behavior for the store.
      */

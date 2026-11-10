@@ -2,8 +2,8 @@ import { createApp, effect, ref, toRaw } from 'vue'
 import { createPinia, defineStore } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PluginSubscription, STORE_EVENTS, StoreEventsSubscriber } from 'pinia-plugin-subscription/helpers'
-import { createStateSnapshot, restoreStateSnapshot } from '../src/factories/state-snapshot'
-import { StateSnapshotsSubscriberClass } from '../src/plugin/state-snapshots-subscriber'
+import { createStateSnapshot, restoreStateSnapshot } from '../factories/state-snapshot'
+import { StateSnapshotsSubscriberClass } from '../plugin/state-snapshots-subscriber'
 
 import type { PiniaPluginContext, StateTree } from 'pinia'
 import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
@@ -162,7 +162,7 @@ describe('snapshot integrity', () => {
                 fail() {
                     Object.assign(this.nested, { added: 5 })
                     delete (this.$state as StateTree).other
-                    ;(this.$state as StateTree).added = 10
+                        ; (this.$state as StateTree).added = 10
                     throw new Error('action failed')
                 }
             }
@@ -204,7 +204,7 @@ describe('snapshot integrity', () => {
                 fail() {
                     this.selected.x = 2
                     this.unselected = 2
-                    ;(this.$state as StateTree).missing = 1
+                        ; (this.$state as StateTree).missing = 1
                     throw new Error('action failed')
                 }
             }
@@ -217,12 +217,12 @@ describe('snapshot integrity', () => {
     it.each([
         ['function', () => () => 1],
         ['symbol', () => Symbol('x')],
-        ['class instance', () => new (class Example {})()],
+        ['class instance', () => new (class Example { })()],
         ['regular expression', () => /x/],
         ['array buffer', () => new ArrayBuffer(4)]
     ])('reports unsupported %s and executes automatic and manual actions', async (_label, unsupported) => {
         const pinia = createPinia()
-        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const log = vi.spyOn(console, 'error').mockImplementation(() => { })
         const action = vi.fn(() => 'completed')
         const store = defineStore(`unsupported-${_label}`, {
             state: () => ({ value: unsupported() }),
@@ -250,7 +250,7 @@ describe('snapshot integrity', () => {
 
     it('logs invalid snapshot keys and executes the action', () => {
         const pinia = createPinia()
-        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const log = vi.spyOn(console, 'error').mockImplementation(() => { })
         const action = vi.fn()
         const store = defineStore('invalid-keys', { actions: { fail() { action() } } })(pinia)
         const options: PiniaPluginContext['options'] = {
@@ -270,7 +270,7 @@ describe('snapshot integrity', () => {
 
     it('runs an asynchronous manual action with arguments when snapshot keys are invalid', async () => {
         const pinia = createPinia()
-        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const log = vi.spyOn(console, 'error').mockImplementation(() => { })
         const store = defineStore('invalid-manual-keys', {
             state: () => ({ count: 0 }),
             actions: {
@@ -297,7 +297,7 @@ describe('snapshot integrity', () => {
         'preserves synchronous and asynchronous action failures without a %s snapshot',
         async mode => {
             const pinia = createPinia()
-            const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+            const log = vi.spyOn(console, 'error').mockImplementation(() => { })
             const failure = new Error('action failed')
             const store = defineStore(`capture-failure-${mode}`, {
                 state: () => ({ count: 0, unsupported: /unsupported/ }),
@@ -341,7 +341,7 @@ describe('snapshot integrity', () => {
 
     it('keeps independently captured snapshots when another invocation cannot capture', async () => {
         const pinia = createPinia()
-        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const log = vi.spyOn(console, 'error').mockImplementation(() => { })
         let release!: () => void
         const gate = new Promise<void>(resolve => { release = resolve })
         const store = defineStore('mixed-snapshots', {
@@ -430,7 +430,7 @@ describe('snapshot integrity', () => {
 
     it('preserves both a before-action failure and a cleanup failure', () => {
         const pinia = createPinia()
-        const store = defineStore('critical-cleanup', { actions: { fail() {} } })(pinia)
+        const store = defineStore('critical-cleanup', { actions: { fail() { } } })(pinia)
         const beforeFailure = new Error('before failed')
         const cleanupFailure = new Error('cleanup failed')
         class CriticalSubscriber extends StoreEventsSubscriber {

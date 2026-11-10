@@ -1,4 +1,5 @@
 import Store from "./Store";
+import TraceEmitterBase from "../system/TraceEmitterBase";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type {
     PluginExecutionOptions,
@@ -24,7 +25,7 @@ type CreateInstance<Instance = Store> = (store: PiniaStore, options: StoreClassC
  * @param options Additional options for creating the store instance.
  * @returns The created store instance or undefined if creation fails.
  */
-export default abstract class PluginSubscriber<Instance extends Store> implements PluginSubscriberInterface {
+export default abstract class PluginSubscriber<Instance extends Store> extends TraceEmitterBase implements PluginSubscriberInterface {
     private _createInstance: CreateInstance
     private _name: string
     private _pluginOptions?: StoreClassConstructorParams
@@ -77,6 +78,7 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
 
 
     constructor(pluginName: string, createInstanceFunction: CreateInstance) {
+        super()
         this._name = pluginName
         this._createInstance = createInstanceFunction
     }
@@ -106,11 +108,11 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
      * @returns True if the plugin was successfully invoked, otherwise false.
      */
     public invoke({ store, options }: PiniaPluginContext, pluginOptions?: PluginOptions): boolean {
-        const createTracer = pluginOptions?.createTracer
+        this._tracer = pluginOptions?.createTracer ? pluginOptions.createTracer(this.name) : undefined
         this._storeInstance = this._createInstance(store, {
             ...options,
             ...this.pluginOptions,
-            createTracer: createTracer ? () => createTracer(this.name) : undefined
+            createTracer: this._tracer ? (() => (this._tracer as Tracer)) : undefined
         }) as Instance
 
         if (!this._storeInstance) {
@@ -126,5 +128,9 @@ export default abstract class PluginSubscriber<Instance extends Store> implement
         }
 
         return true
+    }
+
+    protected override traceLabelFormatter(label: string): string {
+        return `${this.name}:${label}`
     }
 }

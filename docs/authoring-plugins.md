@@ -16,7 +16,7 @@ If you only want to **use** compatible plugins in an application, read
 - A **subscriber** is invoked by the central `PluginSubscription` engine
   each time pinia registers a store.
 - A subscriber can extend the store, register callbacks (mutation
-  subscriptions, action subscriptions, reset callbacks), and declare an
+  subscriptions and action subscriptions), and declare an
   execution policy for SSR.
 - `createPlugin([...subscribers])` aggregates subscribers into a single
   pinia plugin.
@@ -42,10 +42,6 @@ export const myStoreSubscriber = {
     console.log('store registered', context.store.$id)
 
     return true
-  },
-
-  resetStoreCallback: (store) => {
-    console.log('store reset:', store.$id)
   }
 }
 ```
@@ -62,30 +58,25 @@ export const myStoreSubscriber: PluginSubscriberInterface = {
     console.log('store registered', context.store.$id)
 
     return true
-  },
-
-  resetStoreCallback: (store) => {
-    console.log('store reset:', store.$id)
   }
 }
 ```
 
 ### With the `createPluginSubscriber()` factory
 
-`createPluginSubscriber(name, invoke, optionalProps?)` builds the same plain object with `name` and `invoke` as positional arguments. `optionalProps` accepts any other `PluginSubscriberInterface` member (`afterHydration`, `execution`, `hydrate`, `hydrationScheduler`, `resetStoreCallback`, `storeOnActionSubscription`, `storeMutationSubscription`, `subscriptions`).
+`createPluginSubscriber(name, invoke, optionalProps?)` builds the same plain object with `name` and `invoke` as positional arguments. `optionalProps` accepts any other `PluginSubscriberInterface` member (`afterHydration`, `execution`, `hydrate`, `hydrationScheduler`, `storeOnActionSubscription`, `storeMutationSubscription`, `subscriptions`, `tracer`).
 
 ```ts
 import { createPluginSubscriber } from 'pinia-plugin-subscription/helpers'
 
 export const myStoreSubscriber = createPluginSubscriber(
   'my-plugin',
-  (context, createTracer) => {
+  (context, pluginOptions) => {
     console.log('store registered', context.store.$id)
+    const tracer = pluginOptions?.createTracer?.('my-plugin')
+    tracer?.debug('Store registered', 'my-plugin:registered', { storeId: context.store.$id })
 
     return true
-  },
-  {
-    resetStoreCallback: (store) => console.log('store reset:', store.$id)
   }
 )
 ```
@@ -108,10 +99,10 @@ pinia.use(createPlugin([myStoreSubscriber]))
 | `hydrationScheduler` | `(run: () => void) => void` | Custom scheduler used when hydration is deferred. |
 | `hydrate` | `(context) => void \| Promise<void>` | SSR-safe initialization hook; guaranteed to run before `afterHydration`. |
 | `afterHydration` | `(context) => void \| Promise<void>` | Post-hydration lifecycle hook. |
-| `resetStoreCallback` | `(store?: Store) => void` | Custom logic executed when a registered store is reset. |
 | `storeOnActionSubscription` | `(context: PiniaPluginContext) => { store, callback }` | Receives the Pinia plugin context and returns an action subscription forwarded to the store's `$onAction`. Multiple subscribers can target the same store through a single `$onAction` hook; subscriptions are attached after deferred hydration and removed on store disposal. |
 | `storeMutationSubscription` | `() => { store, callback }` | Returns a mutation subscription forwarded to pinia's `$subscribe`. Several subscribers can target the same store through a single `$subscribe` hook; callback errors are isolated and traced, and the hook is unsubscribed on store disposal. |
 | `subscriptions` | `Record<string, PluginSubscription>` | Plugin-specific subscription functions exposed to other plugins. |
+| `tracer` | `Tracer \| undefined` | Optional tracer. `PluginSubscriber` instances receive one from `createPlugin()` when tracing is configured. |
 
 All members except `name` and `invoke` are optional.
 
@@ -146,6 +137,7 @@ constructor(pluginName: string, createInstance: CreateInstance)
 | `pluginCreated` | protected field | Optional hook called with the pinia store after a successful `invoke`. |
 | `pluginOptions` | getter/setter | Extra options merged into the options passed to your `Store` factory. |
 | `storeInstance` | getter | The `Store` subclass instance created for the current store. |
+| `tracer` | getter | Tracer created for this subscriber during `invoke()`, or `undefined` when tracing is not configured. The same tracer is provided to the `Store` factory through its `createTracer()` option. |
 | `hydrate()` / `afterHydration()` | methods | Lifecycle stubs to override for SSR-safe initialization. |
 | `invoke()` | method | Implemented for you: creates the instance, wires `subscriptions`, `storeSubscribe` and `onAction`, then calls `pluginCreated`. Returns `false` when the factory creates no instance. |
 
@@ -289,6 +281,10 @@ Available execution options (`PluginExecutionOptions`):
   subscriber is allowed to run.
 - `hydration: 'immediate' | 'defer'` — on the client, `defer` schedules
   execution after hydration.
+- `order: number` — subscribers with lower values run first. The default is
+  `9`; subscribers with the same value keep their declaration order. Use a
+  lower value when a subscriber must initialize before the default group (for
+  example, `StateSnapshotsSubscriber` uses `0`).
 - `hydrationScheduler` can be provided either on a subscriber or via
   `createPlugin()` to override the execution timing when needed.
 

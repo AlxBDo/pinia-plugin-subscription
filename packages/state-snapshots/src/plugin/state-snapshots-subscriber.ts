@@ -9,9 +9,17 @@ import type { PluginOptions, PluginSubscriberInterface } from 'pinia-plugin-subs
 export class StateSnapshotsSubscriberClass implements PluginSubscriberInterface {
     private _eventsStoreSubscribers: WeakMap<PiniaPluginContext['store'], StoreEventsSubscriber> = new WeakMap()
     private _rollbackStateSnapshotsHandler = new RollbackStateSnapshotsHandler()
+    execution = { order: 0 }
     name: string = 'pinia-plugin-state-snapshots'
     overrideReset: boolean = false
 
+
+    private addOnResetStoreSubscriptionCollector(store: PiniaPluginContext['store']) {
+        store._resetStoreCallbacks = store?._resetStoreCallbacks || []
+        store.$onResetStore = (callback: (store?: PiniaPluginContext['store']) => void) => {
+            store._resetStoreCallbacks.push(callback)
+        }
+    }
 
     invoke(context: PiniaPluginContext, pluginOptions?: PluginOptions) {
         if (!pluginOptions) {
@@ -19,11 +27,12 @@ export class StateSnapshotsSubscriberClass implements PluginSubscriberInterface 
         }
 
         const { options, store } = context
+        this.addOnResetStoreSubscriptionCollector(store)
         const eventsStoreSubscriber = this._rollbackStateSnapshotsHandler.initFromPluginContext(context)
-        const onStoreReset = options?.storeOptions?.onResetStore ?? store?.onResetStore
+
         const rewriteResetStore = this.overrideReset || options?.storeOptions?.overrideReset
 
-        if (!eventsStoreSubscriber && !rewriteResetStore && !onStoreReset) {
+        if (!eventsStoreSubscriber && !rewriteResetStore) {
             return false
         }
 
@@ -32,8 +41,8 @@ export class StateSnapshotsSubscriberClass implements PluginSubscriberInterface 
             pluginOptions.eventsHandler.subscribe(store.$id, eventsStoreSubscriber)
         }
 
-        if (rewriteResetStore || onStoreReset) {
-            this.rewriteResetStore(context, store.$state, onStoreReset)
+        if (rewriteResetStore) {
+            this.rewriteResetStore(context, store.$state)
         }
 
         return true
@@ -41,8 +50,7 @@ export class StateSnapshotsSubscriberClass implements PluginSubscriberInterface 
 
     private rewriteResetStore(
         { store }: PiniaPluginContext,
-        initState: StateTree,
-        onStoreReset?: (store?: PiniaPluginContext['store']) => void
+        initState: StateTree
     ): void {
         let safeState: StateTree
         try {
@@ -57,8 +65,15 @@ export class StateSnapshotsSubscriberClass implements PluginSubscriberInterface 
 
         store.$reset = () => {
             store.$patch(deepClone(safeState))
-            if (onStoreReset) {
-                onStoreReset(store)
+            if (Array.isArray(store._resetStoreCallbacks)) {
+                try {
+                    store._resetStoreCallbacks.forEach(
+                        callback => typeof callback === 'function' && callback(store)
+                    )
+                } catch (error) {
+                    // TODO: Add Tracing mechanism for better error tracking
+                    console.error(`Error occurred while executing reset callbacks for store '${store.$id}':`, error)
+                }
             }
         }
     }

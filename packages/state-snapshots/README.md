@@ -65,13 +65,12 @@ to register its subscriber with Pinia.
 
 ### Reset behavior
 
-The `$reset` wrapper is enabled when the subscriber's `overrideReset` property,
-the store's `overrideReset` option, or the store's `onResetStore` option is set.
-It captures the initial state when the store is registered, then each call to
-`$reset()` patches the store with a fresh deep clone of that captured state. The
-optional `onResetStore` callback runs after the state is restored and receives
-the store. If capturing the initial state fails, the error is logged and the
-store's existing `$reset` method is left unchanged.
+The `$reset` wrapper is enabled when the subscriber's `overrideReset` property
+or the store's `overrideReset` option is set. It captures the initial state
+when the store is registered, then each call to `$reset()` patches the store
+with a fresh deep clone of that captured state. If capturing the initial state
+fails, the error is logged and the store's existing `$reset` method is left
+unchanged.
 
 Reset options:
 
@@ -79,19 +78,19 @@ Reset options:
 | --- | --- | --- |
 | `overrideReset` | `StateSnapshotsSubscriber` | Set to `true` to enable reset wrapping for every store registered with this subscriber. |
 | `overrideReset` | Store options | Set to `true` to enable reset wrapping for one store. |
-| `onResetStore` | Store options | Callback invoked after a wrapped `$reset` restores the initial state. Setting this option also enables the wrapper. |
 
-Reset wrapping is opt-in. If none of these options is enabled, this plugin
-leaves the store's existing `$reset` method unchanged.
+Reset wrapping is opt-in. If neither `overrideReset` setting is enabled, this
+plugin leaves the store's existing `$reset` method unchanged. Registering a
+callback does not enable reset wrapping by itself.
 
 #### Reset callback examples
 
-Provide `onResetStore` in the store options when the callback belongs in the
-store configuration:
+When the subscriber is installed, stores expose `$onResetStore(callback)`.
+Register callbacks after obtaining the store; they run after a wrapped
+`$reset()` restores the initial state and receive the store:
 
 ```ts
 import { ref } from 'vue'
-import type { Store } from 'pinia'
 
 export const useCounterStore = defineAStore(
   'counter',
@@ -101,35 +100,18 @@ export const useCounterStore = defineAStore(
   },
   {
     overrideReset: true,
-    onResetStore: (store?: Store) => {
-      console.log('Counter store was reset', store)
-    },
   },
 )
-```
 
-Alternatively, define and return an `onResetStore` action from the setup
-function. The subscriber uses this store method when no callback was provided
-in the store options:
-
-```ts
-import { ref } from 'vue'
-import type { Store } from 'pinia'
-
-export const useCounterStore = defineAStore('counter', () => {
-  const count = ref(0)
-
-  function onResetStore(store: Store) {
-    console.log('Counter store was reset', store)
-  }
-
-  return { count, onResetStore }
+const counterStore = useCounterStore()
+counterStore.$onResetStore?.((store) => {
+  console.log('Counter store was reset', store)
 })
 ```
 
-In the second example, returning `onResetStore` also enables the reset wrapper;
-an explicit `overrideReset: true` is not required. If both callback forms are
-present, the callback in the store options takes precedence.
+Callbacks are kept per store and may be registered more than once. They are
+only invoked when `StateSnapshotsSubscriber` has installed its `$reset`
+wrapper through one of the `overrideReset` settings above.
 
 ### Automatic action rollback
 
