@@ -4,7 +4,7 @@ import { createPlugin } from 'pinia-plugin-subscription'
 import { createTraceDevtools } from 'pinia-plugin-subscription-devtools'
 import { StateSnapshotsSubscriber } from 'pinia-plugin-state-snapshots'
 import type { PluginRuntimeEnvironment, PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
-//import { ExtendsPiniaStore } from 'pinia-plugin-extending-store'
+import { ExtendsPiniaStore } from 'pinia-plugin-extending-store'
 
 import App from './App.vue'
 import { createDemoPluginClass } from './plugins/DemoPluginClass'
@@ -29,7 +29,7 @@ export function createDemoApp(
     const subscribers: PluginSubscriberInterface[] = [
         createDemoPluginClass(),
         createDemoPluginObject(),
-        //ExtendsPiniaStore,
+        ExtendsPiniaStore,
         StateSnapshotsSubscriber,
         ...extraSubscribers
     ]

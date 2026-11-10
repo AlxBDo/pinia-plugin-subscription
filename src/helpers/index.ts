@@ -1,4 +1,5 @@
 export { default as PluginSubscriber } from '../core/PluginSubscriber'
+export { default as PluginSubscriberWithoutInstance } from '../core/PluginSubscriberWithoutInstance'
 export { default as PluginSubscription } from '../core/PluginSubscription'
 export { default as Store } from '../core/Store'
 export { getActionStoreKey, getStoreKeyPrefix, hasDeniedFirstChar } from '../utils/store'
