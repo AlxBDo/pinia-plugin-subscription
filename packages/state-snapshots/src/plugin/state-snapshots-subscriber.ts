@@ -1,4 +1,4 @@
-import { PluginSubscriberWithoutInstance, StoreEventsSubscriber } from 'pinia-plugin-subscription/helpers'
+import { PluginSubscriberWithoutInstance, StoreEventsSubscriber, traceGroups } from 'pinia-plugin-subscription/helpers'
 import { deepClone } from '../utils/deep-clone'
 import { PLUGIN_NAME } from '../utils/constants'
 import RollbackStateSnapshotsHandler from '../core/RollbackStateSnapshotsHandler'
@@ -57,6 +57,8 @@ export class StateSnapshotsSubscriberClass extends PluginSubscriberWithoutInstan
         { store }: PiniaPluginContext,
         initState: StateTree
     ): void {
+        let callId = 0
+        let callErrorId = 1000
         let safeState: StateTree
         try {
             safeState = deepClone(initState)
@@ -70,8 +72,17 @@ export class StateSnapshotsSubscriberClass extends PluginSubscriberWithoutInstan
         }
 
         store.$reset = () => {
-            store.$patch(deepClone(safeState))
-            if (Array.isArray(store._resetStoreCallbacks)) {
+            const state = deepClone(safeState)
+            store.$patch(state)
+            this.trace('$reset:store:patched', store.$id, () => ({
+                state,
+                groupId: traceGroups.reset(store.$id, ++callId)
+            }))
+            if (Array.isArray(store._resetStoreCallbacks) && store._resetStoreCallbacks.length > 0) {
+                this.trace('$reset:execute:callbacks', store.$id, () => ({
+                    callbacks: store._resetStoreCallbacks.length,
+                    groupId: traceGroups.reset(store.$id, ++callId)
+                }))
                 store._resetStoreCallbacks.forEach(
                     callback => {
                         try {
@@ -79,7 +90,9 @@ export class StateSnapshotsSubscriberClass extends PluginSubscriberWithoutInstan
                                 callback(store)
                             }
                         } catch (error) {
-                            this.traceError('reset:rewrite:callback:error', error, store.$id)
+                            this.traceError('reset:rewrite:callback:error', error, store.$id, () => ({
+                                groupId: traceGroups.reset(store.$id, ++callErrorId)
+                            }))
                             console.error(`Error occurred while executing reset callbacks for store '${store.$id}':`, error)
                         }
                     }

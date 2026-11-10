@@ -163,6 +163,8 @@ export default class PluginSubscription extends TraceEmitter {
                 delete this._onActionOnErrorSubscriptions[key]
             }
         }
+
+        this._storeEventsSubscribersHandler.emit(store, STORE.DISPOSE)
     }
 
     /**
@@ -506,7 +508,9 @@ export default class PluginSubscription extends TraceEmitter {
         try {
             return this.executeSubscriber(context, subscriber)
         } catch (e) {
-            this.traceError('subscriber:execute', e, context.store.$id)
+            this.traceError('subscriber:execute', e, context.store.$id, () => ({
+                subscriber: subscriber.name,
+            }))
         }
     }
 
@@ -546,6 +550,7 @@ export default class PluginSubscription extends TraceEmitter {
             options
         })
         this.traceGroupStart(() => ({ groupId: pluginGroupId }), store.$id, undefined, false)
+        this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.START, () => [this._subscribers])
 
         this._onActionSubscriptionsTraces.set(store.$id, subscribtions.$onAction)
         this._onMutationSubscriptionsTraces.set(store.$id, subscribtions.$subscribe)
@@ -580,12 +585,13 @@ export default class PluginSubscription extends TraceEmitter {
 
             this.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
             this.registerStoreCleanup(store)
-            this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.END)
         } catch (e) {
             this.traceError('plugin:invoke', e, store.$id)
+            this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.ERROR, () => [e])
         }
         this.trace('context', store.$id, contextPayload)
         this.traceGroupEnd(() => ({ groupId: pluginGroupId }), store.$id)
+        this._storeEventsSubscribersHandler.emit(store, PLUGIN.EXECUTION.END)
     }
 
     private queueSubscriberExecution(
@@ -714,6 +720,7 @@ export default class PluginSubscription extends TraceEmitter {
 
             const groupId = traceGroups.onMutation(store.$id, ++this._actionSeq)
             this.traceGroupStart(() => ({ mutation, groupId }), store.$id, 'store:onMutation')
+            this._storeEventsSubscribersHandler.emit(store, STORE.MUTATION, () => [mutation])
             try {
                 await Promise.all([...callbacks].map(async (mutationCallback) => {
                     try {

@@ -24,6 +24,7 @@ const ACTION_ON_ERROR = store(['action', 'onError'])
 export const PLUGIN = {
     EXECUTION: {
         END: plugin(['execution', 'end']),
+        ERROR: plugin(['execution', 'error']),
         START: plugin(['execution', 'start'])
     }
 }
@@ -32,7 +33,10 @@ export const STORE = {
     ACTION_AFTER,
     ACTION_BEFORE,
     ACTION_ERROR,
-    ACTION_ON_ERROR
+    ACTION_ON_ERROR,
+    DISPOSE: store(['dispose']),
+    MUTATION: store(['mutation']),
+    RESET: store(['reset'])
 }
 
 export const SUBSCRIBER = {

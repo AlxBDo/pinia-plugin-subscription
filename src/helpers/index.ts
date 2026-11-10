@@ -10,5 +10,9 @@ export {
     setEnhancedStore
 } from "../utils/store"
 export { default as StoreEventsSubscriber } from '../events/store-events-subscriber'
-export { STORE as STORE_EVENTS, SUBSCRIBER as SUBSCRIBER_EVENTS } from '../dictionaries/plugin-subscription-event'
+export {
+    PLUGIN as PLUGIN_EVENTS,
+    STORE as STORE_EVENTS,
+    SUBSCRIBER as SUBSCRIBER_EVENTS
+} from '../dictionaries/plugin-subscription-event'
 export { traceGroups } from '../utils/traceGroups'
