@@ -79,7 +79,7 @@ export default class Store extends TraceEmitter {
      * Returns the structured trace emitter of this store.
      * Built lazily so that subclasses overriding `_className` are reflected.
      */
-    protected override get tracer(): Tracer | undefined {
+    public override get tracer(): Tracer | undefined {
         if (!this._tracer && this._createTracer) {
             this._tracer = this._createTracer()
             this._tracer.scope = this.store.$id
