@@ -6,8 +6,7 @@ This project provides:
 - a lightweight mechanism to declare "subscribers" that are invoked when stores are registered or updated by Pinia;
 - a `Store` base class (helper wrapper) to ease interacting with Pinia stores from subscribers or other plugin code;
 - an API to create a Pinia plugin from a list of subscribers;
-- the `$reset` method on all stores modified by the plugin;
-- optional state rollback through the separate [`pinia-plugin-state-snapshots`](packages/state-snapshots/) package.
+- optional `$reset` support and state rollback through the separate [`pinia-plugin-state-snapshots`](packages/state-snapshots/) package.
 
 Deferred subscribers attach their action and reset callbacks to their own store after hydration; disposing a store removes its callbacks.
 If a snapshot cannot be created, the state-snapshots subscriber logs the error
@@ -65,10 +64,22 @@ app.use(pinia)
 app.mount('#app')
 ```
 
+## Compatible Plugins
+
+These plugins build on `pinia-plugin-subscription`; register their subscribers
+with `createPlugin()` to use their features:
+
+- **[pinia-plugin-subscription-devtools](packages/devtools/README.md):** structured tracing with filtered listeners, a per-store journal, payload redaction and an in-page panel.
+- **[pinia-plugin-state-snapshots](packages/state-snapshots/README.md):** opt-in `$reset` wrapping and reset callbacks, plus state rollback when configured actions fail.
+- **[pinia-plugin-extending-store](https://github.com/AlxBDo/extending-pinia-store):** compose state, getters and actions from parent stores into a child store.
+- **[pinia-plugin-persist-state](https://github.com/AlxBDo/pinia-plugin-persist-state):** persist store state to browser storage or IndexedDB, with optional encryption.
+- **[pinia-plugin-action-flow](https://github.com/AlxBDo/pinia-plugin-action-flow):** define before/after flows around store actions, including validation and side effects.
+
+Discover more compatible plugins on the [`pinia-plugin-subscription` GitHub topic](https://github.com/topics/pinia-plugin-subscription).
+
 ## Advanced Features
 
-- **Structured tracing:** the plugin and `Store` emit typed trace events through an optional `tracerHandler`. Tracing itself (listeners, journal, redaction, in-page panel) lives in the separate [`pinia-plugin-subscription-devtools`](packages/devtools/) package, so apps that do not debug stay lean — see [Tracing](#tracing).
-- **Reset callbacks:** The separate [`pinia-plugin-state-snapshots`](packages/state-snapshots/README.md) package owns reset behavior. Register callbacks with the store's `$onResetStore()` method; `PluginSubscription` itself does not replace or reset `$reset`.
+- **Structured tracing:** the plugin and `Store` emit typed trace events through an optional `tracerHandler`; without one, no trace events are emitted. See [Tracing](#tracing).
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 

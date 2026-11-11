@@ -9,6 +9,10 @@ export default class StoreEventsSubscriber {
         return this._id;
     }
 
+    get storeId() {
+        return this._storeId;
+    }
+
     get subscriptions() {
         return this._subscriptions;
     }

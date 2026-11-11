@@ -13,22 +13,22 @@ the [plugin authoring guide](authoring-plugins.md) instead.
 > annotations and generics. Types are always optional at runtime — they only
 > add autocompletion and compile-time checks.
 
-## What every compatible plugin guarantees
+## What compatible plugins can use
 
-Plugins built on `pinia-plugin-subscription` share a common contract:
+Plugins built on `pinia-plugin-subscription` use the shared subscriber
+registration and execution infrastructure:
 
 - **Single registration point** — all subscribers are registered through one
   `createPlugin()` call.
-- **`$reset` on registered stores** — every store registered by the plugin
-  gains a `$reset()` method that restores its initial state, including
-  setup-style stores where pinia does not provide one natively.
-- **Runtime-filtered tracing** — with `pinia-plugin-subscription-devtools`,
-  register trace listeners and filter events by source, namespace, scope, or
-  level.
-- **SSR-safe execution** — each plugin declares where (`client`, `server`
-  or `both`) and when (`immediate` or deferred after hydration) it runs.
-- **Optional state rollback** — install and register `pinia-plugin-state-snapshots`
-  to restore configured state when an action fails.
+- **Configurable execution** — subscribers can declare their runtime
+  environment (`client`, `server` or `both`) and whether they run immediately
+  or after client hydration.
+- **Optional tracing** — the core emits structured events when a
+  `tracerHandler` is configured; a compatible tracing plugin can consume them.
+- **Optional reset and rollback** — `pinia-plugin-state-snapshots` can add
+  `$reset` to setup-style stores and restore configured state when an action
+  fails. Reset wrapping is opt-in; it is not provided automatically to every
+  store or by every compatible plugin.
 
 ## Installation
 
@@ -246,8 +246,11 @@ associated (and on store dispose), which limits map growth over time.
 
 ## `$reset` on registered stores
 
-Every store registered by the plugin exposes `$reset()`, which restores the
-initial state captured at registration — including for setup-style stores:
+Register `StateSnapshotsSubscriber` and enable its `overrideReset` option to
+add `$reset()` to a store. The wrapper restores a fresh copy of the initial
+state captured at registration, including for setup-style stores. Enable it
+globally on the subscriber or per store (see the
+[state-snapshots documentation](../packages/state-snapshots/README.md)):
 
 ```js
 const store = useCounterStore()
@@ -255,8 +258,8 @@ store.increment()
 store.$reset() // state is back to its initial value
 ```
 
-Each compatible plugin may also run custom logic on reset — see the plugin's
-own documentation.
+When the wrapper is installed, callbacks registered with `$onResetStore()`
+run after the state is restored.
 
 ## State rollback on action failure
 

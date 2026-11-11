@@ -1,3 +1,5 @@
+import StoreEventsSubscriber from "../events/store-events-subscriber";
+import StoreEventSubscriberHandler from "../events/store-events-subscriber-handler";
 import TraceEmitterBase from "../system/TraceEmitterBase";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type {
@@ -18,20 +20,34 @@ import type {
  * @returns The created store instance or undefined if creation fails.
  */
 export default abstract class PluginSubscriberWithoutInstance extends TraceEmitterBase implements PluginSubscriberInterface {
+    private _eventsStoreSubscribers: Map<string, StoreEventsSubscriber> = new Map()
+    /** Options for the plugin subscriber's execution. */
+    public execution?: PluginExecutionOptions
+    /** Scheduler for handling the hydration process of the plugin subscriber. */
+    public hydrationScheduler?: PluginHydrationScheduler
     private _name: string
-    private _pluginOptions?: StoreClassConstructorParams
-    protected _storeOnActionSubscription?: StoreOnActionSubscription
-    protected _storeMutationSubscription?: StoreMutationSubscription
-    protected _subscriptions?: PluginSubscriptions
     /**
      * Called when the plugin subscriber has been created for a specific store.
      * This callback can be used to perform any initialization or setup required for the plugin subscriber.
      */
     protected pluginCreated?: (store: PiniaStore) => void
-    /** Options for the plugin subscriber's execution. */
-    public execution?: PluginExecutionOptions
-    /** Scheduler for handling the hydration process of the plugin subscriber. */
-    public hydrationScheduler?: PluginHydrationScheduler
+    private _pluginOptions?: StoreClassConstructorParams
+    protected _storeEventSubscriberHandler?: StoreEventSubscriberHandler
+    /**
+     * Subscription for store actions.
+     * This subscription is used to listen for actions dispatched in the store.
+     */
+    protected _storeOnActionSubscription?: StoreOnActionSubscription
+    /**
+     * Subscription for store mutations.
+     * This subscription is used to listen for mutations occurring in the store.
+     */
+    protected _storeMutationSubscription?: StoreMutationSubscription
+    /**
+     * Subscriptions for the plugin subscriber.
+     * This is used to manage and track all active subscriptions related to the plugin subscriber.
+     */
+    protected _subscriptions?: PluginSubscriptions
 
 
     get name(): string {
@@ -68,6 +84,28 @@ export default abstract class PluginSubscriberWithoutInstance extends TraceEmitt
         this._name = pluginName
     }
 
+    protected addEventStoreSubscriber(subscriber: StoreEventsSubscriber) {
+        if (!this._storeEventSubscriberHandler) {
+            return
+        }
+
+        this._eventsStoreSubscribers.set(subscriber.id as string, subscriber)
+        this._storeEventSubscriberHandler.subscribe(subscriber.storeId as string, subscriber)
+        this.trace(
+            `eventsStoreSubscriber:${subscriber.id}:subscribed`,
+            subscriber.storeId,
+            () => ({ eventsStoreSubscriber: subscriber })
+        )
+    }
+
+    protected addEventStoreSubscription(
+        id: string,
+        store: PiniaPluginContext['store'],
+        subscriptions: Record<string, (...args: any[]) => void>
+    ) {
+        this.addEventStoreSubscriber(new StoreEventsSubscriber(id, store, subscriptions))
+    }
+
     /**
      * Called after the store has been hydrated.
      * @param context The Pinia plugin context containing the store and options.
@@ -75,6 +113,11 @@ export default abstract class PluginSubscriberWithoutInstance extends TraceEmitt
      */
     public afterHydration(_context: PiniaPluginContext): void | Promise<void> {
         return
+    }
+
+    public clearStoreEventsSubscriptions(storeId: string) {
+        this._eventsStoreSubscribers.delete(storeId)
+        this._storeEventSubscriberHandler?.clearSubscribers(storeId)
     }
 
     /**
@@ -94,6 +137,7 @@ export default abstract class PluginSubscriberWithoutInstance extends TraceEmitt
      */
     public invoke({ store }: PiniaPluginContext, pluginOptions?: PluginOptions): boolean {
         this._tracer = pluginOptions?.createTracer ? pluginOptions.createTracer(this.name) : undefined
+        this._storeEventSubscriberHandler = pluginOptions?.eventsHandler
         if (this.pluginCreated) {
             this.pluginCreated(store)
         }
