@@ -1,4 +1,4 @@
-import { PluginSubscriberWithoutInstance, StoreEventsSubscriber, traceGroups } from 'pinia-plugin-subscription/helpers'
+import { PluginSubscriberWithoutInstance, traceGroups } from 'pinia-plugin-subscription/helpers'
 import { deepClone } from '../utils/deep-clone'
 import { PLUGIN_NAME } from '../utils/constants'
 import RollbackStateSnapshotsHandler from '../core/RollbackStateSnapshotsHandler'
@@ -8,7 +8,6 @@ import type { PluginOptions } from 'pinia-plugin-subscription/types'
 
 
 export class StateSnapshotsSubscriberClass extends PluginSubscriberWithoutInstance {
-    private _eventsStoreSubscribers: WeakMap<PiniaPluginContext['store'], StoreEventsSubscriber> = new WeakMap()
     private _rollbackStateSnapshotsHandler = new RollbackStateSnapshotsHandler()
     public overrideReset: boolean = false
 
@@ -27,12 +26,14 @@ export class StateSnapshotsSubscriberClass extends PluginSubscriberWithoutInstan
     }
 
     public override invoke({ options, store }: PiniaPluginContext, pluginOptions?: PluginOptions) {
-        super.invoke?.({ options, store } as PiniaPluginContext, pluginOptions)
+        super.invoke({ options, store } as PiniaPluginContext, pluginOptions)
         if (!pluginOptions) {
             throw new Error('State snapshots require plugin options with an events handler')
         }
         this.addOnResetStoreSubscriptionCollector(store)
-        const eventsStoreSubscriber = this._rollbackStateSnapshotsHandler.initFromPluginContext({ options, store } as PiniaPluginContext)
+        const eventsStoreSubscriber = this._rollbackStateSnapshotsHandler.initFromPluginContext(
+            { options, store } as PiniaPluginContext
+        )
 
         const rewriteResetStore = this.overrideReset || options?.storeOptions?.overrideReset
 
@@ -41,9 +42,7 @@ export class StateSnapshotsSubscriberClass extends PluginSubscriberWithoutInstan
         }
 
         if (eventsStoreSubscriber) {
-            this._eventsStoreSubscribers.set(store, eventsStoreSubscriber)
-            pluginOptions.eventsHandler.subscribe(store.$id, eventsStoreSubscriber)
-            this.trace('eventsStoreSubscriber:subscribed', store.$id, () => ({ eventsStoreSubscriber }))
+            this.addEventStoreSubscriber(eventsStoreSubscriber)
         }
 
         if (rewriteResetStore) {

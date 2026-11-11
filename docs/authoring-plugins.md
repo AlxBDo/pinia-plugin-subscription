@@ -478,6 +478,19 @@ runtime environment, store behavior and tracing.
 
 Factory returning a plain-object subscriber `{ name, invoke, ...optionalProps }`. Exported from `pinia-plugin-subscription/helpers`.
 
+### `PluginSubscriberWithoutInstance`
+
+Extend `PluginSubscriberWithoutInstance` when a class-based subscriber needs
+to work with the Pinia store directly rather than creating a `Store` wrapper.
+`createPlugin()` passes the shared store-events handler to `invoke()`. After
+calling `super.invoke(context, pluginOptions)`, subclasses can register
+per-store event callbacks with the protected
+`addEventStoreSubscription(id, store, subscriptions)` helper, or register an
+existing `StoreEventsSubscriber` with `addEventStoreSubscriber(subscriber)`.
+The subscription map keys are store event names and values are callbacks.
+`clearStoreEventsSubscriptions(storeId)` clears event subscribers for that
+store from the shared handler.
+
 `createPlugin()` accepts hydration options directly. Set shared execution and
 scheduling defaults for its subscribers, or use `subscriberExecution` to
 configure execution by subscriber name:
