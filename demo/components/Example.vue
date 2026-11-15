@@ -40,7 +40,7 @@ onMounted(() => {
     schedule(() => rollbackSnapshotStoreWithoutRollback.increment(), 2500)
     schedule(() => {
         withoutRollbackSnapshotStoreHistory.value.push(`$rollbackAfterFailure & increment +1 & codeError`)
-        void rollbackSnapshotStoreWithoutRollback.$rollbackAfterFailure({
+        void rollbackSnapshotStoreWithoutRollback?.$rollbackAfterFailure?.({
             action: 'codeError',
             stateKeys: ['count']
         }, ['useRollbackSnapshotStore', 'using $rollbackAfterFailure', 50])
@@ -51,7 +51,7 @@ onMounted(() => {
         rollbackSnapshotStoreWithoutRollback.increment()
 
         withoutRollbackSnapshotStoreHistory.value.push(`$rollbackAfterFailure & increment +24 & throwError`)
-        void rollbackSnapshotStoreWithoutRollback.$rollbackAfterFailure({
+        void rollbackSnapshotStoreWithoutRollback?.$rollbackAfterFailure?.({
             action: 'throwError',
             stateKeys: ['count']
         })

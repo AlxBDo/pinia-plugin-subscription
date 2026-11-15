@@ -4,6 +4,8 @@ import StateSnapshots from '../core/StateSnapshots'
 
 import type { PiniaPluginContext } from 'pinia'
 import type { PluginOptions } from 'pinia-plugin-subscription/types'
+import type { StateRestoredStoreOptions, RollbackActionParams, ResetStoreCallback } from '../types/store'
+
 
 
 export class StateSnapshotsSubscriberClass extends PluginSubscriber<StateSnapshots> {
@@ -38,3 +40,15 @@ export class StateSnapshotsSubscriberClass extends PluginSubscriber<StateSnapsho
 }
 
 export const StateSnapshotsSubscriber = new StateSnapshotsSubscriberClass()
+
+
+declare module 'pinia-plugin-subscription/types' {
+    interface StoreOptionsExtensions extends StateRestoredStoreOptions { }
+}
+
+declare module 'pinia' {
+    interface PiniaCustomProperties {
+        $rollbackAfterFailure?: (params: RollbackActionParams, args?: any[]) => Promise<void>
+        $onResetStore?: (callback: ResetStoreCallback) => void
+    }
+}

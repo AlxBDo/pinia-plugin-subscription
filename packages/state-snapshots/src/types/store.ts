@@ -13,6 +13,10 @@ export type ResetStoreCallback = (store?: Store) => void
 
 export interface StateRestoredStoreOptions {
     /**
+     * Callback invoked when the store is reset.
+     */
+    onReset?: ResetStoreCallback
+    /**
      * Whether to override the default reset behavior for the store.
      */
     overrideReset?: boolean

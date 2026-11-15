@@ -11,7 +11,7 @@ import { deepClone } from '../utils/deep-clone'
 
 import type { StateTree, Store as PiniaStore, PiniaPluginContext } from 'pinia'
 import type { } from 'pinia-plugin-subscription'
-import type { AnyObject, StoreClassConstructorParams } from 'pinia-plugin-subscription/types'
+import type { AnyObject } from 'pinia-plugin-subscription/types'
 import type { CreateStateSnapshotKeys, StateSnapshot } from '../types/plugin'
 import type { RollbackActionParams } from '../types/store'
 
@@ -130,7 +130,11 @@ export default class StateSnapshots extends Store {
         }
         this.addRollbackAction(store)
 
-        if (this.options.overrideReset) {
+        const hasOnResetCallback = typeof this.options.onReset === 'function'
+        if (this.options.overrideReset || hasOnResetCallback) {
+            if (hasOnResetCallback) {
+                store.$onResetStore = () => this.options.onReset?.(store)
+            }
             this.addOnResetStoreSubscriptionCollector(store)
             this.rewriteResetStore(store, store.$state)
         }

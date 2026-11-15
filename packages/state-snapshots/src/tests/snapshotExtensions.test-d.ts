@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest'
+import { StateSnapshotsSubscriber } from '../plugin/state-snapshots-subscriber'
 import type { PiniaCustomProperties } from 'pinia'
 import type { StoreOptions } from 'pinia-plugin-subscription/types'
 import type { RollbackActionParams, RollbackAfterFailureParams } from '../types'
