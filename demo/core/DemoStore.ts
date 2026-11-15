@@ -10,7 +10,7 @@ import type { DemoPluginClassOptions } from '../types/plugin'
 
 
 export default class DemoStore extends Store {
-    protected _className = 'DemoStore'
+    protected _name: string = 'DemoStore'
     protected static _requiredKeys?: string[] = ['active']
 
     constructor(store: PiniaStore, options: { storeOptions: DemoPluginClassOptions } & PluginStoreOptions) {

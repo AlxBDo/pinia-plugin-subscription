@@ -3,10 +3,10 @@ import DemoStore from '../core/DemoStore'
 
 
 class DemoPluginSubscriber extends PluginSubscriber<DemoStore> {
+    protected _name: string = 'DemoPluginSubscriber'
 
     constructor() {
         super(
-            'demo-plugin-class',
             DemoStore.customizeStore.bind(DemoStore)
         )
     }

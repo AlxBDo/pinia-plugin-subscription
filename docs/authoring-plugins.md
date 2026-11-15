@@ -49,7 +49,7 @@ export const myStoreSubscriber = {
 ### TypeScript
 
 ```ts
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/helpers'
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
 
 export const myStoreSubscriber: PluginSubscriberInterface = {
   name: 'my-plugin',
@@ -118,17 +118,19 @@ creates the instance through a factory — conventionally
 | --- | --- | --- |
 | `Instance` | `extends Store` | The `Store` subclass your plugin creates for each registered store. |
 
-The generic parameter is optional — JavaScript code and untyped TypeScript
-plugins can extend the class without it. Providing it types the
-`storeInstance` getter, so overridden hooks (`hydrate()`,
+TypeScript subclasses must provide the `Store` subclass as the generic
+parameter. This types the `storeInstance` getter, so overridden hooks (`hydrate()`,
 `afterHydration()`, `pluginCreated`) get full autocompletion and compile-time
 checks when they call your plugin's custom methods.
 
 Constructor:
 
 ```ts
-constructor(pluginName: string, createInstance: CreateInstance)
+constructor(createInstance: CreateInstance)
 ```
+
+Each concrete subscriber must define a unique protected `_name` field. Its
+value is used for subscriber identity, execution options, and tracing.
 
 | Member | Kind | Description |
 | --- | --- | --- |
@@ -153,13 +155,15 @@ class MyPlugin extends Store {
   }
 
   doSomething() {
-    this.trace('my-plugin:doSomething', () => ({ storeId: this.store.$id }))
+    this.trace('my-plugin:doSomething', this.store.$id, () => ({ storeId: this.store.$id }))
   }
 }
 
 class MyPluginSubscriber extends PluginSubscriber {
+  _name = 'my-plugin'
+
   constructor() {
-    super('my-plugin', (store, options) => new MyPlugin(store, options))
+    super((store, options) => new MyPlugin(store, options))
   }
 }
 
@@ -170,24 +174,28 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 
 ```ts
 import { PluginSubscriber, Store } from 'pinia-plugin-subscription/helpers'
+import type { Store as PiniaStore } from 'pinia'
+import type { StoreClassConstructorParams } from 'pinia-plugin-subscription/types'
 
 class MyPlugin extends Store {
-  protected override _className: string = 'MyPlugin'
+  protected override _name: string = 'MyPlugin'
   protected static override _requiredKeys?: string[] = ['my-plugin-option']
 
-  constructor(store, options) {
+  constructor(store: PiniaStore, options: StoreClassConstructorParams) {
     super(store, options)
     this.doSomething()
   }
 
   doSomething(): void {
-    this.trace('my-plugin:doSomething', () => ({ storeId: this.store.$id }))
+    this.trace('my-plugin:doSomething', this.store.$id, () => ({ storeId: this.store.$id }))
   }
 }
 
 class MyPluginSubscriber extends PluginSubscriber<MyPlugin> {
+  protected _name = 'my-plugin'
+
   constructor() {
-    super('my-plugin', MyPlugin.customizeStore.bind(MyPlugin))
+    super(MyPlugin.customizeStore.bind(MyPlugin))
   }
 }
 
@@ -219,9 +227,10 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 | `storeSubscribe` (getter/setter) | Factory for pinia's `$subscribe` (`{ store, callback }`). |
 | `onAction` (getter/setter) | Factory for pinia's `$onAction` (`{ store, callback }`). |
 | `static customizeStore(store, options)` | Recommended factory; guarded by `_requiredKeys` (see above). |
-| `trace(label, scope?, payload?, namespace?)` | Emits a structured trace event (inherited from the abstract `TraceEmitter` class, shared with `PluginSubscription`). The default scope is the wrapped store ID. |
-| `traceError(label, error, scope?, payload?, namespace?)` | Emits an error event; if no listener matches, reports it with `console.error` without rethrowing it. |
-| `classNameAddedToTraceNamespace` (getter/setter) | Controls whether the store class name is prefixed to trace labels; enabled by default. |
+| `trace(label, scope?, payload?, namespace?)` | Protected method that emits a structured trace event. The tracer's default scope is the wrapped store ID. |
+| `traceError(label, error, scope?, payload?, namespace?)` | Protected method that emits an error event; without a tracer, reports it with `console.error`. |
+| `traceOptions.prefixLabelWithName` | Protected option controlling whether `_name` is prefixed to trace labels; enabled by default for `Store`. |
+| `addEventStoreSubscription(id, store, subscriptions)` / `addEventStoreSubscriber(subscriber)` | Protected helpers for registering store-event callbacks with the shared handler. |
 | `stateHas(property)` / `storeHas(property)` | Safe `hasOwnProperty` checks on state / store. |
 | `getValue(value)` | Unwraps a ref or returns the value as-is. |
 | `isOptionApi()` | Whether the store uses the options API. |
@@ -257,7 +266,7 @@ export const persistedStateSubscriber = {
 
 ```ts
 import { nextTick } from 'vue'
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/helpers'
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
 
 export const persistedStateSubscriber: PluginSubscriberInterface = {
   name: 'persisted-state',
@@ -296,8 +305,10 @@ import { nextTick } from 'vue'
 import { PluginSubscriber } from 'pinia-plugin-subscription/helpers'
 
 class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
+  protected _name = 'extendsPiniaStore'
+
   constructor() {
-    super('extendsPiniaStore', StoreExtension.customizeStore.bind(StoreExtension))
+    super(StoreExtension.customizeStore.bind(StoreExtension))
 
     // Controls when this subscriber may run and whether it should wait
     // for hydration on the client.
@@ -376,12 +387,13 @@ initialization from crashing Nuxt or SSR builds.
 
 ### Emitting trace events
 
-Use `trace()` and `traceError()` from a `Store` subclass to emit structured
-events. The first argument is a human-readable label; by default the store
-class name is prefixed to it and the normalized label becomes the namespace.
-Pass an explicit fourth `namespace` argument to control the namespace, or set
-`classNameAddedToTraceNamespace = false` to omit the class prefix. Prefer a
-payload factory so data is not built unless a listener consumes the event:
+Use the protected `trace()` and `traceError()` methods from a `Store` subclass
+to emit structured events. The first argument is a human-readable label; by
+default the store's `_name` is prefixed to it and the normalized label becomes
+the namespace. Pass an explicit `namespace` argument to control the namespace,
+or set `this.traceOptions.prefixLabelWithName = false` in the subclass to omit
+the prefix. Prefer a payload factory so data is not built unless a listener
+consumes the event:
 
 ```ts
 class CartStore extends Store {
@@ -478,18 +490,22 @@ runtime environment, store behavior and tracing.
 
 Factory returning a plain-object subscriber `{ name, invoke, ...optionalProps }`. Exported from `pinia-plugin-subscription/helpers`.
 
-### `PluginSubscriberWithoutInstance`
+### Store event registration
 
-Extend `PluginSubscriberWithoutInstance` when a class-based subscriber needs
-to work with the Pinia store directly rather than creating a `Store` wrapper.
-`createPlugin()` passes the shared store-events handler to `invoke()`. After
-calling `super.invoke(context, pluginOptions)`, subclasses can register
-per-store event callbacks with the protected
+`PluginSubscriberWithoutInstance` has been removed. Use a plain-object
+subscriber or extend `PluginSubscriber` with a `Store` wrapper instead.
+`createPlugin()` passes the shared store-events handler to the subscriber and
+its `Store`. Subclasses can register per-store callbacks with the protected
 `addEventStoreSubscription(id, store, subscriptions)` helper, or register an
 existing `StoreEventsSubscriber` with `addEventStoreSubscriber(subscriber)`.
 The subscription map keys are store event names and values are callbacks.
-`clearStoreEventsSubscriptions(storeId)` clears event subscribers for that
-store from the shared handler.
+Concrete subscribers must define a unique protected `_name`. The orchestrator
+clears the store's registered event
+subscribers when the Pinia store is disposed. When a `Store` is created
+outside this plugin flow, its options must provide `eventsHandler` for these
+helpers to register callbacks. `Store.customizeStore()` also initializes the
+instance and registers its `onDispose` hook; a custom factory that only calls
+the constructor does not perform those steps.
 
 `createPlugin()` accepts hydration options directly. Set shared execution and
 scheduling defaults for its subscribers, or use `subscriberExecution` to
@@ -560,11 +576,12 @@ The `Store` class (see [src/core/Store.ts](../src/core/Store.ts)) is a wrapper a
   - `storeSubscribe` (getter/setter) — factory for `store.$subscribe` ({ store, callback }).
   - `onAction` (getter/setter) — factory for `onAction` ({ store, callback }).
   - `static customizeStore(store, options)` — recommended factory for class instantiation.
-  - `trace(label, scope?, payload?, namespace?)` — emits a structured trace event, scoped to the store by default.
-  - `traceError(label, error, scope?, payload?, namespace?)` — emits an error event, or reports it with `console.error` when no listener matches.
+  - Protected `trace(label, scope?, payload?, namespace?)` — emits a structured trace event, scoped to the store by default when its tracer is configured.
+  - Protected `traceError(label, error, scope?, payload?, namespace?)` — emits an error event, or reports it with `console.error` when no tracer is configured.
   - Helpers: `stateHas()`, `storeHas()`, `getValue()`.
 
-`trace()` and `traceError()` come from the abstract `TraceEmitter` class that `Store` shares with `PluginSubscription`.
+`Store`, `PluginSubscriber` and `PluginSubscription` share
+protected tracing and store-event emission helpers.
 
 ## Testing
 

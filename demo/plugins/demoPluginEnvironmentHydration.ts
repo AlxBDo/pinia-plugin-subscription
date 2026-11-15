@@ -7,6 +7,7 @@ const createVisitorStore = VisitorEnvironmentStore.customizeStore.bind(VisitorEn
 
 // Runs on the server only: the plugin skips it in the browser.
 class ServerVisitorSubscriber extends PluginSubscriber<VisitorEnvironmentStore> {
+    protected _name: string = 'demo-plugin-server-visitor'
     private _loadData: () => Promise<VisitorServerData>
     private _rejectReady!: (error: unknown) => void
     private _resolveReady!: () => void
@@ -14,7 +15,7 @@ class ServerVisitorSubscriber extends PluginSubscriber<VisitorEnvironmentStore> 
     readonly ready: Promise<void>
 
     constructor(loadData: () => Promise<VisitorServerData>) {
-        super('demo-plugin-server-visitor', createVisitorStore)
+        super(createVisitorStore)
         this._loadData = loadData
         this.execution = { environment: 'server' }
         this.ready = new Promise<void>((resolve, reject) => {
@@ -36,10 +37,11 @@ class ServerVisitorSubscriber extends PluginSubscriber<VisitorEnvironmentStore> 
 
 // Runs in the browser only, once the page is hydrated: the plugin skips it on the server.
 class BrowserVisitorSubscriber extends PluginSubscriber<VisitorEnvironmentStore> {
+    protected _name: string = 'demo-plugin-browser-visitor'
     private _readBrowserData: () => VisitorBrowserData
 
     constructor(readBrowserData: () => VisitorBrowserData) {
-        super('demo-plugin-browser-visitor', createVisitorStore)
+        super(createVisitorStore)
         this._readBrowserData = readBrowserData
         this.execution = { environment: 'client', hydration: 'defer' }
     }

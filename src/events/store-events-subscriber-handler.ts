@@ -12,25 +12,22 @@ export default class StoreEventsSubscriberHandler {
 
     public emit(store: Store, event: string, getArgs?: () => any[]): void {
         const subscribers = this.getSubscribers(store.$id)
-        const errors: unknown[] = []
+        const reportError = (error: unknown) =>
+            console.error(`Error emitting event '${event}' for store '${store.$id}':`, error)
 
         for (const subscriber of subscribers) {
             try {
                 const subscription = subscriber.getSubscription(event, store)
-                if (typeof subscription === 'function') { subscription(...(getArgs?.() ?? [])) }
-            } catch (error) {
-                if (subscriber.shouldPropagateError(event)) {
-                    errors.push(error)
-                } else {
-                    console.error(`Error emitting event '${event}' for store '${store.$id}':`, error)
+                if (typeof subscription === 'function') {
+                    const result: unknown = subscription(...(getArgs?.() ?? []))
+                    if (result !== null && (typeof result === 'object' || typeof result === 'function')
+                        && 'then' in result && typeof result.then === 'function') {
+                        void Promise.resolve(result).catch(reportError)
+                    }
                 }
+            } catch (error) {
+                reportError(error)
             }
-        }
-        if (errors.length === 1) {
-            throw errors[0]
-        }
-        if (errors.length > 1) {
-            throw new AggregateError(errors, `Errors emitting event '${event}' for store '${store.$id}'`)
         }
     }
 

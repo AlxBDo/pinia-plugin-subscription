@@ -11,7 +11,7 @@ import type {
 
 // Traces come from the tracer PluginSubscription hands over to the subscriber (this.trace / this.traceError).
 export default class VisitorEnvironmentStore extends Store {
-    protected _className = 'VisitorEnvironmentStore'
+    protected _name: string = 'VisitorEnvironmentStore'
 
     constructor(store: PiniaStore, options: StoreClassConstructorParams) {
         super(store, options)

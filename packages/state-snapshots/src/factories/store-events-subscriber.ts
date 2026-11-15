@@ -1,7 +1,4 @@
-import {
-    StoreEventsSubscriber,
-    STORE_EVENTS
-} from 'pinia-plugin-subscription/helpers'
+import { StoreEventsSubscriber } from 'pinia-plugin-subscription/helpers'
 import { STORE_EVENTS_SUBSCRIBER_ID_PREFIX } from '../utils/constants'
 
 import type { Store } from 'pinia'
@@ -10,7 +7,7 @@ import type { Store } from 'pinia'
 class SnapshotEventsSubscriber extends StoreEventsSubscriber {
     constructor(
         store: Store,
-        subscriptions: Record<string, (...args: any[]) => void> | undefined,
+        subscriptions: Record<string, (...args: any[]) => void>,
         private readonly onClear?: () => void
     ) {
         super(getStoreEventSubscriberId(store), store, subscriptions)
@@ -19,10 +16,6 @@ class SnapshotEventsSubscriber extends StoreEventsSubscriber {
     clear(): void {
         super.clear()
         this.onClear?.()
-    }
-
-    shouldPropagateError(event: string): boolean {
-        return event === STORE_EVENTS.ACTION_BEFORE || event === STORE_EVENTS.ACTION_ON_ERROR
     }
 }
 
@@ -35,7 +28,7 @@ class SnapshotEventsSubscriber extends StoreEventsSubscriber {
  */
 export function createStoreEventsSubscriber(
     store: Store,
-    eventSubscriptions?: Record<string, (...args: any[]) => void>,
+    eventSubscriptions: Record<string, (...args: any[]) => void>,
     onClear?: () => void
 ): StoreEventsSubscriber {
     return new SnapshotEventsSubscriber(store, eventSubscriptions, onClear)

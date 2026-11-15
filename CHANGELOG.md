@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added unit tests covering the tracing system and the leak detection logic
 
 ### Changed
-- `PluginSubscriberWithoutInstance` now captures the shared store-events handler and provides helpers to register `StoreEventsSubscriber` instances or event callback maps; the state-snapshots subscriber uses this shared registration path.
+- `PluginSubscriber` passes the shared store-events handler to its `Store` instance; both can register store-event subscribers.
 - Subscribers now execute in ascending `execution.order` order (default `9`), preserving declaration order for equal priorities; `PluginSubscriber.tracer` exposes the tracer created for that subscriber and passes the same instance to its `Store` factory.
 - Trace groups follow the lifecycles of a store: `groupId` is now a `/` separated path (`<storeId>/plugin`, `<storeId>/onAction:<name>#<n>`, with `/after` and `/onError` sub-groups, `<storeId>/onMutation#<n>`, `<storeId>/reset#<n>`, `<storeId>/plugin/deferred:<subscriber>#<n>`). Every trace emitted for a store while a group is open, including those of subscribers and `Store` subclasses, joins the innermost one. `traceGroups` builders take the call counter; `TraceGroupId` is removed, and `groupId` is lifted from the payload to the event like `actionId`
 - `storeMutationSubscription` now supports several subscribers per store, like `storeOnActionSubscription`: a single `$subscribe` is registered per store and dispatches to every callback. A failing callback is reported through `traceError` without blocking the others, subscriber names are tracked, and the hook is unsubscribed when the store is disposed
@@ -40,14 +40,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error events are delivered to matching listeners and reported with `console.error` when none match
 - Store trace labels can include the store class name by default, and callers can override the event namespace
 - Excluded `scripts/**` from coverage thresholds, as build tooling is not shipped to consumers
-- `Store` and `PluginSubscription` now share the abstract `TraceEmitter` class for `trace()`, `traceError()` and class-name label formatting, removing duplicated code
+- `Store`, `PluginSubscriber` and `PluginSubscription` share store-event emission and tracing helpers; `Store` receives the shared event handler from its subscriber.
 - `Tracer` listener matching no longer allocates intermediate arrays beyond the matched set, and duplicated unhandled-error reporting was factored out
 - The `pluginsubscription` namespace prefix is now a shared constant (`pluginSubscriptionNamespace`) instead of a hard-coded string
 
 ### Changed (breaking)
+- Class-based subscribers now define a unique `_name` instead of passing a name to `super()`; `PluginSubscriber` takes only its instance factory. `Store` subclasses use `_name` instead of `_className`. `trace()` and `traceError()` are protected, and subclasses configure label prefixes through `traceOptions.prefixLabelWithName` instead of `classNameAddedToTraceNamespace`.
+- Removed `PluginSubscriberWithoutInstance`; use a plain-object subscriber or `PluginSubscriber` with a `Store` subclass.
 - Move automatic and manual rollback, including their types, to `pinia-plugin-state-snapshots`; register its subscriber explicitly.
-- Move `$reset` ownership and reset callback execution to `StateSnapshotsSubscriber`; callbacks are registered with `$onResetStore()`, while `PluginSubscription` only orchestrates subscribers.
-- Allow store-event subscribers to opt in to error propagation; critical before-action failures abort the action and emit an error event for cleanup.
+- Move `$reset` ownership and reset callback execution to the state-snapshots package; callbacks are registered with `$onResetStore()`, while `PluginSubscription` only orchestrates subscribers.
+- Store-event subscriber failures no longer propagate to the emitter, and `shouldPropagateError` has been removed. Synchronous failures and async rejections are logged; async subscribers are not awaited.
 - removed the built-in console output of traces (`createConsoleGroupTraceListener`, `ConsoleTraceGroupListener`, `TraceGroupListener`, `TraceListenerGroupBy`, the `groupBy` option of `addListener()`, and the internal console printers). Listeners now only forward events to their own `handler` (a no-op when omitted); `startGroup` / `closeGroup` only maintain the open-group stack that sets `groupId`. Fixed `tracerHandler.journal` not being exposed by the registry
 - The tracing solution moved to the new `pinia-plugin-subscription-devtools` package (`packages/devtools/`, same repository). `pinia-plugin-subscription` now only emits trace events through the `Tracer` / `TracerHandler` contract exported from `pinia-plugin-subscription/types`; without a `tracerHandler` it emits nothing. The compressed package drops from about 117 kB to about 50 kB, and the new package weighs about 19 kB.
 - `createTracerRegistry`, `Tracer` (class), `defaultRedactedKeys`, `stringifyTraceSnapshot`, `getTraceGroupName` and `mountTraceDevtools` are now exported by `pinia-plugin-subscription-devtools` instead of `pinia-plugin-subscription/helpers` and `pinia-plugin-subscription/devtools`. `traceGroups` stays in `pinia-plugin-subscription/helpers`.
