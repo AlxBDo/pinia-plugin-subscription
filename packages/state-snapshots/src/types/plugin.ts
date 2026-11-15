@@ -19,7 +19,7 @@ declare module 'pinia-plugin-subscription/types' {
 
 declare module 'pinia' {
     interface PiniaCustomProperties {
-        $rollbackAfterFailure: (params: RollbackActionParams, args?: any[]) => Promise<void>
+        $rollbackAfterFailure?: (params: RollbackActionParams, args?: any[]) => Promise<void>
         $onResetStore?: (callback: ResetStoreCallback) => void
     }
 }

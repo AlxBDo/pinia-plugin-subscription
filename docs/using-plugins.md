@@ -66,7 +66,7 @@ requires no generics:
 
 ```ts
 import { createPlugin } from 'pinia-plugin-subscription'
-import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/helpers'
+import type { PluginSubscriberInterface } from 'pinia-plugin-subscription/types'
 
 const subscribers: PluginSubscriberInterface[] = [myStoreSubscriber]
 
@@ -297,7 +297,9 @@ the snapshot is restored through a `$patch` mutation. The snapshot is always
 discarded once the action completes or fails. Supported values, error handling,
 and identity limitations are documented in the package README.
 If snapshot creation fails, the error is logged and the action still runs
-without that rollback snapshot.
+without that rollback snapshot. If automatic restoration fails, the failure
+and original action error are logged together, and the original action error
+is propagated; the state may be partially restored.
 
 Only the actions listed in `rollbackAfterFailure` are snapshotted, so
 unrelated actions pay no cloning cost. Use `'all'` or `[]` instead of a key list to
@@ -308,9 +310,11 @@ methods.
 
 ### Manual rollback with `$rollbackAfterFailure`
 
-Every store registered with the subscriber also exposes a `$rollbackAfterFailure`
-method to run any action with an explicit snapshot/rollback wrapper, without
-declaring it in the store options:
+Stores with `overrideReset` or `rollbackAfterFailure` enabled expose a
+`$rollbackAfterFailure` method to run an action with an explicit snapshot.
+Use `rollbackAfterFailure: true` to enable manual rollback without configuring
+automatic snapshots. The global type augmentation does not guarantee that the
+method is installed on stores without these options:
 
 ```js
 const store = useMyStore()

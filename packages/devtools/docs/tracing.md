@@ -128,7 +128,7 @@ Use `addListener()` when you need other metadata criteria or custom filter logic
 | `timestamp` | `Date.now()` at emission |
 | `error` | Present on `error` events |
 
-By default, `Store` prefixes its class name to labels and derived namespaces. Library events use `PluginSubscription` as their prefix (for example, `pluginsubscription:store:mutation` and `pluginsubscription:subscription:delivery`). Set `classNameAddedToTraceNamespace = false` on a `Store` subclass to omit its class prefix, or provide an explicit namespace as the fourth argument to `trace()` / `traceError()`.
+By default, `Store` prefixes its `_name` to labels and derived namespaces. Library events use `PluginSubscription` as their prefix (for example, `pluginsubscription:store:mutation` and `pluginsubscription:subscription:delivery`). Set `this.traceOptions.prefixLabelWithName = false` in a `Store` subclass to omit its prefix, or provide an explicit namespace to `trace()` / `traceError()`.
 
 ## Trace groups glossary
 
@@ -240,7 +240,7 @@ class CartStore extends Store {
 }
 ```
 
-`trace(label, scope?, payload?, namespace?)` and `traceError(label, error, scope?, payload?, namespace?)` are provided by the abstract `TraceEmitter` class, shared by `Store` and `PluginSubscription`. The scope defaults to the store ID for `Store`. The class name is included in the label by default; unless an explicit namespace is provided, the normalized label is used as the namespace.
+`trace(label, scope?, payload?, namespace?)` and `traceError(label, error, scope?, payload?, namespace?)` are protected helpers shared by `Store`, `PluginSubscriber` and `PluginSubscription`. A `Store` sets its tracer's default scope to the store ID. Its `_name` is included in the label by default; unless an explicit namespace is provided, the normalized label is used as the namespace.
 
 Always prefer the **function form** for `payload`: it is only invoked once a listener matches, so unobserved tracing costs nothing.
 

@@ -7,12 +7,15 @@
         "rootDir": ".",
         "baseUrl": ".",
         "paths": {
-            "pinia-plugin-subscription/types": ["src/types/index.ts"]
+            "pinia-plugin-subscription/types": ["src/types/index.ts"],
+            "pinia-plugin-subscription/helpers": ["src/helpers/index.ts"],
+            "pinia-plugin-subscription": ["src/lib/main.ts"]
         }
     },
     "exclude": [],
     "include": [
         "src/types/**/*.ts",
-        "src/tests/**/*.test-d.ts"
+        "src/tests/**/*.test-d.ts",
+        "packages/*/src/**/*.test-d.ts"
     ]
 }

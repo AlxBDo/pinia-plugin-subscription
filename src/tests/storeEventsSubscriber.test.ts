@@ -90,11 +90,4 @@ describe('StoreEventsSubscriber', () => {
         expect(subscriber.hasSubscription('created', store)).toBe(false)
         expect(subscriber.hasSubscriptions(store)).toBe(false)
     })
-
-    it('does not propagate errors for any event', () => {
-        const subscriber = new StoreEventsSubscriber('subscriber-a', createStore('store-a'))
-
-        expect(subscriber.shouldPropagateError('created')).toBe(false)
-        expect(subscriber.shouldPropagateError('failed')).toBe(false)
-    })
 })

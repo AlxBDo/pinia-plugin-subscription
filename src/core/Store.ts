@@ -1,11 +1,10 @@
 import { isRef, ref, toRef } from "vue"
-import TraceEmitter from "../system/TraceEmitter"
+import EventsRegistry from "../events/events-registry"
 import type { Tracer } from "../types/trace"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
 
 import type {
-    PluginSubscriptionOptions,
     PluginSubscriptions,
     StoreClassConstructorParams,
     StoreMutationSubscription,
@@ -26,8 +25,8 @@ import type { StoreOptions, StatePropertyValue } from "../types/store"
  * This class is intended to be extended by specific store implementations
  * that require enhanced capabilities such as structured tracing and plugin subscriptions.
  */
-export default class Store extends TraceEmitter {
-    protected _className = 'Store'
+export default class Store extends EventsRegistry {
+    protected _name: string = 'Store'
     private _createTracer?: () => Tracer
     private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
@@ -36,6 +35,7 @@ export default class Store extends TraceEmitter {
     private _subscriptions: PluginSubscriptions = {}
 
     protected static _requiredKeys?: string[]
+    protected static _requiredKeysValidation: 'every' | 'some' | false = 'every'
 
     get onAction(): StoreOnActionSubscription | undefined {
         if (!this._onAction) {
@@ -77,7 +77,7 @@ export default class Store extends TraceEmitter {
 
     /**
      * Returns the structured trace emitter of this store.
-     * Built lazily so that subclasses overriding `_className` are reflected.
+     * Built lazily and scoped to the wrapped Pinia store.
      */
     public override get tracer(): Tracer | undefined {
         if (!this._tracer && this._createTracer) {
@@ -99,11 +99,11 @@ export default class Store extends TraceEmitter {
      * @see PluginSubscriptionOptions
      */
     constructor(store: PiniaStore, options: StoreClassConstructorParams) {
-        super()
+        super({ prefixLabelWithName: true })
         this._options = options.storeOptions as StoreOptions
         this._store = store
-        this.initializeTracer(options)
-        this.trace('instance:created', store.$id)
+        this.initializeEventsEmitter(options)
+        this.trace('instance:created', this.store.$id)
 
         if (this._options?.enhancedStore) {
             const ctx = getDefineAStoreSetupContext(this.store)
@@ -165,7 +165,16 @@ export default class Store extends TraceEmitter {
         options: StoreClassConstructorParams
     ): Instance | undefined {
         if (options.storeOptions && this.hasRequiredKeys(options.storeOptions)) {
-            return new this(store, options) as Instance
+            const instance = new this(store, options) as Instance
+            if (instance) {
+                instance.init()
+                try {
+                    instance.onStoreDispose(instance.store as PiniaStore)
+                } catch (error) {
+                    instance.traceError('plugin:initialization:failed', error, instance.store.$id)
+                }
+                return instance
+            }
         }
     }
 
@@ -220,10 +229,16 @@ export default class Store extends TraceEmitter {
     /**
      * Checks if the given options object has all the required keys.
      * @param options The options object to check.
-     * @returns True if all required keys are present, otherwise false.
+     * @returns True if on one of the following conditions is met:
+     * - If _requiredKeysValidation is false.
+     * - If _requiredKeysValidation is 'every', all required keys must be present.
+     * - If _requiredKeysValidation is 'some', at least one required key must be present.
      */
     protected static hasRequiredKeys(options: AnyObject): boolean {
-        return this._requiredKeys !== undefined && this._requiredKeys?.every(requiredKey => !!options[requiredKey])
+        return !this._requiredKeysValidation || (
+            !isEmpty(this._requiredKeys) &&
+            (this._requiredKeys as string[])[this._requiredKeysValidation](requiredKey => !!options[requiredKey])
+        )
     }
 
     /**
@@ -235,11 +250,19 @@ export default class Store extends TraceEmitter {
     }
 
     /**
+     * Initializes the store.
+     * This method can be overridden by subclasses to perform custom initialization logic.
+     */
+    protected init(): void {
+    }
+
+    /**
      * Initializes the tracer for plugin subscriptions if the createTracer option is provided.
      * @param options The plugin subscription options containing the createTracer function.
      */
-    private initializeTracer(options: Omit<PluginSubscriptionOptions, 'createTracer'> & { createTracer?: () => Tracer }) {
+    private initializeEventsEmitter(options: StoreClassConstructorParams) {
         this._createTracer = options?.createTracer
+        this._storeEventsSubscribersHandler = options?.eventsHandler
     }
 
     /**
@@ -261,5 +284,4 @@ export default class Store extends TraceEmitter {
      * @returns True if the store object has the property, otherwise false.
      */
     storeHas(property: string): boolean { return Object.prototype.hasOwnProperty.call(this.store, property) }
-
 }

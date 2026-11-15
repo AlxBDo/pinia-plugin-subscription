@@ -20,7 +20,8 @@ describe('PluginSubscriber (abstract)', () => {
         const createInstance = vi.fn()
 
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('my-plugin', createInstance) }
+            protected _name: string = 'my-plugin'
+            constructor() { super(createInstance) }
         })()
 
         expect(subscriber.name).toBe('my-plugin')
@@ -31,7 +32,8 @@ describe('PluginSubscriber (abstract)', () => {
         const createInstance = vi.fn()
 
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('my-plugin', createInstance) }
+            protected _name: string = 'my-plugin'
+            constructor() { super(createInstance) }
         })()
 
         expect(subscriber.storeInstance).not.toBeDefined()
@@ -41,7 +43,8 @@ describe('PluginSubscriber (abstract)', () => {
         const createInstance = vi.fn()
 
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('my-plugin', createInstance) }
+            protected _name: string = 'my-plugin'
+            constructor() { super(createInstance) }
         })()
 
         subscriber.pluginOptions = { storeOptions: { optionA: 'valueA' } }
@@ -59,7 +62,8 @@ describe('PluginSubscriber (abstract)', () => {
         }
         const createInstance = vi.fn().mockReturnValue(instance)
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('my-plugin', createInstance) }
+            protected _name: string = 'my-plugin'
+            constructor() { super(createInstance) }
         })()
 
         subscriber.invoke(createContext({ $state: {} }), {
@@ -76,7 +80,8 @@ describe('PluginSubscriber (abstract)', () => {
         const createInstance = vi.fn()
 
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('my-plugin', createInstance) }
+            protected _name: string = 'my-plugin'
+            constructor() { super(createInstance) }
         })()
 
         const pluginAInvoke = vi.fn(() => true)
@@ -93,7 +98,8 @@ describe('PluginSubscriber (abstract)', () => {
         const createInstance = vi.fn().mockReturnValue(undefined)
 
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('noop', createInstance) }
+            protected _name: string = 'noop'
+            constructor() { super(createInstance) }
         })()
 
         const ctx = createContext({ $state: {} })
@@ -119,8 +125,9 @@ describe('PluginSubscriber (abstract)', () => {
         const pluginCreated = vi.fn()
 
         const subscriber = new (class extends PluginSubscriber<any> {
+            protected _name: string = 'ext'
             constructor() {
-                super('ext', createInstance)
+                super(createInstance)
                 this.pluginCreated = pluginCreated
             }
         })()
@@ -147,7 +154,8 @@ describe('PluginSubscriber (abstract)', () => {
         const createInstance = vi.fn().mockReturnValue(instance)
 
         const subscriber = new (class extends PluginSubscriber<any> {
-            constructor() { super('no-pluginCreated', createInstance) }
+            protected _name: string = 'no-pluginCreated'
+            constructor() { super(createInstance) }
         })()
 
         const store = { $state: { count: 0 } }

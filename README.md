@@ -87,9 +87,13 @@ For subscriber authors, store action events are emitted even without a `storeOnA
 `ACTION_BEFORE` receives `(name, invocationKey)`, `ACTION_AFTER` receives
 `(name, invocationKey)` after success, and `ACTION_ON_ERROR` receives `(name, error, invocationKey)`
 after failure. The symbol identifies one invocation.
-Event subscribers may override `shouldPropagateError(event)` to make errors critical;
-other subscriber errors continue to be logged. A critical `ACTION_BEFORE` error
-aborts the action and emits `ACTION_ERROR` for cleanup.
+Event subscribers cannot interrupt the emitter: synchronous failures and async
+rejections are reported with `console.error`, and other subscribers still run.
+Async subscribers are not awaited.
+Class-based subscribers define a unique `_name`; their `Store` wrappers can
+register event callbacks through protected helpers using the shared handler.
+The orchestrator clears those subscriptions when the store is disposed. See
+the [plugin authoring guide](docs/authoring-plugins.md#store-event-registration).
 
 ## Tracing
 

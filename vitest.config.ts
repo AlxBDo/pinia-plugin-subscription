@@ -46,7 +46,7 @@ export default defineConfig({
         },
         typecheck: {
             enabled: true,
-            include: ['src/**/*.test-d.ts'],
+            include: ['src/**/*.test-d.ts', 'packages/*/src/**/*.test-d.ts'],
             tsconfig: './tsconfig.test.json',
         },
     },

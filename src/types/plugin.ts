@@ -180,6 +180,7 @@ export interface NativePiniaSubscriptionReturn<Callback> {
 }
 
 export type StoreClassConstructorParams = Omit<PluginSubscriptionOptions, 'createTracer'>
+    & Omit<Partial<PluginOptions>, 'createTracer'>
     & {
         createTracer?: () => Tracer
         storeOptions?: StoreOptions

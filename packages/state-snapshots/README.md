@@ -16,8 +16,6 @@ Install Pinia, Vue, the subscription package, and this plugin:
 npm install pinia vue pinia-plugin-subscription pinia-plugin-state-snapshots
 ```
 
-This release requires `pinia-plugin-subscription` `1.0.0-beta.16` or later.
-
 ## Usage
 
 Register `StateSnapshotsSubscriber` with Pinia through
@@ -85,7 +83,7 @@ callback does not enable reset wrapping by itself.
 
 #### Reset callback examples
 
-When the subscriber is installed, stores expose `$onResetStore(callback)`.
+When reset wrapping is enabled, stores expose `$onResetStore(callback)`.
 Register callbacks after obtaining the store; they run after a wrapped
 `$reset()` restores the initial state and receive the store:
 
@@ -120,6 +118,11 @@ snapshots. Its keys are action names; each value is either `'all'` to capture
 the full state or an array of state keys to capture. An empty key array also
 selects the full state. Only the selected keys are restored on failure.
 
+Set `rollbackAfterFailure: true` to enable manual rollback without configuring
+automatic snapshots. Alternatively, set `StateSnapshotsSubscriber.rollbackAfterFailure`
+to `true` to enable manual rollback for all stores; per-store action maps
+still control automatic rollback.
+
 The plugin captures a separate snapshot at the start of each action invocation.
 If that invocation succeeds, its snapshot is discarded; if it fails, its
 snapshot is restored and the action's original error is propagated. Nested and
@@ -129,7 +132,7 @@ actions while it was pending.
 
 ### Manual rollback
 
-Registered stores also receive
+Stores with `overrideReset` or `rollbackAfterFailure` enabled also receive
 `$rollbackAfterFailure({ action, stateKeys }, args?)`. `action` is the action
 name; `stateKeys` uses the same `'all'` or key-array selection as automatic
 rollback and defaults to the full state. Supply action arguments as a single
@@ -149,16 +152,23 @@ properties, symbol keys, and self-referential refs are not supported.
 If snapshot creation fails (for example, because state contains an unsupported
 value or a requested key is invalid), the plugin logs the error and still runs
 the action without that rollback snapshot. The action's result or error is not
-replaced by the snapshot-capture failure. A restoration failure is reported as
-an `AggregateError` containing both the action error and restoration error;
-restoration may have partially changed state. Restoring replaces selected
+replaced by the snapshot-capture failure. For automatic rollback, a restoration
+failure is logged as an `AggregateError` containing both errors, while the
+original action error is propagated. For manual rollback, the `AggregateError`
+is propagated to the caller. Restoration may have partially changed state.
+Restoring replaces selected
 top-level values, so references held outside the store may continue pointing
-to the old objects.
+to the old objects. If neither option is enabled, the subscriber does not
+create a `StateSnapshots` wrapper and installs neither rollback nor reset
+callbacks. The Pinia type augmentation is global, so the presence of
+`$rollbackAfterFailure` in TypeScript does not guarantee installation at runtime.
 
 ## Tests
 
 The package is tested with [Vitest](https://vitest.dev/) as part of the parent
 repository's test suite and continuous-integration workflow.
+Run `npx vitest run packages/state-snapshots/src/tests` from the repository root
+to run this package's runtime and type-level tests.
 
 ## Publishing
 

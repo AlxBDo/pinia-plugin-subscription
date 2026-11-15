@@ -19,5 +19,5 @@ export interface StateRestoredStoreOptions {
     /**
      * Parameters for rolling back the store after a failure.
      */
-    rollbackAfterFailure?: RollbackAfterFailureParams
+    rollbackAfterFailure?: RollbackAfterFailureParams | true
 }

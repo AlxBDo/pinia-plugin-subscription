@@ -43,6 +43,18 @@ class StoreChild extends Store {
     public hasDeniedFirstCharPublic(value: string): boolean {
         return this.hasDeniedFirstChar(value)
     }
+
+    public traceForTest(label: string, scope?: string, payload?: Parameters<StoreChild['trace']>[2], namespace?: string): void {
+        this.trace(label, scope, payload, namespace)
+    }
+
+    public traceErrorForTest(label: string, error: unknown): void {
+        this.traceError(label, error)
+    }
+
+    public setTracePrefix(enabled: boolean): void {
+        this.traceOptions.prefixLabelWithName = enabled
+    }
 }
 
 describe('Store', () => {
@@ -245,12 +257,19 @@ describe('Store', () => {
         })
     })
 
+    describe('hydration hooks', () => {
+        it('provides synchronous no-op hooks by default', () => {
+            expect(storeInstance.hydrate()).toBeUndefined()
+            expect(storeInstance.afterHydration()).toBeUndefined()
+        })
+    })
+
     describe('trace', () => {
         it('emits a structured event scoped to the store id', () => {
             const collector: TraceEvent[] = []
             const remove = addListener({ filter: () => true, handler: (event) => { collector.push(event) } })
 
-            storeInstance.trace('store:hydrate', mockPiniaStore.$id, () => ({ done: true }))
+            childStore.traceForTest('store:hydrate', mockPiniaStore.$id, () => ({ done: true }))
             remove()
 
             expect(collector).toHaveLength(1)
@@ -267,7 +286,7 @@ describe('Store', () => {
         it('does not resolve the payload when nothing listens', () => {
             const payload = vi.fn(() => ({ heavy: true }))
 
-            storeInstance.trace('store:hydrate', mockPiniaStore.$id, payload)
+            childStore.traceForTest('store:hydrate', mockPiniaStore.$id, payload)
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -276,11 +295,43 @@ describe('Store', () => {
             const collector: TraceEvent[] = []
             const remove = addListener({ filter: () => true, handler: (event) => { collector.push(event) } })
 
-            storeInstance.traceError('store:hydrate', new Error('boom'))
+            childStore.traceErrorForTest('store:hydrate', new Error('boom'))
             remove()
 
             expect(collector).toHaveLength(1)
             expect(collector[0]!.level).toBe('error')
+        })
+
+        it('supports disabling the label prefix and overriding the namespace', () => {
+            const collector: TraceEvent[] = []
+            const remove = addListener({ handler: event => { collector.push(event) } })
+            childStore.setTracePrefix(false)
+
+            childStore.traceForTest('Mixed:Label', undefined, undefined, 'custom:namespace')
+            childStore.traceForTest('Mixed:Label')
+            remove()
+
+            expect(collector).toHaveLength(2)
+            expect(collector[0]).toMatchObject({ label: 'Mixed:Label', namespace: 'custom:namespace', scope: mockPiniaStore.$id })
+            expect(collector[1]).toMatchObject({ label: 'Mixed:Label', namespace: 'mixed:label', scope: mockPiniaStore.$id })
+        })
+
+        it('reports an error to the console when no tracer is configured', () => {
+            const log = vi.spyOn(console, 'error').mockImplementation(() => { })
+            const error = new Error('no tracer')
+            try {
+                new StoreChild(mockPiniaStore, {}).traceErrorForTest('failure', error)
+                expect(log).toHaveBeenCalledOnce()
+                expect(log).toHaveBeenCalledWith(error)
+            } finally {
+                log.mockRestore()
+            }
+        })
+
+        it('does not create a tracer when no factory is configured', () => {
+            const store = new StoreChild(mockPiniaStore, {})
+            expect(store.tracer).toBeUndefined()
+            expect(() => store.traceForTest('unobserved')).not.toThrow()
         })
     })
 
