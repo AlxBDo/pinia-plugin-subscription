@@ -3,7 +3,8 @@ import EventsEmitter from "../events/events-emitter"
 import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
 import { PLUGIN, STORE, SUBSCRIBER } from "../dictionaries/plugin-subscription-event"
 import { isEmpty } from "../utils/validation"
-import { pluginName, pluginSubscriptionClassName } from "../utils/constants"
+import { pluginName } from "../utils/constants"
+import { emitStoreEvent } from '../events/store-events-emitter'
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
@@ -24,7 +25,6 @@ import type {
 } from "../types/plugin"
 
 
-const className = pluginSubscriptionClassName
 const defaultPluginExecution: Required<PluginExecutionOptions> = {
     environment: 'both',
     hydration: 'immediate',
@@ -48,7 +48,7 @@ export default class PluginSubscription extends EventsEmitter {
     private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
     private _onActionSubscriptionsTraces: Map<string, string[]> = new Map()
     private _actionSeq = 0
-    private _onActionStores: Set<Store> = new Set()
+    private _onActionStores: WeakSet<Store> = new WeakSet()
     private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
     private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
     private _onMutationSubscriptions: Map<Store, Set<StoreMutationSubscriptionCallback>> = new Map()
@@ -286,14 +286,10 @@ export default class PluginSubscription extends EventsEmitter {
                 return
             }
 
-            this.emit(store, STORE.ACTION_BEFORE, () => [name, invocationKey])
+            const storageKey = getActionStoreKey(name, store)
             const callId = ++this._actionSeq
             const actionId = `${store.$id}#${callId}`
-            const storageKey = getActionStoreKey(name, store)
             const groupId = traceGroups.onAction(store.$id, name, callId)
-            if (callbacks?.size) {
-                this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
-            }
             // The group must be closed exactly once, whichever way the action ends.
             let groupClosed = false
             const closeGroup = () => {
@@ -302,6 +298,11 @@ export default class PluginSubscription extends EventsEmitter {
                     this.traceGroupEnd({ groupId }, store.$id)
                 }
             }
+            if (callbacks?.size) {
+                this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
+            }
+            this.emit(store, STORE.ACTION_BEFORE, () => [name, invocationKey])
+
 
             try {
                 // Callbacks are invoked synchronously so that their after/onError collectors are filled before Pinia runs the action.
@@ -434,7 +435,7 @@ export default class PluginSubscription extends EventsEmitter {
             })) {
             return
         }
-
+        emitStoreEvent(context.store, SUBSCRIBER.INVOKED, () => [subscriber])
         this.emit(context.store, SUBSCRIBER.INVOKED, () => [subscriber])
 
         this._subscribersDelivered.add(subscriberKey)

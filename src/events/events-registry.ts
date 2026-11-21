@@ -35,9 +35,8 @@ export default abstract class EventsRegistry extends EventsEmitter {
     protected addEventStoreSubscriber(subscriber: StoreEventsSubscriber): void {
         this._storeEventsSubscribersHandler?.subscribe(subscriber.storeId as string, subscriber)
         this.trace(
-            `eventsStoreSubscriber:${subscriber.id}:subscribed`,
-            subscriber.storeId,
-            () => ({ eventsStoreSubscriber: subscriber })
+            `eventsStore:subscribed`,
+            subscriber.storeId
         )
     }
 

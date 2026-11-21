@@ -23,7 +23,7 @@ import type { RollbackActionParams } from '../types/store'
  */
 export default class StateSnapshots extends Store {
     private _isInitialized: boolean = false
-    protected override _name = 'RollbackStateSnapshots'
+    protected override _name = 'StateSnapshots'
     protected static _requiredKeys: string[] = ['overrideReset', 'rollbackAfterFailure']
     protected static _requiredKeysValidation: 'some' = 'some'
     private _rollbackSnapshotsParams: Map<string, unknown> = new Map()
@@ -92,10 +92,13 @@ export default class StateSnapshots extends Store {
     }
 
     private addRollbackStoreEventsSubscriber(store: PiniaStore) {
+        let invokationCount = 0
         const patchStoreAndRemoveSnapshot = (actionName: string, error: unknown, snapshotKey: symbol) => {
             try {
                 this.patchStore(snapshotKey, store)
-                this.trace(`${actionName}:store:patched`, store.$id, () => ({ groupId: traceGroups.onActionError }))
+                this.trace(`${actionName}:store:patched`, store.$id, () => ({
+                    groupId: traceGroups.onActionError(store.$id, actionName, ++invokationCount)
+                }))
             } catch (restoreError) {
                 throw new AggregateError([error, restoreError], `Failed to restore snapshot for action '${actionName}'`)
             } finally {
