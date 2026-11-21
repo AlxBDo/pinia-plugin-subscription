@@ -1,4 +1,5 @@
-import type { Event, EventSubscriber } from '../types/events'
+import type { Event } from '../types/events'
+import type { MessengerSubscriber } from '../types/messenger'
 
 /**
  * Abstract class for emitting events.
@@ -8,14 +9,14 @@ export default class EventsMessengerClass {
     /**
      * List of event subscribers.
      */
-    protected _eventsSubscribers: EventSubscriber[] = []
+    protected _eventsSubscribers: MessengerSubscriber[] = []
 
 
     /**
      * Adds a subscriber.
      * @param subscriber The subscriber to add.
      */
-    addSubscriber(subscriber: EventSubscriber): void {
+    addSubscriber(subscriber: MessengerSubscriber): void {
         this._eventsSubscribers.push(subscriber)
     }
 
@@ -38,7 +39,7 @@ export default class EventsMessengerClass {
      * Removes a subscriber.
      * @param subscriber The subscriber to remove.
      */
-    removeSubscriber(subscriber: EventSubscriber): void {
+    removeSubscriber(subscriber: MessengerSubscriber): void {
         this._eventsSubscribers = this._eventsSubscribers.filter(s => s.id !== subscriber.id)
     }
 }

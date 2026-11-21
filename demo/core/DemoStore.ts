@@ -8,10 +8,6 @@ import type {
 } from 'pinia-plugin-subscription/types'
 import type { DemoPluginClassOptions } from '../types/plugin'
 
-import { createEventsSubscriber } from '../../src/factories/events-subscriber.ts'
-import EventSubscription from '../../src/events/events-subscription.ts'
-import { SUBSCRIBER } from '../../src/dictionaries/plugin-subscription-event.ts'
-
 
 export default class DemoStore extends Store {
     protected _name: string = 'DemoStore'
@@ -60,16 +56,6 @@ export default class DemoStore extends Store {
         // Use this.storeSubscribe to handle store mutations
         // Bind the onMutation callback to the current instance
         this.storeSubscribe = this.onMutationCallback.bind(this)
-
-        createEventsSubscriber(this.store.$id, [
-            new EventSubscription(
-                SUBSCRIBER.INVOKED,
-                (event) => {
-                    console.log('--- NEW EVENT SUBSCRIBER ---', this.store.$id, event, event?.payload)
-                },
-                { scope: this.store.$id }
-            )
-        ])
 
         this._storesAugmented.add(this.store as PiniaStore)
     }

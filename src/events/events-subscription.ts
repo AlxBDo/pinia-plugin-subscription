@@ -35,7 +35,7 @@ export default class EventSubscription extends Event implements EventSubscriptio
     }
 
     subscribed(event: EventInterface): boolean {
-        return Object.keys(event)?.every(
+        return ['payload', 'scope', 'source'].every(
             key => !this[key as EventKeys] || event[key as EventKeys] === this[key as EventKeys]
         );
     }

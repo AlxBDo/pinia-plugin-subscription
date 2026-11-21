@@ -1,4 +1,4 @@
-import { PluginMessenger } from './messenger'
+import Messenger from './messenger'
 import type { MessengerSubscriber as MessengerSubscriberInterface } from '../types/messenger'
 
 /**
@@ -6,15 +6,17 @@ import type { MessengerSubscriber as MessengerSubscriberInterface } from '../typ
  * Manages the messenger instance and provides a getter for it.
  */
 export default abstract class MessengerProvider {
-    private readonly _messenger = PluginMessenger
-    protected abstract _messengerChannel: string
-
     protected get messenger() {
         return this._messenger
     }
+
+    constructor(
+        private readonly _messenger: Messenger,
+        protected _messengerChannel: string
+    ) { }
 }
 
-export abstract class MessengerEmitter extends MessengerProvider {
+export class MessengerEmitter extends MessengerProvider {
     /**
      * Emits an event to all subscribers.
      * @param payload The payload to emit.
@@ -35,9 +37,20 @@ export abstract class MessengerSubscriber extends MessengerProvider implements M
     }
 
 
-    constructor(private readonly _id: string, protected readonly _messengerChannel: string) {
-        super()
+    constructor(
+        messenger: Messenger,
+        messengerChannel: string,
+        private readonly _id: string
+    ) {
+        super(messenger, messengerChannel)
         this.subscribe()
+    }
+
+    /**
+     * overide this method to clear subscriptions
+     */
+    clear(): void {
+        return
     }
 
     protected abstract consume(payload: unknown): void;
@@ -64,6 +77,7 @@ export abstract class MessengerSubscriber extends MessengerProvider implements M
     unsubscribe(): void {
         try {
             this.messenger.removeSubscriber(this._messengerChannel, this);
+            this.clear();
         } catch (error) {
             console.error('[MessengerSubscriber] Error unsubscribing:', error);
         }

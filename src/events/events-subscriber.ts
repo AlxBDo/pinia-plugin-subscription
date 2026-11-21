@@ -1,6 +1,7 @@
 import { MessengerSubscriber } from '../services/messenger-provider'
 import EventSubscription from './events-subscription';
 import type { Event, EventSubscription as EventSubscriptionInterface } from '../types/events';
+import type Messenger from '../services/messenger'
 import type { MessengerSubscriber as MessengerSubscriberInterface } from '../types/messenger';
 
 
@@ -9,13 +10,14 @@ import type { MessengerSubscriber as MessengerSubscriberInterface } from '../typ
  * Manages event subscriptions and provides methods to consume events.
  */
 export default class EventsSubscriber extends MessengerSubscriber implements MessengerSubscriberInterface {
-    protected _messengerChannel = 'events'
     private _subscriptions: EventSubscriptionInterface[] = [];
     private _subscriptionsToConsume: EventSubscriptionInterface[] = [];
 
 
-    constructor(id: string) {
-        super(id, 'events')
+    constructor(
+        messenger: Messenger,
+        id: string) {
+        super(messenger, 'events', id)
     }
 
 

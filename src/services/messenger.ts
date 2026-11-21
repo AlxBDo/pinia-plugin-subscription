@@ -1,14 +1,14 @@
 import type { MessengerSubscriber } from '../types/messenger'
 
 
-export class Messenger {
+export default class Messenger {
     /**
      * List of subscribers.
      */
-    private _subscribers: Record<string, MessengerSubscriber[]> = {}
+    private _subscribers: Map<string, MessengerSubscriber[]> = new Map()
 
 
-    get subscribers(): Record<string, MessengerSubscriber[]> {
+    get subscribers(): Map<string, MessengerSubscriber[]> {
         return this._subscribers
     }
 
@@ -18,17 +18,20 @@ export class Messenger {
      * @param subscriber The subscriber to add.
      */
     addSubscriber(chanel: string, subscriber: MessengerSubscriber): void {
-        if (!this._subscribers[chanel]) {
-            this._subscribers[chanel] = []
+        if (!this._subscribers.has(chanel)) {
+            this._subscribers.set(chanel, [])
         }
-        this._subscribers[chanel].push(subscriber)
+        this._subscribers.get(chanel)!.push(subscriber)
     }
 
     /**
      * Clears all subscribers.
      */
     clearSubscribers(): void {
-        this._subscribers = {}
+        this._subscribers.forEach(subscribers => {
+            subscribers.forEach(subscriber => subscriber.clear())
+        })
+        this._subscribers = new Map()
     }
 
     /**
@@ -36,8 +39,8 @@ export class Messenger {
      * @param payload The payload to send.
      */
     send(chanel: string, payload: unknown): void {
-        if (!this._subscribers[chanel]) return
-        this._subscribers[chanel].forEach(subscriber => subscriber.receive(payload))
+        if (!this._subscribers.has(chanel)) return
+        this._subscribers.get(chanel)!.forEach(subscriber => subscriber.receive(payload))
     }
 
     /**
@@ -45,8 +48,11 @@ export class Messenger {
      * @param subscriber The subscriber to remove.
      */
     removeSubscriber(chanel: string, subscriber: MessengerSubscriber): void {
-        if (!this._subscribers[chanel]) return
-        this._subscribers[chanel] = this._subscribers[chanel].filter(s => s.id !== subscriber.id)
+        if (!this._subscribers.has(chanel)) return
+        this._subscribers.set(
+            chanel,
+            this._subscribers.get(chanel)!.filter(s => s.id !== subscriber.id)
+        )
     }
 }
 
