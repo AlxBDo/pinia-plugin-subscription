@@ -41,7 +41,7 @@ describe('StateSnapshotsSubscriberClass', () => {
         const reset = context.store.$reset
         const subscriber = install(context)
 
-        expect(subscriber.storeInstance).toBeUndefined()
+        expect(subscriber.getStoreInstance(context.store)).toBeUndefined()
         expect(context.store.$reset).toBe(reset)
         expect(context.store.$rollbackAfterFailure).toBeUndefined()
         expect(context.store.$onResetStore).toBeUndefined()
@@ -55,7 +55,7 @@ describe('StateSnapshotsSubscriberClass', () => {
         install(context, subscriber)
 
         expect(context.options.storeOptions).toBeUndefined()
-        expect(subscriber.storeInstance).toBeInstanceOf(StateSnapshots)
+        expect(subscriber.getStoreInstance(context.store)).toBeInstanceOf(StateSnapshots)
         await expect(context.store.$rollbackAfterFailure({ action: 'update' }, [4, true])).rejects.toThrow('action failed')
         expect(context.store.count).toBe(0)
         context.store.count = 8
@@ -76,6 +76,30 @@ describe('StateSnapshotsSubscriberClass', () => {
 })
 
 describe('StateSnapshots', () => {
+    it('installs and rolls back independently for store instances with the same id', () => {
+        const first = createContext({ rollbackAfterFailure: { update: ['count'] } })
+        const second = createContext({ rollbackAfterFailure: { update: ['count'] } })
+        const plugin = new PluginSubscription([new StateSnapshotsSubscriberClass()])
+        plugin.plugin(first)
+        plugin.plugin(second)
+
+        try {
+            expect.soft(first.store.$rollbackAfterFailure).toBeTypeOf('function')
+            expect.soft(second.store.$rollbackAfterFailure).toBeTypeOf('function')
+            second.store.count = 10
+            expect(() => first.store.update(3, true)).toThrow('action failed')
+            expect.soft(first.store.count).toBe(0)
+            expect.soft(second.store.count).toBe(10)
+
+            expect(() => second.store.update(7, true)).toThrow('action failed')
+            expect.soft(second.store.count).toBe(10)
+            expect.soft(first.store.count).toBe(0)
+        } finally {
+            first.store.$dispose()
+            second.store.$dispose()
+        }
+    })
+
     it('restores selected keys after a failing action but keeps successful changes', () => {
         const context = createContext({ rollbackAfterFailure: { update: ['count'] } })
         install(context)

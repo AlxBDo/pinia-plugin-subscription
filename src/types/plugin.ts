@@ -1,4 +1,4 @@
-import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
+import type { EventRegistry } from "./events"
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { StoreOptions } from "./store"
 import type { PluginSubscriberInterface } from "."
@@ -33,8 +33,8 @@ export interface PluginExecutionOptions {
 }
 
 export interface PluginOptions {
+    eventsRegistry?: EventRegistry
     createTracer?: (source: string) => Tracer
-    eventsHandler: StoreEventsSubscriberHandler
 }
 
 export interface PluginStoreOptions {

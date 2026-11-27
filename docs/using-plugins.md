@@ -259,7 +259,10 @@ store.$reset() // state is back to its initial value
 ```
 
 When the wrapper is installed, callbacks registered with `$onResetStore()`
-run after the state is restored.
+run after the state is restored. A store option `onReset` also runs after
+restoration. When `rollbackAfterFailure` enables the subscriber for a store,
+an `onReset` callback enables the reset wrapper even without `overrideReset`.
+`onReset` alone does not activate the subscriber.
 
 ## State rollback on action failure
 

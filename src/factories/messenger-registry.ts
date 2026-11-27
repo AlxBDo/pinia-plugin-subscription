@@ -23,17 +23,6 @@ export function createMessengerRegistry<
 
     return {
         emitter: new Emitter(messenger, channel),
-        createSubscriber
+        createSubscriber: createSubscriber(messenger)
     }
-}
-
-/**
- * Generates a unique subscriber ID based on the given ID and subscriber count.
- * @param id The base ID for the subscriber.
- * @param subscriberIdCount A record keeping track of subscriber counts.
- * @returns A unique subscriber ID.
- */
-export function generateSubscriberId(id: string, subscriberIdCount: Record<string, number>): string {
-    subscriberIdCount[id] = (subscriberIdCount[id] ?? 0) + 1
-    return `${id}-${subscriberIdCount[id]}`
 }

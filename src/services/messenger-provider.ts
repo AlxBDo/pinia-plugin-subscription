@@ -1,13 +1,21 @@
 import Messenger from './messenger'
-import type { MessengerSubscriber as MessengerSubscriberInterface } from '../types/messenger'
+import type {
+    MessengerEmitter as MessengerEmitterInterface,
+    MessengerProvider as MessengerProviderInterface,
+    MessengerSubscriber as MessengerSubscriberInterface
+} from '../types/messenger'
 
 /**
  * Abstract class providing access to the events messenger.
  * Manages the messenger instance and provides a getter for it.
  */
-export default abstract class MessengerProvider {
-    protected get messenger() {
+export default abstract class MessengerProvider implements MessengerProviderInterface {
+    get messenger() {
         return this._messenger
+    }
+
+    get messengerChannel() {
+        return this._messengerChannel
     }
 
     constructor(
@@ -16,7 +24,7 @@ export default abstract class MessengerProvider {
     ) { }
 }
 
-export class MessengerEmitter extends MessengerProvider {
+export class MessengerEmitter extends MessengerProvider implements MessengerEmitterInterface {
     /**
      * Emits an event to all subscribers.
      * @param payload The payload to emit.

@@ -1,6 +1,6 @@
 import { MessengerSubscriber } from '../services/messenger-provider'
 import EventSubscription from './events-subscription';
-import type { Event, EventSubscription as EventSubscriptionInterface } from '../types/events';
+import type { Event, EventSubscription as EventSubscriptionInterface, StoreEvent, StoreEventConstructorOptions } from '../types/events';
 import type Messenger from '../services/messenger'
 import type { MessengerSubscriber as MessengerSubscriberInterface } from '../types/messenger';
 
@@ -16,7 +16,8 @@ export default class EventsSubscriber extends MessengerSubscriber implements Mes
 
     constructor(
         messenger: Messenger,
-        id: string) {
+        id: string
+    ) {
         super(messenger, 'events', id)
     }
 
@@ -32,7 +33,7 @@ export default class EventsSubscriber extends MessengerSubscriber implements Mes
      * @param consumer The function to be called when the event is emitted.
      * @param options Additional options for the subscription, excluding the event name.
      */
-    addSubscription(eventName: string, consumer: (...args: any[]) => void, options: Omit<Event, 'name'>): void {
+    addSubscription(eventName: string, consumer: (...args: any[]) => void, options?: StoreEventConstructorOptions): void {
         try {
             const subscription = new EventSubscription(eventName, consumer, options);
             this._subscriptions.push(subscription);
@@ -42,10 +43,18 @@ export default class EventsSubscriber extends MessengerSubscriber implements Mes
     }
 
     /**
+     * Clears all subscriptions.
+     */
+    override clear(): void {
+        this._subscriptions = [];
+        this._subscriptionsToConsume = [];
+    }
+
+    /**
      * Consumes all subscriptions that match the specified event.
      * @param event The event to consume.
      */
-    protected consume(event: Event): void {
+    protected consume(event: StoreEvent): void {
         try {
             this._subscriptionsToConsume.forEach(sub => sub.consume(event));
         } catch (error) {
@@ -54,12 +63,12 @@ export default class EventsSubscriber extends MessengerSubscriber implements Mes
         this._subscriptionsToConsume = [];
     }
 
-    protected isCustomer(event: Event): boolean {
+    protected isCustomer(event: StoreEvent): boolean {
         this.initSubscriptionsToConsume(event);
         return this._subscriptionsToConsume.length > 0;
     }
 
-    protected initSubscriptionsToConsume(event: Event): void {
+    protected initSubscriptionsToConsume(event: StoreEvent): void {
         this._subscriptionsToConsume = this._subscriptions.filter(sub => {
             try {
                 return sub.subscribed(event);
@@ -68,14 +77,5 @@ export default class EventsSubscriber extends MessengerSubscriber implements Mes
                 return false;
             }
         });
-    }
-
-    /**
-     * Unsubscribes from all events and clears all subscriptions.
-     */
-    override unsubscribe(): void {
-        super.unsubscribe()
-        this._subscriptions = [];
-        this._subscriptionsToConsume = [];
     }
 }

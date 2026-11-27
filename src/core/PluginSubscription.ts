@@ -1,10 +1,10 @@
-import { getActionStoreKey, getStoreKeyPrefix, getStoreScopedKey } from '../utils/store'
+import { getStoreInstanceKeyPrefix, getStoreInstanceScopedKey } from '../utils/store'
 import EventsEmitter from "../events/events-emitter"
-import StoreEventsSubscriberHandler from "../events/store-events-subscriber-handler"
+import { PluginEvent } from "./Plugin"
 import { PLUGIN, STORE, SUBSCRIBER } from "../dictionaries/plugin-subscription-event"
 import { isEmpty } from "../utils/validation"
 import { pluginName } from "../utils/constants"
-import { emitStoreEvent } from '../events/store-events-emitter'
+import { createEventsRegistry } from "../factories/events-registry"
 
 import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
 import type { AnyObject } from "../types"
@@ -42,17 +42,18 @@ function defaultHydrationScheduler(callback: () => void): void {
     globalThis.setTimeout(callback, 0)
 }
 
-export default class PluginSubscription extends EventsEmitter {
+export default class PluginSubscription extends PluginEvent {
+    protected _eventsRegistry = createEventsRegistry()
     private _hydrationScheduler: PluginHydrationScheduler
     protected _name: string = 'PluginSubscription'
     private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
-    private _onActionSubscriptionsTraces: Map<string, string[]> = new Map()
+    private _onActionSubscriptionsTraces: Map<Store, string[]> = new Map()
     private _actionSeq = 0
     private _onActionStores: WeakSet<Store> = new WeakSet()
     private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
     private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
     private _onMutationSubscriptions: Map<Store, Set<StoreMutationSubscriptionCallback>> = new Map()
-    private _onMutationSubscriptionsTraces: Map<string, string[]> = new Map()
+    private _onMutationSubscriptionsTraces: Map<Store, string[]> = new Map()
     private _onMutationUnsubscribes: Map<Store, () => void> = new Map()
     private _options?: PluginSubscriptionOptions
     private _disposedStores: WeakSet<Store> = new WeakSet()
@@ -77,7 +78,6 @@ export default class PluginSubscription extends EventsEmitter {
         options?: PluginSubscriptionOptions
     ) {
         super({ prefixLabelWithName: true })
-        this._storeEventsSubscribersHandler = new StoreEventsSubscriberHandler()
         this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
         this._subscribers = subscribers.sort((a, b) => {
@@ -98,7 +98,7 @@ export default class PluginSubscription extends EventsEmitter {
     }
 
     private addOnActionAfterCallback(actionName: string, store: Store, callback: StoreOnActionAfterCallbackParameter): void {
-        const key = getActionStoreKey(actionName, store)
+        const key = getStoreInstanceScopedKey(actionName, store)
         if (!this._onActionAfterSubscriptions[key]) {
             this._onActionAfterSubscriptions[key] = []
         }
@@ -106,7 +106,7 @@ export default class PluginSubscription extends EventsEmitter {
     }
 
     private addOnActionOnErrorCallback(actionName: string, store: Store, callback: (error: unknown) => void): void {
-        const key = getActionStoreKey(actionName, store)
+        const key = getStoreInstanceScopedKey(actionName, store)
         if (!this._onActionOnErrorSubscriptions[key]) {
             this._onActionOnErrorSubscriptions[key] = []
         }
@@ -124,9 +124,9 @@ export default class PluginSubscription extends EventsEmitter {
         this._onMutationUnsubscribes.get(store)?.()
         this._onMutationUnsubscribes.delete(store)
         this._onMutationSubscriptions.delete(store)
-        this._onActionSubscriptionsTraces.delete(store.$id)
-        this._onMutationSubscriptionsTraces.delete(store.$id)
-        const keyPrefix = getStoreKeyPrefix(store)
+        this._onActionSubscriptionsTraces.delete(store)
+        this._onMutationSubscriptionsTraces.delete(store)
+        const keyPrefix = getStoreInstanceKeyPrefix(store)
 
         for (const key of Array.from(this._subscribersDelivered)) {
             if (key.startsWith(keyPrefix)) {
@@ -163,8 +163,6 @@ export default class PluginSubscription extends EventsEmitter {
                 delete this._onActionOnErrorSubscriptions[key]
             }
         }
-
-        this.emit(store, STORE.DISPOSE)
     }
 
     /**
@@ -245,11 +243,11 @@ export default class PluginSubscription extends EventsEmitter {
     }
 
     private defineSubscriberKey(subscriber: PluginSubscriber, store: Store): string {
-        return getStoreScopedKey(subscriber.name, store)
+        return getStoreInstanceScopedKey(subscriber.name, store)
     }
 
     private defineSubscriptionKey(pluginName: string, store: Store): string {
-        return getStoreScopedKey(pluginName, store)
+        return getStoreInstanceScopedKey(pluginName, store)
     }
 
     /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
@@ -269,10 +267,14 @@ export default class PluginSubscription extends EventsEmitter {
      * @returns void
      */
     private executeStoreOnActionSubscription(store: Store, hasDeferredSubscribers = false): void {
+        const { ACTION_BEFORE, ACTION_AFTER, ACTION_ERROR, ACTION_ON_ERROR } = STORE
+        const storeHasEventSubscription = () => [ACTION_BEFORE, ACTION_AFTER, ACTION_ERROR, ACTION_ON_ERROR].some(
+            eventName => this.storeHasEventSubscription(store, eventName)
+        )
         if (
             this._onActionStores.has(store) || typeof store.$onAction !== 'function' || (
                 !this._onActionSubscriptions.get(store)?.size
-                && !this.hasSubscribers(store.$id)
+                && !storeHasEventSubscription()
                 && !hasDeferredSubscribers
             )) {
             return
@@ -280,13 +282,13 @@ export default class PluginSubscription extends EventsEmitter {
 
         this._onActionStores.add(store)
         store.$onAction(({ after, args, name, onError }) => {
-            const invocationKey = this.hasSubscribers(store.$id) ? Symbol(getActionStoreKey(name, store)) : undefined
+            const invocationKey = storeHasEventSubscription() ? Symbol(getStoreInstanceScopedKey(name, store)) : undefined
             const callbacks = this._onActionSubscriptions.get(store)
             if (!callbacks?.size && !invocationKey) {
                 return
             }
 
-            const storageKey = getActionStoreKey(name, store)
+            const storageKey = getStoreInstanceScopedKey(name, store)
             const callId = ++this._actionSeq
             const actionId = `${store.$id}#${callId}`
             const groupId = traceGroups.onAction(store.$id, name, callId)
@@ -301,7 +303,9 @@ export default class PluginSubscription extends EventsEmitter {
             if (callbacks?.size) {
                 this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
             }
-            this.emit(store, STORE.ACTION_BEFORE, () => [name, invocationKey])
+            this.emit(store, STORE.ACTION_BEFORE, () => ({
+                action: name, args, invocationKey
+            }))
 
 
             try {
@@ -329,7 +333,9 @@ export default class PluginSubscription extends EventsEmitter {
                 this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId, callId, invocationKey)
                 this.clearOnActionCallbacksSubscriptions(storageKey)
             } catch (error) {
-                this.emit(store, STORE.ACTION_ERROR, () => [name, error, invocationKey])
+                this.emit(store, STORE.ACTION_ERROR, () => ({
+                    action: name, error, invocationKey
+                }))
                 closeGroup()
                 throw error
             }
@@ -349,7 +355,9 @@ export default class PluginSubscription extends EventsEmitter {
         if (afterCallbacks?.length || invocationKey) {
             after((result) => {
                 if (invocationKey && !this._disposedStores.has(store)) {
-                    this.emit(store, STORE.ACTION_AFTER, () => [name, invocationKey])
+                    this.emit(store, STORE.ACTION_AFTER, () => ({
+                        action: name, result, invocationKey
+                    }))
                 }
                 if (!afterCallbacks?.length) {
                     return
@@ -391,7 +399,9 @@ export default class PluginSubscription extends EventsEmitter {
         if (onErrorCallbacks?.length || invocationKey) {
             onError((error) => {
                 if (invocationKey && !this._disposedStores.has(store)) {
-                    this.emit(store, STORE.ACTION_ON_ERROR, () => [name, error, invocationKey])
+                    this.emit(store, STORE.ACTION_ON_ERROR, () => ({
+                        action: name, error, invocationKey
+                    }))
                 }
                 if (!onErrorCallbacks?.length) {
                     return
@@ -431,15 +441,12 @@ export default class PluginSubscription extends EventsEmitter {
         if (
             !subscriber.invoke(context, {
                 createTracer: this._options?.tracerHandler?.createTracer,
-                eventsHandler: this._storeEventsSubscribersHandler as StoreEventsSubscriberHandler
+                eventsRegistry: this._eventsRegistry
             })) {
             return
         }
-        emitStoreEvent(context.store, SUBSCRIBER.INVOKED, () => [subscriber])
-        this.emit(context.store, SUBSCRIBER.INVOKED, () => [subscriber])
-
+        this.emit(context.store, SUBSCRIBER.INVOKED, () => ({ subscriber: subscriber.name }))
         this._subscribersDelivered.add(subscriberKey)
-
         let hydrateResult: void | Promise<void>
 
         try {
@@ -531,10 +538,10 @@ export default class PluginSubscription extends EventsEmitter {
             options
         })
         this.traceGroupStart(() => ({ groupId: pluginGroupId }), store.$id, undefined, false)
-        this.emit(store, PLUGIN.EXECUTION.START, () => [this._subscribers])
+        this.emit(store, PLUGIN.EXECUTION.START)
 
-        this._onActionSubscriptionsTraces.set(store.$id, subscribtions.$onAction)
-        this._onMutationSubscriptionsTraces.set(store.$id, subscribtions.$subscribe)
+        this._onActionSubscriptionsTraces.set(store, subscribtions.$onAction)
+        this._onMutationSubscriptionsTraces.set(store, subscribtions.$subscribe)
 
         try {
             let hasDeferredSubscribers = false
@@ -566,9 +573,9 @@ export default class PluginSubscription extends EventsEmitter {
 
             this.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
             this.registerStoreCleanup(store)
-        } catch (e) {
-            this.traceError('plugin:invoke', e, store.$id)
-            this.emit(store, PLUGIN.EXECUTION.ERROR, () => [e])
+        } catch (error) {
+            this.traceError('plugin:invoke', error, store.$id)
+            this.emit(store, PLUGIN.EXECUTION.ERROR, () => ({ error }))
         }
         this.trace('context', store.$id, contextPayload)
         this.traceGroupEnd(() => ({ groupId: pluginGroupId }), store.$id)
@@ -622,9 +629,13 @@ export default class PluginSubscription extends EventsEmitter {
 
         scopedStore.__piniaPluginSubscriptionDisposed = true
         store.$dispose = () => {
-            this._disposedStores.add(store)
-            this.clearStoreTracking(store)
-            this.clearSubscribers(store.$id)
+            try {
+                this._disposedStores.add(store)
+                this.clearStoreTracking(store)
+                this.emit(store, STORE.DISPOSE)
+            } catch (error) {
+                this.traceError("store:dispose:error", error, store.$id)
+            }
             return dispose()
         }
     }
@@ -673,7 +684,7 @@ export default class PluginSubscription extends EventsEmitter {
             this._onActionSubscriptions.set(store, new Set())
         }
         this._onActionSubscriptions.get(store)!.add(callback)
-        this._onActionSubscriptionsTraces.get(store.$id)?.push(subscriber.name)
+        this._onActionSubscriptionsTraces.get(store)?.push(subscriber.name)
     }
 
     private storeMutationSubscription(subscriber: PluginSubscriber, subscription: StoreMutationSubscription): void {
@@ -687,7 +698,7 @@ export default class PluginSubscription extends EventsEmitter {
             this._onMutationSubscriptions.set(store, new Set())
         }
         this._onMutationSubscriptions.get(store)!.add(callback)
-        this._onMutationSubscriptionsTraces.get(store.$id)?.push(subscriber.name)
+        this._onMutationSubscriptionsTraces.get(store)?.push(subscriber.name)
 
         if (this._onMutationUnsubscribes.has(store)) {
             return
@@ -701,7 +712,7 @@ export default class PluginSubscription extends EventsEmitter {
 
             const groupId = traceGroups.onMutation(store.$id, ++this._actionSeq)
             this.traceGroupStart(() => ({ mutation, groupId }), store.$id, 'store:onMutation')
-            this.emit(store, STORE.MUTATION, () => [mutation])
+            this.emit(store, STORE.MUTATION, () => ({ mutation }))
             try {
                 await Promise.all([...callbacks].map(async (mutationCallback) => {
                     try {

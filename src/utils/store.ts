@@ -1,4 +1,5 @@
 import { defineStore } from "pinia"
+import { registerInstance } from "./id"
 import type {
     DefineSetupStoreOptions,
     DefineStoreOptions,
@@ -298,6 +299,15 @@ export function setEnhancedStore(
 }
 
 /**
+ * Get the unique ID assigned to a store instance.
+ * @param store The store instance to get the unique ID for.
+ * @returns The unique ID of the store instance.
+ */
+export function getStoreInstanceId(store: Store) {
+    return registerInstance(store.$id, store);
+}
+
+/**
  * Get the storage key for a given action and store combination.
  * @param actionName The name of the action.
  * @param store The Pinia store instance.
@@ -314,4 +324,12 @@ export function getStoreKeyPrefix(store: Pick<Store, '$id'>): string {
 
 export function getStoreScopedKey(value: string, store: Pick<Store, '$id'>): string {
     return `${getStoreKeyPrefix(store)}${value.length}:${value}`
+}
+
+export function getStoreInstanceKeyPrefix(store: Store): string {
+    return getStoreKeyPrefix({ $id: getStoreInstanceId(store) })
+}
+
+export function getStoreInstanceScopedKey(value: string, store: Store): string {
+    return `${getStoreInstanceKeyPrefix(store)}${value.length}:${value}`
 }

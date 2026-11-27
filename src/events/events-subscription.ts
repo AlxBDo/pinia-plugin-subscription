@@ -1,13 +1,14 @@
 import Event from './event';
-import type { Event as EventInterface, EventSubscription as EventSubscriptionInterface } from '../types/events';
+import StoreEvent from './store-event';
+import type { Event as EventInterface, EventSubscription as EventSubscriptionInterface, StoreEvent as StoreEventInterface, StoreEventConstructorOptions } from '../types/events';
 
-type EventKeys = keyof EventInterface;
+type EventKeys = keyof StoreEventInterface;
 
-export default class EventSubscription extends Event implements EventSubscriptionInterface {
+export default class EventSubscription extends StoreEvent implements EventSubscriptionInterface {
     constructor(
         eventName: string,
         private _consumer: (...args: any[]) => void | Promise<void>,
-        options: Omit<EventInterface, 'name'>
+        options?: StoreEventConstructorOptions
     ) {
         super(eventName, options);
     }
@@ -17,7 +18,7 @@ export default class EventSubscription extends Event implements EventSubscriptio
      * Handles both synchronous and asynchronous consumers.
      * @param event The event to consume.
      */
-    consume(event: EventInterface): void {
+    consume(event: EventInterface | StoreEventInterface): void {
         const reportError = (error: unknown) =>
             console.error('[EventSubscription] Error consuming event:', error)
 
@@ -34,9 +35,11 @@ export default class EventSubscription extends Event implements EventSubscriptio
         }
     }
 
-    subscribed(event: EventInterface): boolean {
-        return ['payload', 'scope', 'source'].every(
-            key => !this[key as EventKeys] || event[key as EventKeys] === this[key as EventKeys]
+    subscribed(event: StoreEventInterface): boolean {
+        return this.name === event.name && ['payload', 'scope', 'source', 'instanceId'].every(
+            key => !this[key as EventKeys] || (
+                event[key as EventKeys] && event[key as EventKeys] === this[key as EventKeys]
+            )
         );
     }
 }

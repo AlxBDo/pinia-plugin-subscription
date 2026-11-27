@@ -1,9 +1,11 @@
 import { isRef, ref, toRef } from "vue"
-import EventsRegistry from "../events/events-registry"
-import type { Tracer } from "../types/trace"
+import { PluginStoreEventSubscriber } from "../core/Plugin"
+import EventsSubscription from "../events/events-subscription"
 import { getDefineAStoreSetupContext, hasDeniedFirstChar, setEnhancedStore } from "../utils/store"
 import { isEmpty } from "../utils/validation"
 
+import type { Store as PiniaStore, StateTree } from "pinia"
+import type { AnyObject, PluginSubscriberInterface } from "../types"
 import type {
     PluginSubscriptions,
     StoreClassConstructorParams,
@@ -14,9 +16,9 @@ import type {
     StoreOnActionSubscriptionCallback,
     StoreOnActionSubscriptionReturn
 } from "../types/plugin"
-import type { Store as PiniaStore, StateTree } from "pinia"
-import type { AnyObject, PluginSubscriberInterface } from "../types"
 import type { StoreOptions, StatePropertyValue } from "../types/store"
+import type { EventRegistry } from "../types/events"
+import type { Tracer } from "../types/trace"
 
 /**
  * Base class for a Pinia store with enhanced capabilities.
@@ -25,12 +27,12 @@ import type { StoreOptions, StatePropertyValue } from "../types/store"
  * This class is intended to be extended by specific store implementations
  * that require enhanced capabilities such as structured tracing and plugin subscriptions.
  */
-export default class Store extends EventsRegistry {
+export default class Store extends PluginStoreEventSubscriber {
     protected _name: string = 'Store'
     private _createTracer?: () => Tracer
     private _onAction?: StoreOnActionSubscriptionCallback
     private _options: StoreOptions
-    private _store: PiniaStore
+    protected _store: PiniaStore
     private _storeSubscribe?: StoreMutationSubscriptionCallback
     private _subscriptions: PluginSubscriptions = {}
 
@@ -102,7 +104,7 @@ export default class Store extends EventsRegistry {
         super({ prefixLabelWithName: true })
         this._options = options.storeOptions as StoreOptions
         this._store = store
-        this.initializeEventsEmitter(options)
+        this.initializeEventsRegistry(options)
         this.trace('instance:created', this.store.$id)
 
         if (this._options?.enhancedStore) {
@@ -167,9 +169,9 @@ export default class Store extends EventsRegistry {
         if (options.storeOptions && this.hasRequiredKeys(options.storeOptions)) {
             const instance = new this(store, options) as Instance
             if (instance) {
-                instance.init()
                 try {
-                    instance.onStoreDispose(instance.store as PiniaStore)
+                    instance.init()
+                    instance.onStoreDispose()
                 } catch (error) {
                     instance.traceError('plugin:initialization:failed', error, instance.store.$id)
                 }
@@ -260,9 +262,9 @@ export default class Store extends EventsRegistry {
      * Initializes the tracer for plugin subscriptions if the createTracer option is provided.
      * @param options The plugin subscription options containing the createTracer function.
      */
-    private initializeEventsEmitter(options: StoreClassConstructorParams) {
+    private initializeEventsRegistry(options: StoreClassConstructorParams) {
         this._createTracer = options?.createTracer
-        this._storeEventsSubscribersHandler = options?.eventsHandler
+        this._eventsRegistry = options?.eventsRegistry
     }
 
     /**
@@ -270,6 +272,8 @@ export default class Store extends EventsRegistry {
      * @returns True if the store is using the Options API, otherwise false.
      */
     isOptionApi(): boolean { return this.store._isOptionsAPI }
+
+
 
     /**
      * Checks if the state object has the specified property.

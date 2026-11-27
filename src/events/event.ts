@@ -7,7 +7,7 @@ export default class Event implements EventInterface {
 
     constructor(
         public name: string,
-        { payload, scope, source }: Omit<EventInterface, 'name'>
+        { payload, scope, source }: Omit<EventInterface, 'name'> = {}
     ) {
         this.payload = payload
         this.scope = scope

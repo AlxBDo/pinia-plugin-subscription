@@ -1,4 +1,4 @@
-import { Store } from 'pinia-plugin-subscription/helpers'
+import { Store, STORE_EVENTS } from 'pinia-plugin-subscription/helpers'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from "pinia"
 import type {
@@ -58,6 +58,10 @@ export default class DemoStore extends Store {
         this.storeSubscribe = this.onMutationCallback.bind(this)
 
         this._storesAugmented.add(this.store as PiniaStore)
+
+        this.addEventSubscription(STORE_EVENTS.ACTION_BEFORE, event => {
+            console.log('--- TEST EVENTS ---', event, event?.payload?.())
+        })
     }
 
     private onActionCallback({ after, name, onError }: StoreOnActionCallbackParameters) {
