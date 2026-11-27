@@ -12,7 +12,7 @@ export function createDemoPluginObject() {
         pluginName,
         (context, pluginOptions) => {
             const { options, store } = context
-            const { createTracer, eventsHandler } = pluginOptions ?? {}
+            const { createTracer } = pluginOptions ?? {}
             if (typeof createTracer === 'function') {
                 const tracer = createTracer(pluginName)
                 tracers.set(store, tracer)

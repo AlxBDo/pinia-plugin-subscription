@@ -8,7 +8,7 @@ import {
     createServerVisitorSubscriber
 } from './plugins/demoPluginEnvironmentHydration'
 import { parsePreferredLocale } from './utils/parsePreferredLocale'
-import StoreEventsSubscriberHandler from '../src/events/store-events-subscriber-handler'
+import { createEventsRegistry } from '../src/factories/events-registry'
 
 import type { PiniaPluginContext } from 'pinia'
 import type { Tracer } from 'pinia-plugin-subscription/types'
@@ -107,7 +107,7 @@ describe('environment-aware hydration traces', () => {
     const stubTracerFactory = () => {
         const tracer = { debug: vi.fn(), error: vi.fn() }
         const createTracer = vi.fn(() => tracer as unknown as Tracer)
-        return { tracer, createTracer, pluginOptions: { createTracer, eventsHandler: new StoreEventsSubscriberHandler() } }
+        return { tracer, createTracer, pluginOptions: { createTracer, eventsRegistry: createEventsRegistry() } }
     }
     const namespaces = (calls: unknown[][]) => calls.map((call) => call[1])
 

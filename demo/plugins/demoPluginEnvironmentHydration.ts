@@ -1,6 +1,7 @@
 import { PluginSubscriber } from 'pinia-plugin-subscription/helpers'
 import VisitorEnvironmentStore from '../core/VisitorEnvironmentStore'
 
+import type { PiniaPluginContext } from 'pinia'
 import type { VisitorBrowserData, VisitorServerData } from '../types/plugin'
 
 const createVisitorStore = VisitorEnvironmentStore.customizeStore.bind(VisitorEnvironmentStore)
@@ -24,9 +25,9 @@ class ServerVisitorSubscriber extends PluginSubscriber<VisitorEnvironmentStore> 
         })
     }
 
-    override async hydrate(): Promise<void> {
+    override async hydrate(context: PiniaPluginContext): Promise<void> {
         try {
-            await this.storeInstance?.hydrateFromServer(this._loadData)
+            await this.getStoreInstance(context.store)?.hydrateFromServer(this._loadData)
             this._resolveReady()
         } catch (error) {
             this._rejectReady(error)
@@ -46,8 +47,8 @@ class BrowserVisitorSubscriber extends PluginSubscriber<VisitorEnvironmentStore>
         this.execution = { environment: 'client', hydration: 'defer' }
     }
 
-    override hydrate(): void {
-        this.storeInstance?.hydrateFromBrowser(this._readBrowserData)
+    override hydrate(context: PiniaPluginContext): void {
+        this.getStoreInstance(context.store)?.hydrateFromBrowser(this._readBrowserData)
     }
 }
 

@@ -8,7 +8,6 @@ export {
     getDefineAStoreSetupContext,
     setEnhancedStore
 } from "../utils/store"
-export { default as StoreEventsSubscriber } from '../events/store-events-subscriber'
 export {
     PLUGIN as PLUGIN_EVENTS,
     STORE as STORE_EVENTS,

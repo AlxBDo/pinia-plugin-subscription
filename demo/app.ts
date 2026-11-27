@@ -40,6 +40,7 @@ export function createDemoApp(
     }))
 
     app.use(pinia)
+
     return {
         app, pinia,
         tracerRegistry

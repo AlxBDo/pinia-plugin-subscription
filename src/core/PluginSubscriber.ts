@@ -1,4 +1,4 @@
-import EventsRegistry from "../events/events-registry"
+import { PluginEventsSubscriber } from "../core/Plugin"
 import Store from "./Store";
 import type { PiniaPluginContext, Store as PiniaStore } from "pinia";
 import type {
@@ -24,8 +24,8 @@ type CreateInstance<Instance = Store> = (store: PiniaStore, options: StoreClassC
  * @param options Additional options for creating the store instance.
  * @returns The created store instance or undefined if creation fails.
  */
-export default abstract class PluginSubscriber<Instance extends Store> extends EventsRegistry implements PluginSubscriberInterface {
-    private _createInstance: CreateInstance
+export default abstract class PluginSubscriber<Instance extends Store> extends PluginEventsSubscriber implements PluginSubscriberInterface {
+    private _createInstance: CreateInstance<Instance>
     /** Options for the plugin subscriber's execution. */
     public execution?: PluginExecutionOptions
     /** Scheduler for handling the hydration process of the plugin subscriber. */
@@ -36,7 +36,7 @@ export default abstract class PluginSubscriber<Instance extends Store> extends E
      */
     protected pluginCreated?: (store: PiniaStore) => void
     private _pluginOptions?: StoreClassConstructorParams
-    private _storeInstance?: Instance
+    private _storeInstances = new WeakMap<PiniaStore, Instance>()
     /**
          * Subscription for store actions.
          * This subscription is used to listen for actions dispatched in the store.
@@ -62,8 +62,12 @@ export default abstract class PluginSubscriber<Instance extends Store> extends E
         this._pluginOptions = options;
     }
 
-    get storeInstance(): Instance | undefined {
-        return this._storeInstance
+    /**
+     * Returns the wrapper created for a specific Pinia store.
+     * @param store The Pinia store passed to the subscriber hook.
+     */
+    getStoreInstance(store: PiniaStore): Instance | undefined {
+        return this._storeInstances.get(store)
     }
 
     get storeOnActionSubscription(): StoreOnActionSubscription | undefined {
@@ -83,7 +87,7 @@ export default abstract class PluginSubscriber<Instance extends Store> extends E
     }
 
 
-    constructor(createInstanceFunction: CreateInstance) {
+    constructor(createInstanceFunction: CreateInstance<Instance>) {
         super({ prefixLabelWithName: true })
         this._createInstance = createInstanceFunction
     }
@@ -114,22 +118,23 @@ export default abstract class PluginSubscriber<Instance extends Store> extends E
      */
     public invoke({ store, options }: PiniaPluginContext, pluginOptions?: PluginOptions): boolean {
         this._tracer = pluginOptions?.createTracer ? pluginOptions.createTracer(this.name) : undefined
-        this._storeEventsSubscribersHandler = pluginOptions?.eventsHandler
-        this._storeInstance = this._createInstance(store, {
+        this._eventsRegistry = pluginOptions?.eventsRegistry
+        const instance = this._createInstance(store, {
             ...options,
             ...this.pluginOptions,
             createTracer: this._tracer ? (() => (this._tracer as Tracer)) : undefined,
-            eventsHandler: this._storeEventsSubscribersHandler
-        }) as Instance
+            eventsRegistry: this._eventsRegistry
+        })
 
-        if (!this._storeInstance) {
+        if (!instance) {
+            this._storeInstances.delete(store)
             return false
         }
 
-        this._subscriptions = this._storeInstance.getSubscriptions()
-        this._storeMutationSubscription = this._storeInstance.storeSubscribe
-        this._storeOnActionSubscription = this._storeInstance.onAction
-        this.onStoreDispose(store)
+        this._storeInstances.set(store, instance)
+        this._subscriptions = instance.getSubscriptions()
+        this._storeMutationSubscription = instance.storeSubscribe
+        this._storeOnActionSubscription = instance.onAction
 
         if (this.pluginCreated) {
             this.pluginCreated(store)

@@ -119,7 +119,7 @@ creates the instance through a factory — conventionally
 | `Instance` | `extends Store` | The `Store` subclass your plugin creates for each registered store. |
 
 TypeScript subclasses must provide the `Store` subclass as the generic
-parameter. This types the `storeInstance` getter, so overridden hooks (`hydrate()`,
+parameter. This types `getStoreInstance(store)`, so overridden hooks (`hydrate()`,
 `afterHydration()`, `pluginCreated`) get full autocompletion and compile-time
 checks when they call your plugin's custom methods.
 
@@ -138,10 +138,14 @@ value is used for subscriber identity, execution options, and tracing.
 | `hydrationScheduler` | public field | Custom scheduler used when hydration is deferred. |
 | `pluginCreated` | protected field | Optional hook called with the pinia store after a successful `invoke`. |
 | `pluginOptions` | getter/setter | Extra options merged into the options passed to your `Store` factory. |
-| `storeInstance` | getter | The `Store` subclass instance created for the current store. |
+| `getStoreInstance(store)` | method | Returns the `Store` subclass instance for the specified Pinia store, or `undefined` if none was created. |
 | `tracer` | getter | Tracer created for this subscriber during `invoke()`, or `undefined` when tracing is not configured. The same tracer is provided to the `Store` factory through its `createTracer()` option. |
 | `hydrate()` / `afterHydration()` | methods | Lifecycle stubs to override for SSR-safe initialization. |
 | `invoke()` | method | Implemented for you: creates the instance, wires `subscriptions`, `storeSubscribe` and `onAction`, then calls `pluginCreated`. Returns `false` when the factory creates no instance. |
+
+Use the store passed to each hook to retrieve its wrapper, including after an
+`await`. Wrappers are held in a `WeakMap` keyed by store identity, not `$id`;
+disposing a store does not itself cancel an already-running hydration hook.
 
 ### JavaScript
 
@@ -230,7 +234,7 @@ export const myStoreSubscriber = new MyPluginSubscriber()
 | `trace(label, scope?, payload?, namespace?)` | Protected method that emits a structured trace event. The tracer's default scope is the wrapped store ID. |
 | `traceError(label, error, scope?, payload?, namespace?)` | Protected method that emits an error event; without a tracer, reports it with `console.error`. |
 | `traceOptions.prefixLabelWithName` | Protected option controlling whether `_name` is prefixed to trace labels; enabled by default for `Store`. |
-| `addEventStoreSubscription(id, store, subscriptions)` / `addEventStoreSubscriber(subscriber)` | Protected helpers for registering store-event callbacks with the shared handler. |
+| `addEventSubscription(eventName, consumer, options?)` | Protected method for registering a callback with the shared event registry. |
 | `stateHas(property)` / `storeHas(property)` | Safe `hasOwnProperty` checks on state / store. |
 | `getValue(value)` | Unwraps a ref or returns the value as-is. |
 | `isOptionApi()` | Whether the store uses the options API. |
@@ -303,6 +307,7 @@ overrides the lifecycle hooks:
 ```ts
 import { nextTick } from 'vue'
 import { PluginSubscriber } from 'pinia-plugin-subscription/helpers'
+import type { PiniaPluginContext } from 'pinia'
 
 class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
   protected _name = 'extendsPiniaStore'
@@ -323,13 +328,13 @@ class ExtendingStoreSubscriber extends PluginSubscriber<StoreExtension> {
     }
   }
 
-  override hydrate() {
+  override hydrate(context: PiniaPluginContext) {
     if (typeof window === 'undefined') {
       return
     }
 
     // Safe browser-only initialization, only called when the policy allows it.
-    return this.storeInstance?.hydrate?.()
+    return this.getStoreInstance(context.store)?.hydrate?.()
   }
 }
 ```
@@ -494,18 +499,70 @@ Factory returning a plain-object subscriber `{ name, invoke, ...optionalProps }`
 
 `PluginSubscriberWithoutInstance` has been removed. Use a plain-object
 subscriber or extend `PluginSubscriber` with a `Store` wrapper instead.
-`createPlugin()` passes the shared store-events handler to the subscriber and
-its `Store`. Subclasses can register per-store callbacks with the protected
-`addEventStoreSubscription(id, store, subscriptions)` helper, or register an
-existing `StoreEventsSubscriber` with `addEventStoreSubscriber(subscriber)`.
-The subscription map keys are store event names and values are callbacks.
-Concrete subscribers must define a unique protected `_name`. The orchestrator
-clears the store's registered event
-subscribers when the Pinia store is disposed. When a `Store` is created
-outside this plugin flow, its options must provide `eventsHandler` for these
-helpers to register callbacks. `Store.customizeStore()` also initializes the
-instance and registers its `onDispose` hook; a custom factory that only calls
-the constructor does not perform those steps.
+`createPlugin()` passes a shared event registry to the subscriber and its
+`Store`. A `Store` subclass can register callbacks with the protected
+`addEventSubscription(eventName, consumer, options?)` method. Its subscriptions
+default to the store's `$id` as their scope and are restricted to its Pinia
+store instance, even when another instance has the same `$id`. The optional
+`scope`, `source`, `instanceId`, and `payload` fields filter events by equality
+when truthy; a `Store` always sets `instanceId` to its own instance. Concrete
+subscribers must define a unique protected `_name`.
+`Store.customizeStore()` initializes the instance and registers its disposal
+hook; a custom factory that only calls the constructor does not perform those
+steps. When creating a `Store` outside this plugin flow, provide an
+`eventsRegistry` in its options to register event callbacks.
+
+The consumer receives an event with `name`, `scope` (the store's `$id`),
+`instanceId`, `source`, and an optional lazy `payload()` function. The action
+events use these payloads:
+
+| Event | Payload |
+| --- | --- |
+| `STORE_EVENTS.ACTION_BEFORE` | `{ action, args, invocationKey }` before the action runs. |
+| `STORE_EVENTS.ACTION_AFTER` | `{ action, result, invocationKey }` after a successful action. |
+| `STORE_EVENTS.ACTION_ON_ERROR` | `{ action, error, invocationKey }` when an action fails. |
+| `STORE_EVENTS.ACTION_ERROR` | `{ action, error, invocationKey }` if processing action subscriptions or registering outcome callbacks fails. |
+
+When the store has an event subscriber, `invocationKey` is a symbol correlating
+one action invocation across its events. It may be `undefined` otherwise.
+Action events can be received without a `storeOnActionSubscription`; outcome
+events are not emitted after store disposal.
+Consumers run synchronously, but returned promises are not awaited; thrown
+errors and rejections are reported to `console.error`.
+
+```ts
+import { Store, STORE_EVENTS } from 'pinia-plugin-subscription/helpers'
+
+class ActionObserver extends Store {
+  protected static override _requiredKeysValidation: false = false
+
+  protected override init(): void {
+    this.addEventSubscription(STORE_EVENTS.ACTION_BEFORE, event => {
+      const payload = event.payload?.()
+      if (payload) {
+        console.log(payload.action, payload.args, payload.invocationKey)
+      }
+    })
+  }
+}
+```
+
+As with other `Store` subclasses, install it using `customizeStore()` and
+provide `storeOptions` in the store's options.
+
+### Migrating subscribers from `main`
+
+- Class-based subscribers define `_name` and pass only the store factory to
+  `super()`, instead of passing the name and factory.
+- `invoke(context, createTracer)` now receives
+  `invoke(context, { createTracer, eventsRegistry })`; update custom `invoke`
+  implementations that use its second argument.
+- `resetStoreCallback` is no longer collected by the orchestrator. Install
+  `pinia-plugin-state-snapshots` and register callbacks with `$onResetStore()`
+  when its reset wrapper is enabled. Those callbacks now run **after** state
+  restoration, rather than before it.
+- Replace `subscriber.storeInstance` with
+  `subscriber.getStoreInstance(context.store)` in lifecycle hooks.
 
 `createPlugin()` accepts hydration options directly. Set shared execution and
 scheduling defaults for its subscribers, or use `subscriberExecution` to

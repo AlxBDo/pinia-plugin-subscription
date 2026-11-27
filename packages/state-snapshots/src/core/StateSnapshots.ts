@@ -6,7 +6,6 @@ import {
     traceGroups
 } from 'pinia-plugin-subscription/helpers'
 import { createStateSnapshot, restoreStateSnapshot } from "../factories/state-snapshot"
-import { createStoreEventsSubscriber } from '../factories/store-events-subscriber'
 import { deepClone } from '../utils/deep-clone'
 
 import type { StateTree, Store as PiniaStore, PiniaPluginContext } from 'pinia'
@@ -23,7 +22,7 @@ import type { RollbackActionParams } from '../types/store'
  */
 export default class StateSnapshots extends Store {
     private _isInitialized: boolean = false
-    protected override _name = 'RollbackStateSnapshots'
+    protected override _name = 'StateSnapshots'
     protected static _requiredKeys: string[] = ['overrideReset', 'rollbackAfterFailure']
     protected static _requiredKeysValidation: 'some' = 'some'
     private _rollbackSnapshotsParams: Map<string, unknown> = new Map()
@@ -92,10 +91,13 @@ export default class StateSnapshots extends Store {
     }
 
     private addRollbackStoreEventsSubscriber(store: PiniaStore) {
+        let invokationCount = 0
         const patchStoreAndRemoveSnapshot = (actionName: string, error: unknown, snapshotKey: symbol) => {
             try {
                 this.patchStore(snapshotKey, store)
-                this.trace(`${actionName}:store:patched`, store.$id, () => ({ groupId: traceGroups.onActionError }))
+                this.trace(`${actionName}:store:patched`, store.$id, () => ({
+                    groupId: traceGroups.onActionError(store.$id, actionName, ++invokationCount)
+                }))
             } catch (restoreError) {
                 throw new AggregateError([error, restoreError], `Failed to restore snapshot for action '${actionName}'`)
             } finally {
@@ -103,23 +105,29 @@ export default class StateSnapshots extends Store {
             }
         }
 
-        this.addEventStoreSubscriber(
-            createStoreEventsSubscriber(store, {
-                [STORE_EVENTS.ACTION_BEFORE]: (actionName: string, snapshotKey: symbol) => {
-                    this.tryCreateStateSnapshot(store, actionName, () => this.createStateSnapshot(store, actionName, snapshotKey))
-                },
-                [STORE_EVENTS.ACTION_AFTER]: (_actionName: string, snapshotKey: symbol) => this.removeStateSnapshot(snapshotKey),
-                [STORE_EVENTS.ACTION_ERROR]: (_actionName: string, _error: unknown, snapshotKey: symbol) => this.removeStateSnapshot(snapshotKey),
-                [STORE_EVENTS.ACTION_ON_ERROR]: patchStoreAndRemoveSnapshot,
-            })
-        )
+        this.addEventSubscription(STORE_EVENTS.ACTION_BEFORE, event => {
+            const { action, invocationKey } = event.payload?.()
+            this.tryCreateStateSnapshot(store, action, () => this.createStateSnapshot(store, action, invocationKey))
+        })
+        this.addEventSubscription(STORE_EVENTS.ACTION_AFTER, event => {
+            const { invocationKey } = event.payload?.()
+            this.removeStateSnapshot(invocationKey)
+        })
+        this.addEventSubscription(STORE_EVENTS.ACTION_ERROR, event => {
+            const { invocationKey } = event.payload?.()
+            this.removeStateSnapshot(invocationKey)
+        })
+        this.addEventSubscription(STORE_EVENTS.ACTION_ON_ERROR, event => {
+            const { action, error, invocationKey } = event.payload?.()
+            patchStoreAndRemoveSnapshot(action, error, invocationKey)
+        })
     }
 
     protected override init() {
         if (this._isInitialized) return
         super.init()
 
-        const store = this.store as PiniaStore
+        const store = this.store as PiniaPluginContext['store']
         if (this.options?.rollbackAfterFailure) {
             if (typeof this.options.rollbackAfterFailure === 'object') {
                 Object.keys(this.options?.rollbackAfterFailure).forEach(key => {
@@ -132,19 +140,18 @@ export default class StateSnapshots extends Store {
 
         const hasOnResetCallback = typeof this.options.onReset === 'function'
         if (this.options.overrideReset || hasOnResetCallback) {
-            if (hasOnResetCallback) {
-                store.$onResetStore = () => this.options.onReset?.(store)
-            }
             this.addOnResetStoreSubscriptionCollector(store)
+            if (hasOnResetCallback) {
+                store._resetStoreCallbacks.push(() => this.options.onReset?.(store))
+            }
             this.rewriteResetStore(store, store.$state)
         }
+        this.onDispose(() => {
+            this._isInitialized = false
+            this._rollbackSnapshotsParams.clear()
+            this._stateSnapshots.clear()
+        })
         this._isInitialized = true
-    }
-
-    protected override onDispose(): void {
-        this._isInitialized = false
-        this._rollbackSnapshotsParams.clear()
-        this._stateSnapshots.clear()
     }
 
     private patchStore(snapshotKey: symbol, store: PiniaStore): void {

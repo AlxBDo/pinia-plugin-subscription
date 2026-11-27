@@ -29,6 +29,8 @@ export const PLUGIN = {
     }
 }
 
+export const PLUGIN_PREFIX = 'PPS'
+
 export const STORE = {
     ACTION_AFTER,
     ACTION_BEFORE,

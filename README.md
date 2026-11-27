@@ -83,10 +83,17 @@ Discover more compatible plugins on the [`pinia-plugin-subscription` GitHub topi
 - **SSR and hydration control:** Configure whether each subscribed plugin runs on the server, the client, or only after client hydration.
 - **Lifecycle safety:** Internal hydration ordering is now guarded so `hydrate()` completes before `afterHydration()` and disposed stores do not retain stale subscriber metadata.
 
-For subscriber authors, store action events are emitted even without a `storeOnActionSubscription`:
-`ACTION_BEFORE` receives `(name, invocationKey)`, `ACTION_AFTER` receives
-`(name, invocationKey)` after success, and `ACTION_ON_ERROR` receives `(name, error, invocationKey)`
-after failure. The symbol identifies one invocation.
+Subscriber delivery and cleanup tracking are scoped per Pinia store instance,
+even when stores from different Pinia instances share the same `$id`.
+Class-based subscribers can use `getStoreInstance(context.store)` in lifecycle
+hooks to access the wrapper associated with that specific store.
+
+For subscriber authors, store action events are emitted even without a `storeOnActionSubscription`.
+The consumer receives an event; its `payload()` returns an object:
+`ACTION_BEFORE` has `{ action, args, invocationKey }`, `ACTION_AFTER` has
+`{ action, result, invocationKey }`, and `ACTION_ON_ERROR` has
+`{ action, error, invocationKey }`. When present, the symbol identifies one
+invocation; it may be `undefined` if the store has no event subscriber.
 Event subscribers cannot interrupt the emitter: synchronous failures and async
 rejections are reported with `console.error`, and other subscribers still run.
 Async subscribers are not awaited.

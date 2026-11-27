@@ -1,4 +1,4 @@
-import { Store } from 'pinia-plugin-subscription/helpers'
+import { Store, STORE_EVENTS } from 'pinia-plugin-subscription/helpers'
 
 import type { StateTree, Store as PiniaStore, SubscriptionCallbackMutation } from "pinia"
 import type {
@@ -12,6 +12,7 @@ import type { DemoPluginClassOptions } from '../types/plugin'
 export default class DemoStore extends Store {
     protected _name: string = 'DemoStore'
     protected static _requiredKeys?: string[] = ['active']
+    private _storesAugmented: WeakSet<PiniaStore> = new WeakSet()
 
     constructor(store: PiniaStore, options: { storeOptions: DemoPluginClassOptions } & PluginStoreOptions) {
         super(store, options)
@@ -38,6 +39,9 @@ export default class DemoStore extends Store {
     }
 
     private initialize() {
+        if (this._storesAugmented.has(this.store as PiniaStore)) {
+            return
+        }
         // Using the trace method to log DemoStore methods execution
         // Store state, store and options are available using this.state, this.store and this.options
         this.trace('initialize', this.store.$id)
@@ -52,6 +56,12 @@ export default class DemoStore extends Store {
         // Use this.storeSubscribe to handle store mutations
         // Bind the onMutation callback to the current instance
         this.storeSubscribe = this.onMutationCallback.bind(this)
+
+        this._storesAugmented.add(this.store as PiniaStore)
+
+        this.addEventSubscription(STORE_EVENTS.ACTION_BEFORE, event => {
+            console.log('--- TEST EVENTS ---', event, event?.payload?.())
+        })
     }
 
     private onActionCallback({ after, name, onError }: StoreOnActionCallbackParameters) {

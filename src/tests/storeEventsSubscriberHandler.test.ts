@@ -1,73 +1,56 @@
-import { createPinia, defineStore } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import StoreEventsSubscriber from '../events/store-events-subscriber'
-import StoreEventsSubscriberHandler from '../events/store-events-subscriber-handler'
+import StoreEvent from '../events/store-event'
+import { createEventsRegistry } from '../factories/events-registry'
 
-describe('StoreEventsSubscriberHandler', () => {
+describe('event delivery', () => {
     afterEach(() => vi.restoreAllMocks())
 
-    it('reports each synchronous failure and continues delivery without interrupting the emitter', () => {
-        const store = defineStore('events', {})(createPinia())
-        const handler = new StoreEventsSubscriberHandler()
+    it('reports synchronous failures and continues delivery without interrupting the emitter', () => {
+        const registry = createEventsRegistry()
         const firstError = new Error('first')
         const secondError = new Error('second')
         const log = vi.spyOn(console, 'error').mockImplementation(() => { })
         const last = vi.fn()
-        class FormerCriticalSubscriber extends StoreEventsSubscriber {
-            shouldPropagateError() { return true }
-        }
-        handler.subscribe(store.$id, new FormerCriticalSubscriber('first', store, {
-            changed: () => { throw firstError }
-        }))
-        handler.subscribe(store.$id, new StoreEventsSubscriber('second', store, {
-            changed: () => { throw secondError }
-        }))
-        handler.subscribe(store.$id, new StoreEventsSubscriber('last', store, { changed: last }))
+        registry.createSubscriber('first').addSubscription('changed', () => { throw firstError })
+        registry.createSubscriber('second').addSubscription('changed', () => { throw secondError })
+        registry.createSubscriber('last').addSubscription('changed', last)
+        const event = new StoreEvent('changed', { payload: () => ({ value: 42 }) })
 
-        const emitAndContinue = () => {
-            handler.emit(store, 'changed', () => [42])
-            return 'continued'
-        }
-
-        expect(emitAndContinue()).toBe('continued')
-        expect(last).toHaveBeenCalledWith(42)
+        expect(() => registry.emitter.emit(event)).not.toThrow()
+        expect(last).toHaveBeenCalledWith(event)
         expect(log).toHaveBeenCalledTimes(2)
-        expect(log).toHaveBeenNthCalledWith(1, "Error emitting event 'changed' for store 'events':", firstError)
-        expect(log).toHaveBeenNthCalledWith(2, "Error emitting event 'changed' for store 'events':", secondError)
+        expect(log).toHaveBeenNthCalledWith(1, '[EventSubscription] Error consuming event:', firstError)
+        expect(log).toHaveBeenNthCalledWith(2, '[EventSubscription] Error consuming event:', secondError)
     })
 
-    it('reports payload factory failures and continues to the next subscriber', () => {
-        const store = defineStore('events', {})(createPinia())
-        const handler = new StoreEventsSubscriberHandler()
+    it('resolves payloads lazily and reports failures without interrupting other consumers', () => {
+        const registry = createEventsRegistry()
         const failure = new Error('payload failed')
         const log = vi.spyOn(console, 'error').mockImplementation(() => { })
-        const first = vi.fn()
         const second = vi.fn()
-        const payload = vi.fn().mockImplementationOnce(() => { throw failure }).mockReturnValue([42])
-        handler.subscribe(store.$id, new StoreEventsSubscriber('first', store, { changed: first }))
-        handler.subscribe(store.$id, new StoreEventsSubscriber('second', store, { changed: second }))
+        const payload = vi.fn().mockImplementationOnce(() => { throw failure }).mockReturnValue({ value: 42 })
+        registry.createSubscriber('first').addSubscription('changed', event => event.payload?.())
+        registry.createSubscriber('second').addSubscription('changed', event => second(event.payload?.()))
+        const event = new StoreEvent('changed', { payload })
 
-        expect(() => handler.emit(store, 'changed', payload)).not.toThrow()
-        expect(first).not.toHaveBeenCalled()
-        expect(second).toHaveBeenCalledWith(42)
-        expect(log).toHaveBeenCalledWith("Error emitting event 'changed' for store 'events':", failure)
+        expect(payload).not.toHaveBeenCalled()
+        expect(() => registry.emitter.emit(event)).not.toThrow()
+        expect(second).toHaveBeenCalledWith({ value: 42 })
+        expect(log).toHaveBeenCalledWith('[EventSubscription] Error consuming event:', failure)
     })
 
     it('reports async rejections without waiting for or interrupting other subscribers', async () => {
-        const store = defineStore('events', {})(createPinia())
-        const handler = new StoreEventsSubscriberHandler()
+        const registry = createEventsRegistry()
         const failure = new Error('async failure')
         const log = vi.spyOn(console, 'error').mockImplementation(() => { })
         const next = vi.fn()
-        handler.subscribe(store.$id, new StoreEventsSubscriber('async', store, {
-            changed: async () => { throw failure }
-        }))
-        handler.subscribe(store.$id, new StoreEventsSubscriber('next', store, { changed: next }))
+        registry.createSubscriber('async').addSubscription('changed', async () => { throw failure })
+        registry.createSubscriber('next').addSubscription('changed', next)
 
-        expect(() => handler.emit(store, 'changed')).not.toThrow()
+        expect(() => registry.emitter.emit(new StoreEvent('changed'))).not.toThrow()
         expect(next).toHaveBeenCalledOnce()
         await vi.waitFor(() => {
-            expect(log).toHaveBeenCalledWith("Error emitting event 'changed' for store 'events':", failure)
+            expect(log).toHaveBeenCalledWith('[EventSubscription] Error consuming event:', failure)
         })
     })
 })

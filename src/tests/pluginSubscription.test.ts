@@ -4,16 +4,35 @@ import type { PluginSubscriber, PluginSubscriptionOptions } from '../types/plugi
 import PluginSubscription from '../core/PluginSubscription'
 import { createTestTracerRegistry } from './support/testTracer'
 import type { TraceEvent } from '../types/trace'
-import { getStoreScopedKey } from '../utils/store'
-import StoreEventsSubscriberHandler from '../events/store-events-subscriber-handler'
-import StoreEventsSubscriber from '../events/store-events-subscriber'
+import { getStoreInstanceScopedKey } from '../utils/store'
 import { STORE } from '../dictionaries/plugin-subscription-event'
+import StoreBase from '../core/Store'
+
+import type { Event } from '../types/events'
+import type { PluginOptions, StoreClassConstructorParams } from '../types/plugin'
 
 function createContext(store: Store, options: Partial<PiniaPluginContext['options']> = {}): PiniaPluginContext {
     return {
         store,
         options,
     } as unknown as PiniaPluginContext
+}
+
+function registerStoreEventSubscriptions(
+    store: Store,
+    pluginOptions: PluginOptions,
+    subscriptions: Array<[string, (event: Event) => void]>
+): void {
+    class TestEventStore extends StoreBase {
+        protected static override _requiredKeysValidation: false = false
+
+        constructor(piniaStore: Store, options: StoreClassConstructorParams) {
+            super(piniaStore, options)
+            subscriptions.forEach(([eventName, consumer]) => this.addEventSubscription(eventName, consumer))
+        }
+    }
+
+    TestEventStore.customizeStore(store, { storeOptions: {}, ...pluginOptions })
 }
 
 const traceRegistry = createTestTracerRegistry()
@@ -248,6 +267,130 @@ describe('PluginSubscription', () => {
     })
 
     describe('edge cases', () => {
+        it('keeps subscriber and nested subscription delivery for other instances after disposal', () => {
+            const invoke = vi.fn().mockReturnValue(true)
+            const nestedInvoke = vi.fn().mockReturnValue(true)
+            pluginSub.subscribers = [{
+                name: 'root',
+                invoke,
+                subscriptions: { child: { subscription: { name: 'child', invoke: nestedInvoke } } }
+            }]
+            const makeStore = () => ({
+                $id: 'same-id',
+                $state: {},
+                $patch: vi.fn(),
+                $dispose: vi.fn()
+            } as unknown as Store)
+            const first = makeStore()
+            const second = makeStore()
+
+            pluginSub.plugin(createContext(first))
+            pluginSub.plugin(createContext(second))
+            expect(invoke).toHaveBeenCalledTimes(2)
+            expect(nestedInvoke).toHaveBeenCalledTimes(2)
+
+            first.$dispose()
+            pluginSub.plugin(createContext(second))
+            expect(invoke).toHaveBeenCalledTimes(2)
+            expect(nestedInvoke).toHaveBeenCalledTimes(2)
+            second.$dispose()
+        })
+
+        it('keeps deferred deliveries independent for instances with the same id', () => {
+            const scheduled: Array<() => void> = []
+            const invoke = vi.fn().mockReturnValue(true)
+            const nestedInvoke = vi.fn().mockReturnValue(true)
+            pluginSub = getPluginSubscription([{
+                name: 'root',
+                execution: { hydration: 'defer' },
+                invoke,
+                subscriptions: {
+                    child: {
+                        subscription: {
+                            name: 'child',
+                            execution: { hydration: 'defer' },
+                            invoke: nestedInvoke
+                        }
+                    }
+                }
+            }], {
+                runtimeEnvironment: 'client',
+                hydrationScheduler: run => scheduled.push(run)
+            })
+            const makeStore = () => ({
+                $id: 'same-deferred-id',
+                $state: {},
+                $patch: vi.fn(),
+                $dispose: vi.fn()
+            } as unknown as Store)
+            const first = makeStore()
+            const second = makeStore()
+            pluginSub.plugin(createContext(first))
+            pluginSub.plugin(createContext(second))
+            expect(scheduled).toHaveLength(2)
+
+            scheduled[0]!()
+            scheduled[1]!()
+            expect(invoke).toHaveBeenCalledTimes(2)
+            expect(scheduled).toHaveLength(4)
+
+            first.$dispose()
+            pluginSub.plugin(createContext(second))
+            expect(scheduled).toHaveLength(4)
+            scheduled[2]!()
+            scheduled[3]!()
+            expect(nestedInvoke).toHaveBeenCalledOnce()
+            expect(nestedInvoke.mock.calls[0]![0].store).toBe(second)
+            second.$dispose()
+        })
+
+        it('keeps action outcome callbacks separate during nested actions on same-id instances', () => {
+            const listeners = new Map<Store, (params: any) => void>()
+            const makeStore = () => {
+                const store = {
+                    $id: 'same-action-id',
+                    $state: {},
+                    $patch: vi.fn(),
+                    $dispose: vi.fn(),
+                    $onAction: vi.fn((callback: (params: any) => void) => {
+                        listeners.set(store as unknown as Store, callback)
+                    })
+                }
+                return store as unknown as Store
+            }
+            const first = makeStore()
+            const second = makeStore()
+            const firstAfter = vi.fn()
+            const secondAfter = vi.fn()
+            const afterFirst = vi.fn()
+            const afterSecond = vi.fn()
+            pluginSub.subscribers = [{
+                name: 'actions',
+                invoke: vi.fn().mockReturnValue(true),
+                storeOnActionSubscription: ({ store }) => ({
+                    store,
+                    callback: ({ after }) => {
+                        after(store === first ? firstAfter : secondAfter)
+                        if (store === first) {
+                            listeners.get(second)!({ name: 'run', args: [], after: afterSecond, onError: vi.fn() })
+                        }
+                    }
+                })
+            }]
+            pluginSub.plugin(createContext(first))
+            pluginSub.plugin(createContext(second))
+
+            listeners.get(first)!({ name: 'run', args: [], after: afterFirst, onError: vi.fn() })
+            expect(afterFirst).toHaveBeenCalledOnce()
+            expect(afterSecond).toHaveBeenCalledOnce()
+            afterFirst.mock.calls[0]![0]('first')
+            afterSecond.mock.calls[0]![0]('second')
+            expect(firstAfter).toHaveBeenCalledExactlyOnceWith('first')
+            expect(secondAfter).toHaveBeenCalledExactlyOnceWith('second')
+            first.$dispose()
+            second.$dispose()
+        })
+
         it('keeps subscriber delivery and cleanup keys distinct when names and store ids contain separators', () => {
             const firstInvoke = vi.fn().mockReturnValue(true)
             const secondInvoke = vi.fn().mockReturnValue(true)
@@ -273,7 +416,7 @@ describe('PluginSubscription', () => {
             expect(secondInvoke).toHaveBeenCalledTimes(2)
 
             firstStore.$dispose!()
-            expect((pluginSub as any)._subscribersDelivered.has(getStoreScopedKey('x', secondStore))).toBe(true)
+            expect((pluginSub as any)._subscribersDelivered.has(getStoreInstanceScopedKey('x', secondStore))).toBe(true)
             pluginSub.plugin(createContext(secondStore))
             expect(secondInvoke).toHaveBeenCalledTimes(2)
         })
@@ -337,7 +480,10 @@ describe('PluginSubscription', () => {
             await Promise.resolve()
             expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
                 createTracer,
-                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+                eventsRegistry: expect.objectContaining({
+                    createSubscriber: expect.any(Function),
+                    emitter: expect.any(Object)
+                })
             }))
         })
     })
@@ -367,13 +513,19 @@ describe('PluginSubscription', () => {
 
             expect(subscriber1.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
                 createTracer,
-                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+                eventsRegistry: expect.objectContaining({
+                    createSubscriber: expect.any(Function),
+                    emitter: expect.any(Object)
+                })
             }))
             expect(subscriber2.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
                 createTracer,
-                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+                eventsRegistry: expect.objectContaining({
+                    createSubscriber: expect.any(Function),
+                    emitter: expect.any(Object)
+                })
             }))
-            expect(subscriber1.invoke.mock.calls[0][1].eventsHandler).toBe(subscriber2.invoke.mock.calls[0][1].eventsHandler)
+            expect(subscriber1.invoke.mock.calls[0][1].eventsRegistry).toBe(subscriber2.invoke.mock.calls[0][1].eventsRegistry)
         })
 
         it('should skip client-only subscribers while running on the server', () => {
@@ -440,7 +592,10 @@ describe('PluginSubscription', () => {
 
             expect(subscriber.invoke).toHaveBeenCalledWith(mockContext, expect.objectContaining({
                 createTracer,
-                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+                eventsRegistry: expect.objectContaining({
+                    createSubscriber: expect.any(Function),
+                    emitter: expect.any(Object)
+                })
             }))
         })
 
@@ -1030,7 +1185,7 @@ describe('PluginSubscription', () => {
 
             pluginSub.plugin({ store: mockStore, options: {} } as any)
 
-            const subscriberKey = getStoreScopedKey('dispose-tracker', mockStore)
+            const subscriberKey = getStoreInstanceScopedKey('dispose-tracker', mockStore)
             expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(true)
 
             mockStore.$dispose = vi.fn(() => {
@@ -1132,13 +1287,19 @@ describe('PluginSubscription', () => {
             expect(subscriber.invoke).toHaveBeenCalledTimes(2)
             expect(subscriber.invoke).toHaveBeenNthCalledWith(1, context1, expect.objectContaining({
                 createTracer,
-                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+                eventsRegistry: expect.objectContaining({
+                    createSubscriber: expect.any(Function),
+                    emitter: expect.any(Object)
+                })
             }))
             expect(subscriber.invoke).toHaveBeenNthCalledWith(2, context2, expect.objectContaining({
                 createTracer,
-                eventsHandler: expect.any(StoreEventsSubscriberHandler)
+                eventsRegistry: expect.objectContaining({
+                    createSubscriber: expect.any(Function),
+                    emitter: expect.any(Object)
+                })
             }))
-            expect(subscriber.invoke.mock.calls[0][1].eventsHandler).toBe(subscriber.invoke.mock.calls[1][1].eventsHandler)
+            expect(subscriber.invoke.mock.calls[0][1].eventsRegistry).toBe(subscriber.invoke.mock.calls[1][1].eventsRegistry)
         })
     })
 
@@ -1294,7 +1455,7 @@ describe('PluginSubscription', () => {
 
             expect(nestedInvoke).not.toHaveBeenCalled()
             expect(subscriberScheduler).toHaveBeenCalledTimes(1)
-            const subscriptionKey = getStoreScopedKey('child', mockStore)
+            const subscriptionKey = getStoreInstanceScopedKey('child', mockStore)
             expect((pluginSub as any)._subscriptionsScheduled.has(subscriptionKey)).toBe(true)
 
             scheduledCallbacks[0]!()
@@ -1405,18 +1566,25 @@ describe('PluginSubscription', () => {
                 $reset: vi.fn(),
                 $onAction: vi.fn((callback: (params: any) => void) => { onActionCallback = callback })
             } as unknown as Store
-            const events: Array<[string, symbol]> = []
+            const events: unknown[] = []
             const afterCallback = vi.fn()
             const errorCallback = vi.fn()
             const eventSubscriber: PluginSubscriber = {
                 name: 'events',
                 invoke({ store }, options) {
                     if (!options) throw new Error('Missing plugin options')
-                    options.eventsHandler.subscribe(store.$id, new StoreEventsSubscriber('events', store, {
-                        [STORE.ACTION_BEFORE]: (_name, key) => events.push(['before', key]),
-                        [STORE.ACTION_AFTER]: (_name, key) => events.push(['after', key]),
-                        [STORE.ACTION_ON_ERROR]: (_name, _error, key) => events.push(['error', key])
-                    }))
+                    if (!options.eventsRegistry) throw new Error('Missing events registry')
+                    registerStoreEventSubscriptions(store, options, [
+                        [STORE.ACTION_BEFORE, event => {
+                            events.push(event.payload?.())
+                        }],
+                        [STORE.ACTION_AFTER, event => {
+                            events.push(event.payload?.())
+                        }],
+                        [STORE.ACTION_ON_ERROR, event => {
+                            events.push(event.payload?.())
+                        }]
+                    ])
                     return true
                 }
             }
@@ -1439,10 +1607,20 @@ describe('PluginSubscription', () => {
 
             expect(after).toHaveBeenCalledTimes(1)
             expect(onError).toHaveBeenCalledTimes(1)
-            const invocationKey = events[0]![1]
+            const beforePayload = events[0]
+            expect(beforePayload).toEqual({ action: 'run', args: [], invocationKey: expect.any(Symbol) })
+            if (!beforePayload || typeof beforePayload !== 'object' || !('invocationKey' in beforePayload)) {
+                throw new Error('Missing action invocation key')
+            }
+            const invocationKey = beforePayload.invocationKey
+            const failure = new Error('failed')
             after.mock.calls[0]![0]('result')
-            onError.mock.calls[0]![0](new Error('failed'))
-            expect(events).toEqual([['before', invocationKey], ['after', invocationKey], ['error', invocationKey]])
+            onError.mock.calls[0]![0](failure)
+            expect(events).toEqual([
+                { action: 'run', args: [], invocationKey },
+                { action: 'run', result: 'result', invocationKey },
+                { action: 'run', error: failure, invocationKey }
+            ])
             expect(afterCallback).toHaveBeenCalledTimes(withActionSubscriber ? 1 : 0)
             expect(errorCallback).toHaveBeenCalledTimes(withActionSubscriber ? 1 : 0)
         })
@@ -1461,10 +1639,15 @@ describe('PluginSubscription', () => {
                 name: 'events',
                 invoke({ store }, options) {
                     if (!options) throw new Error('Missing plugin options')
-                    options.eventsHandler.subscribe(store.$id, new StoreEventsSubscriber('events', store, {
-                        [STORE.ACTION_BEFORE]: before,
-                        [STORE.ACTION_ERROR]: onErrorEvent
-                    }))
+                    if (!options.eventsRegistry) throw new Error('Missing events registry')
+                    registerStoreEventSubscriptions(store, options, [
+                        [STORE.ACTION_BEFORE, event => {
+                            before(event.payload?.())
+                        }],
+                        [STORE.ACTION_ERROR, event => {
+                            onErrorEvent(event.payload?.())
+                        }]
+                    ])
                     return true
                 }
             }]
@@ -1477,7 +1660,16 @@ describe('PluginSubscription', () => {
                 after: vi.fn(),
                 onError: () => { throw failure }
             })).toThrow(failure)
-            expect(onErrorEvent).toHaveBeenCalledWith('run', failure, before.mock.calls[0]![1])
+            expect(before).toHaveBeenCalledWith({
+                action: 'run',
+                args: [],
+                invocationKey: expect.any(Symbol)
+            })
+            expect(onErrorEvent).toHaveBeenCalledWith({
+                action: 'run',
+                error: failure,
+                invocationKey: before.mock.calls[0]![0].invocationKey
+            })
         })
 
         it('should trace async callback rejections and still register after callbacks', async () => {
