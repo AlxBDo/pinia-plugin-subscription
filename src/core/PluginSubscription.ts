@@ -1,68 +1,39 @@
-import { getStoreInstanceKeyPrefix, getStoreInstanceScopedKey } from '../utils/store'
-import EventsEmitter from "../events/events-emitter"
 import { PluginEvent } from "./Plugin"
 import { PLUGIN, STORE, SUBSCRIBER } from "../dictionaries/plugin-subscription-event"
 import { isEmpty } from "../utils/validation"
 import { pluginName } from "../utils/constants"
 import { createEventsRegistry } from "../factories/events-registry"
-
-import type { PiniaPluginContext, StateTree, Store, SubscriptionCallbackMutation } from "pinia"
-import type { AnyObject } from "../types"
-import type { TraceEvent, TracePayload } from "../types/trace"
 import { traceGroups } from "../utils/traceGroups"
+import ExecutionPolicy from "./ExecutionPolicy"
+import StoreActionExecutor from "./StoreActionExecutor"
+import StoreSubscriptionsRegistry from "./StoreSubscriptionsRegistry"
+import SubscriptionDeliverer from "./SubscriptionDeliverer"
+import TraceGroupHelper from "./TraceGroupHelper"
+
+import type { PiniaPluginContext, Store } from "pinia"
 import type {
-    PluginExecutionOptions,
-    PluginHydrationScheduler,
-    PluginRuntimeEnvironment,
     PluginSubscriber,
-    PluginSubscription as PluginSubscriptionDefinition,
     PluginSubscriptionOptions,
     PluginSubscriptions,
-    StoreMutationSubscription,
-    StoreMutationSubscriptionCallback,
-    StoreOnActionAfterCallbackParameter,
-    StoreOnActionSubscriptionCallback
+    StoreMutationSubscription
 } from "../types/plugin"
 
-
-const defaultPluginExecution: Required<PluginExecutionOptions> = {
-    environment: 'both',
-    hydration: 'immediate',
-    order: 9
-}
-
-const defaultDeferredTraceGroupTimeout = 2500
-
-function defaultHydrationScheduler(callback: () => void): void {
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(() => globalThis.setTimeout(callback, 0))
-        return
-    }
-
-    globalThis.setTimeout(callback, 0)
-}
-
+/**
+ * Sequences the subscribers of a store: for each one, consults the execution policy, schedules or runs it,
+ * then delegates the subscriptions bookkeeping, delivery and action/mutation hooks to dedicated collaborators.
+ */
 export default class PluginSubscription extends PluginEvent {
     protected _eventsRegistry = createEventsRegistry()
-    private _hydrationScheduler: PluginHydrationScheduler
     protected _name: string = 'PluginSubscription'
-    private _onActionSubscriptions: Map<Store, Set<StoreOnActionSubscriptionCallback>> = new Map()
-    private _onActionSubscriptionsTraces: Map<Store, string[]> = new Map()
-    private _actionSeq = 0
-    private _onActionStores: WeakSet<Store> = new WeakSet()
-    private _onActionAfterSubscriptions: Record<string, StoreOnActionAfterCallbackParameter[]> = {}
-    private _onActionOnErrorSubscriptions: Record<string, Array<(error: unknown) => void>> = {}
-    private _onMutationSubscriptions: Map<Store, Set<StoreMutationSubscriptionCallback>> = new Map()
-    private _onMutationSubscriptionsTraces: Map<Store, string[]> = new Map()
-    private _onMutationUnsubscribes: Map<Store, () => void> = new Map()
+    private _actionExecutor: StoreActionExecutor
+    private _deliverer: SubscriptionDeliverer
+    private _groups: TraceGroupHelper
     private _options?: PluginSubscriptionOptions
-    private _disposedStores: WeakSet<Store> = new WeakSet()
+    private _policy: ExecutionPolicy
+    private _registry: StoreSubscriptionsRegistry
     private _subscribers: PluginSubscriber[] = []
-    private _subscribersDelivered: Set<string> = new Set()
-    private _subscribersScheduled: Set<string> = new Set()
     private _subscriptions: PluginSubscriptions[] = []
-    private _subscriptionsDelivered: Set<string> = new Set()
-    private _subscriptionsScheduled: Set<string> = new Set()
+
     set subscribers(subscribers: PluginSubscriber[]) {
         this._subscribers = subscribers
     }
@@ -78,7 +49,6 @@ export default class PluginSubscription extends PluginEvent {
         options?: PluginSubscriptionOptions
     ) {
         super({ prefixLabelWithName: true })
-        this._hydrationScheduler = options?.hydrationScheduler ?? defaultHydrationScheduler
         this._options = options
         this._subscribers = subscribers.sort((a, b) => {
             if (typeof a?.execution === 'undefined') {
@@ -94,347 +64,32 @@ export default class PluginSubscription extends PluginEvent {
 
             return (a.execution.order ?? 0) - (b.execution?.order ?? 0)
         })
+
+        const reporter = {
+            trace: (...args: Parameters<PluginEvent['trace']>) => this.trace(...args),
+            traceError: (...args: Parameters<PluginEvent['traceError']>) => this.traceError(...args)
+        }
+        this._policy = new ExecutionPolicy(options)
+        this._registry = new StoreSubscriptionsRegistry()
+        this._groups = new TraceGroupHelper(options, reporter)
+        this._deliverer = new SubscriptionDeliverer(this._policy, this._registry, this._groups, reporter)
+        this._actionExecutor = new StoreActionExecutor(
+            this._registry,
+            this._groups,
+            {
+                emit: (store, event, payload) => this.emit(store, event, payload),
+                hasEventSubscription: (store, eventName) => this.storeHasEventSubscription(store, eventName)
+            },
+            reporter
+        )
         this.initializeTracer()
     }
 
-    private addOnActionAfterCallback(actionName: string, store: Store, callback: StoreOnActionAfterCallbackParameter): void {
-        const key = getStoreInstanceScopedKey(actionName, store)
-        if (!this._onActionAfterSubscriptions[key]) {
-            this._onActionAfterSubscriptions[key] = []
-        }
-        this._onActionAfterSubscriptions[key]?.push(callback)
-    }
-
-    private addOnActionOnErrorCallback(actionName: string, store: Store, callback: (error: unknown) => void): void {
-        const key = getStoreInstanceScopedKey(actionName, store)
-        if (!this._onActionOnErrorSubscriptions[key]) {
-            this._onActionOnErrorSubscriptions[key] = []
-        }
-        this._onActionOnErrorSubscriptions[key]?.push(callback)
-    }
-
-    private clearOnActionCallbacksSubscriptions(storageKey: string): void {
-        delete this._onActionAfterSubscriptions[storageKey]
-        delete this._onActionOnErrorSubscriptions[storageKey]
-    }
-
-    private clearStoreTracking(store: Store): void {
-        this._onActionSubscriptions.delete(store)
-        this._onActionStores.delete(store)
-        this._onMutationUnsubscribes.get(store)?.()
-        this._onMutationUnsubscribes.delete(store)
-        this._onMutationSubscriptions.delete(store)
-        this._onActionSubscriptionsTraces.delete(store)
-        this._onMutationSubscriptionsTraces.delete(store)
-        const keyPrefix = getStoreInstanceKeyPrefix(store)
-
-        for (const key of Array.from(this._subscribersDelivered)) {
-            if (key.startsWith(keyPrefix)) {
-                this._subscribersDelivered.delete(key)
-            }
-        }
-
-        for (const key of Array.from(this._subscribersScheduled)) {
-            if (key.startsWith(keyPrefix)) {
-                this._subscribersScheduled.delete(key)
-            }
-        }
-
-        for (const key of Array.from(this._subscriptionsDelivered)) {
-            if (key.startsWith(keyPrefix)) {
-                this._subscriptionsDelivered.delete(key)
-            }
-        }
-
-        for (const key of Array.from(this._subscriptionsScheduled)) {
-            if (key.startsWith(keyPrefix)) {
-                this._subscriptionsScheduled.delete(key)
-            }
-        }
-
-        for (const key of Object.keys(this._onActionAfterSubscriptions)) {
-            if (key.startsWith(keyPrefix)) {
-                delete this._onActionAfterSubscriptions[key]
-            }
-        }
-
-        for (const key of Object.keys(this._onActionOnErrorSubscriptions)) {
-            if (key.startsWith(keyPrefix)) {
-                delete this._onActionOnErrorSubscriptions[key]
-            }
-        }
-    }
-
-    /**
-     * Closes a trace group once `pending` settles, or after the configured timeout so a promise
-     * that never settles cannot keep buffering the traces of the store scope.
-     */
-    private closeGroupWhenSettled(
-        pending: Promise<unknown>,
-        closeGroup: () => void,
-        storeId: string,
-        subscriberName: string
-    ): void {
-        let closed = false
-        const closeOnce = () => {
-            if (closed) {
-                return
-            }
-            closed = true
-            globalThis.clearTimeout(timer)
-            closeGroup()
-        }
-        const timeout = this._options?.deferredTraceGroupTimeout ?? defaultDeferredTraceGroupTimeout
-        const timer = globalThis.setTimeout(() => {
-            if (closed) {
-                return
-            }
-            this.traceError(
-                'subscriber:deferred:timeout',
-                new Error(`Subscriber "${subscriberName}" hydration still pending after ${timeout}ms`),
-                storeId
-            )
-            closeOnce()
-        }, timeout)
-
-        pending.then(closeOnce, closeOnce)
-    }
-
-    /**
-     * Creates a callback collector for the specified action and store.
-     * @param actionName The name of the action to collect callbacks for.
-     * @param store The store instance associated with the action.
-     * @returns A function that collects callbacks for the specified action and store.
-     */
-    private createOnActionAfterCallbackCollector(actionName: string, store: Store) {
-        return (callback: StoreOnActionAfterCallbackParameter) => {
-            this.addOnActionAfterCallback(actionName, store, callback)
-        }
-    }
-
-    /**
-     * Creates a callback collector for the specified action and store that handles errors.
-     * @param actionName The name of the action to collect error callbacks for.
-     * @param store The store instance associated with the action.
-     * @returns A function that collects error callbacks for the specified action and store.
-     */
-    private createOnActionOnErrorCallbackCollector(actionName: string, store: Store) {
-        return (callback: (error: unknown) => void) => {
-            this.addOnActionOnErrorCallback(actionName, store, callback)
-        }
-    }
-
-    private defineCurrentEnvironment(): PluginRuntimeEnvironment {
-        return this._options?.runtimeEnvironment
-            ?? (typeof window === 'undefined' ? 'server' : 'client')
-    }
-
-    private definePluginExecution(subscriber: PluginSubscriber): Required<PluginExecutionOptions> {
-        return {
-            ...defaultPluginExecution,
-            ...(this._options?.execution ?? {}),
-            ...(subscriber.execution ?? {}),
-            ...(this._options?.subscriberExecution?.[subscriber.name] ?? {}),
-        }
-    }
-
-    private defineHydrationScheduler(subscriber: PluginSubscriber | PluginSubscriptionDefinition['subscription']): PluginHydrationScheduler {
-        return subscriber.hydrationScheduler ?? this._hydrationScheduler
-    }
-
-    private defineSubscriberKey(subscriber: PluginSubscriber, store: Store): string {
-        return getStoreInstanceScopedKey(subscriber.name, store)
-    }
-
-    private defineSubscriptionKey(pluginName: string, store: Store): string {
-        return getStoreInstanceScopedKey(pluginName, store)
-    }
-
-    /** Closes a trace group once all async callbacks are settled (immediately if none is pending). */
-    private endGroupAfter(pending: (Promise<void> | undefined)[], end: () => void): void {
-        const promises = pending.filter((p): p is Promise<void> => !!p)
-        if (promises.length) {
-            Promise.all(promises).then(end)
-        } else {
-            end()
-        }
-    }
-
-    /**
-     * Executes the store's onAction subscription for the given plugin subscriber.
-     * @param store The Pinia store instance.
-     * @param subscriber The plugin subscriber.
-     * @returns void
-     */
-    private executeStoreOnActionSubscription(store: Store, hasDeferredSubscribers = false): void {
-        const { ACTION_BEFORE, ACTION_AFTER, ACTION_ERROR, ACTION_ON_ERROR } = STORE
-        const storeHasEventSubscription = () => [ACTION_BEFORE, ACTION_AFTER, ACTION_ERROR, ACTION_ON_ERROR].some(
-            eventName => this.storeHasEventSubscription(store, eventName)
-        )
-        if (
-            this._onActionStores.has(store) || typeof store.$onAction !== 'function' || (
-                !this._onActionSubscriptions.get(store)?.size
-                && !storeHasEventSubscription()
-                && !hasDeferredSubscribers
-            )) {
-            return
-        }
-
-        this._onActionStores.add(store)
-        store.$onAction(({ after, args, name, onError }) => {
-            const invocationKey = storeHasEventSubscription() ? Symbol(getStoreInstanceScopedKey(name, store)) : undefined
-            const callbacks = this._onActionSubscriptions.get(store)
-            if (!callbacks?.size && !invocationKey) {
-                return
-            }
-
-            const storageKey = getStoreInstanceScopedKey(name, store)
-            const callId = ++this._actionSeq
-            const actionId = `${store.$id}#${callId}`
-            const groupId = traceGroups.onAction(store.$id, name, callId)
-            // The group must be closed exactly once, whichever way the action ends.
-            let groupClosed = false
-            const closeGroup = () => {
-                if (callbacks?.size && !groupClosed) {
-                    groupClosed = true
-                    this.traceGroupEnd({ groupId }, store.$id)
-                }
-            }
-            if (callbacks?.size) {
-                this.traceGroupStart(() => ({ actionId, args, groupId }), store.$id, `store:onAction:${name}`)
-            }
-            this.emit(store, STORE.ACTION_BEFORE, () => ({
-                action: name, args, invocationKey
-            }))
-
-
-            try {
-                // Callbacks are invoked synchronously so that their after/onError collectors are filled before Pinia runs the action.
-                const pending: Promise<void>[] = []
-                callbacks?.forEach(callback => {
-                    const result = this.runCallbackSafely(
-                        () => callback({
-                            after: this.createOnActionAfterCallbackCollector(name, store),
-                            args,
-                            name,
-                            onError: this.createOnActionOnErrorCallbackCollector(name, store)
-                        }),
-                        'store:onAction:callback:error',
-                        store.$id,
-                        () => ({ actionId, groupId })
-                    )
-                    if (result) {
-                        pending.push(result)
-                    }
-                })
-
-                this.endGroupAfter(pending, closeGroup)
-                this.executeStoreOnActionAfterCallbacks(after, storageKey, store, name, actionId, callId, invocationKey)
-                this.executeStoreOnActionOnErrorCallbacks(onError, storageKey, store, name, actionId, callId, invocationKey)
-                this.clearOnActionCallbacksSubscriptions(storageKey)
-            } catch (error) {
-                this.emit(store, STORE.ACTION_ERROR, () => ({
-                    action: name, error, invocationKey
-                }))
-                closeGroup()
-                throw error
-            }
-        })
-    }
-
-    private executeStoreOnActionAfterCallbacks(
-        after: (callback: (result: any) => void) => void,
-        storageKey: string,
-        store: Store,
-        name: string,
-        actionId: string,
-        callId: number,
-        invocationKey?: symbol
-    ) {
-        const afterCallbacks = this._onActionAfterSubscriptions[storageKey]
-        if (afterCallbacks?.length || invocationKey) {
-            after((result) => {
-                if (invocationKey && !this._disposedStores.has(store)) {
-                    this.emit(store, STORE.ACTION_AFTER, () => ({
-                        action: name, result, invocationKey
-                    }))
-                }
-                if (!afterCallbacks?.length) {
-                    return
-                }
-                this.traceGroupStart(
-                    () => ({
-                        actionId,
-                        groupId: traceGroups.onActionAfter(store.$id, name, callId),
-                        result
-                    }),
-                    store.$id,
-                    `store:onAction:after:${name}`
-                )
-
-                const pending = afterCallbacks.map(callback => this.runCallbackSafely(
-                    () => callback(result),
-                    'storeOnActionAfterCallbacks',
-                    store.$id,
-                    () => ({ actionId, 'action name': name, groupId: traceGroups.onActionAfter(store.$id, name, callId) })
-                ))
-
-                this.endGroupAfter(pending, () =>
-                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionAfter(store.$id, name, callId) }), store.$id))
-            })
-        }
-    }
-
-    private executeStoreOnActionOnErrorCallbacks(
-        onError: (callback: (error: any) => void) => void,
-        storageKey: string,
-        store: Store,
-        name: string,
-        actionId: string,
-        callId: number,
-        invocationKey?: symbol
-    ) {
-        const onErrorCallbacks = this._onActionOnErrorSubscriptions[storageKey]
-
-        if (onErrorCallbacks?.length || invocationKey) {
-            onError((error) => {
-                if (invocationKey && !this._disposedStores.has(store)) {
-                    this.emit(store, STORE.ACTION_ON_ERROR, () => ({
-                        action: name, error, invocationKey
-                    }))
-                }
-                if (!onErrorCallbacks?.length) {
-                    return
-                }
-                this.traceGroupStart(() => ({
-                    actionId,
-                    'action name': name,
-                    error,
-                    groupId: traceGroups.onActionError(store.$id, name, callId)
-                }), store.$id,
-                    `store:onAction:onError:${name}`
-                )
-
-                const pending = onErrorCallbacks.map(callback => this.runCallbackSafely(
-                    () => callback(error),
-                    'store:onAction:onError:error',
-                    store.$id,
-                    () => ({ actionId, groupId: traceGroups.onActionError(store.$id, name, callId) })
-                ))
-
-                this.endGroupAfter(pending, () =>
-                    this.traceGroupEnd(() => ({ groupId: traceGroups.onActionError(store.$id, name, callId) }), store.$id))
-            })
-        }
-    }
-
-    /**
-     * @returns A promise settling once asynchronous hydration hooks are done, undefined when everything ran synchronously.
-     */
+    /** @returns A promise settling once asynchronous hydration hooks are done, undefined when everything ran synchronously. */
     private executeSubscriber(context: PiniaPluginContext, subscriber: PluginSubscriber): Promise<unknown> | undefined {
-        const subscriberKey = this.defineSubscriberKey(subscriber, context.store)
+        const subscriberKey = this._deliverer.defineSubscriberKey(subscriber, context.store)
 
-        if (this._subscribersDelivered.has(subscriberKey)) {
+        if (this._deliverer.isSubscriberDelivered(subscriberKey)) {
             return
         }
 
@@ -446,7 +101,7 @@ export default class PluginSubscription extends PluginEvent {
             return
         }
         this.emit(context.store, SUBSCRIBER.INVOKED, () => ({ subscriber: subscriber.name }))
-        this._subscribersDelivered.add(subscriberKey)
+        this._deliverer.markSubscriberDelivered(subscriberKey)
         let hydrateResult: void | Promise<void>
 
         try {
@@ -480,14 +135,14 @@ export default class PluginSubscription extends PluginEvent {
         }
 
         if (subscriber.subscriptions) {
-            this.subscriptionDelivery(context, subscriber.subscriptions)
+            this._deliverer.subscriptionDelivery(context, subscriber.subscriptions)
         }
 
         if (subscriber.storeMutationSubscription) {
-            this.storeMutationSubscription(subscriber, subscriber.storeMutationSubscription)
+            this.registerMutationSubscription(subscriber, subscriber.storeMutationSubscription)
         }
 
-        this.storeOnActionSubscription(subscriber, context)
+        this.registerOnActionSubscription(subscriber, context)
 
         return pending
     }
@@ -537,33 +192,34 @@ export default class PluginSubscription extends PluginEvent {
             store,
             options
         })
-        this.traceGroupStart(() => ({ groupId: pluginGroupId }), store.$id, undefined, false)
+        this._groups.start(() => ({ groupId: pluginGroupId }), store.$id, undefined, false)
         this.emit(store, PLUGIN.EXECUTION.START)
 
-        this._onActionSubscriptionsTraces.set(store, subscribtions.$onAction)
-        this._onMutationSubscriptionsTraces.set(store, subscribtions.$subscribe)
+        this._registry.setTraces(store, { onAction: subscribtions.$onAction, onMutation: subscribtions.$subscribe })
 
         try {
             let hasDeferredSubscribers = false
             this._subscribers.forEach(
                 subscriber => {
-                    const subscriberKey = this.defineSubscriberKey(subscriber, store)
-                    const execution = this.definePluginExecution(subscriber)
+                    const subscriberKey = this._deliverer.defineSubscriberKey(subscriber, store)
+                    const execution = this._policy.resolveExecution(subscriber)
 
-                    if (
-                        this._subscribersDelivered.has(subscriberKey)
-                        || this._subscribersScheduled.has(subscriberKey)
-                    ) {
+                    if (this._deliverer.isSubscriberHandled(subscriberKey)) {
                         return
                     }
 
-                    if (!this.shouldInvokePlugin(execution)) {
+                    if (!this._policy.shouldInvoke(execution)) {
                         return
                     }
 
-                    if (this.shouldScheduleAfterHydration(execution)) {
+                    if (this._policy.shouldScheduleAfterHydration(execution)) {
                         hasDeferredSubscribers = true
-                        this.queueSubscriberExecution({ store, options } as PiniaPluginContext, subscriber, subscriberKey)
+                        this._deliverer.queueSubscriberExecution(
+                            { store, options } as PiniaPluginContext,
+                            subscriber,
+                            subscriberKey,
+                            (context, scheduled) => this.executeSubscriberSafely(context, scheduled)
+                        )
                         return
                     }
 
@@ -571,265 +227,45 @@ export default class PluginSubscription extends PluginEvent {
                 }
             )
 
-            this.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
+            this._actionExecutor.executeStoreOnActionSubscription(store, hasDeferredSubscribers)
             this.registerStoreCleanup(store)
         } catch (error) {
             this.traceError('plugin:invoke', error, store.$id)
             this.emit(store, PLUGIN.EXECUTION.ERROR, () => ({ error }))
         }
         this.trace('context', store.$id, contextPayload)
-        this.traceGroupEnd(() => ({ groupId: pluginGroupId }), store.$id)
+        this._groups.end(() => ({ groupId: pluginGroupId }), store.$id)
         this.emit(store, PLUGIN.EXECUTION.END)
     }
 
-    private queueSubscriberExecution(
-        context: PiniaPluginContext,
-        subscriber: PluginSubscriber,
-        subscriberKey: string
-    ): void {
-        const scheduler = this.defineHydrationScheduler(subscriber)
-
-        this._subscribersScheduled.add(subscriberKey)
-        scheduler(() => {
-            if (this._disposedStores.has(context.store)) {
-                return
-            }
-            this._subscribersScheduled.delete(subscriberKey)
-
-            // Deferred runs happen after plugin() closed its group: open one so their traces stay grouped by store
-            const storeId = context.store.$id
-            const groupId = traceGroups.pluginDeferred(storeId, subscriber.name, ++this._actionSeq)
-            this.traceGroupStart(() => ({ groupId, subscriber: subscriber.name }), storeId, 'subscriber:deferred')
-            const closeGroup = () => this.traceGroupEnd(() => ({ groupId }), storeId)
-            let pending: Promise<unknown> | undefined
-            try {
-                pending = this.executeSubscriberSafely(context, subscriber)
-            } finally {
-                // Keep the group open until async hydration hooks settle, so their traces stay inside it
-                if (pending) {
-                    this.closeGroupWhenSettled(pending, closeGroup, storeId, subscriber.name)
-                } else {
-                    closeGroup()
-                }
-            }
-        })
-    }
-
-    private registerStoreCleanup(store: Store): void {
-        if (typeof store.$dispose !== 'function') {
-            return
-        }
-
-        const dispose = store.$dispose.bind(store)
-        const scopedStore = store as AnyObject
-
-        if (scopedStore.__piniaPluginSubscriptionDisposed) {
-            return
-        }
-
-        scopedStore.__piniaPluginSubscriptionDisposed = true
-        store.$dispose = () => {
-            try {
-                this._disposedStores.add(store)
-                this.clearStoreTracking(store)
-                this.emit(store, STORE.DISPOSE)
-            } catch (error) {
-                this.traceError("store:dispose:error", error, store.$id)
-            }
-            return dispose()
-        }
-    }
-
-    /**
-     * Runs a callback, tracing sync errors and async rejections.
-     * @returns a never-rejecting promise when the callback is asynchronous, undefined otherwise.
-     */
-    private runCallbackSafely(
-        callback: () => unknown,
-        errorLabel: string,
-        storeId: string,
-        extra?: () => Record<string, unknown>
-    ): Promise<void> | undefined {
-        try {
-            const result = callback()
-            if (result && typeof (result as Promise<unknown>).then === 'function') {
-                return Promise.resolve(result).then(
-                    () => undefined,
-                    error => this.traceError(errorLabel, error, storeId, extra)
-                )
-            }
-        } catch (error) {
-            this.traceError(errorLabel, error, storeId, extra)
-        }
-    }
-
-    private shouldInvokePlugin(execution: Required<PluginExecutionOptions>): boolean {
-        const currentEnvironment = this.defineCurrentEnvironment()
-
-        return execution.environment === 'both' || execution.environment === currentEnvironment
-    }
-
-    private shouldScheduleAfterHydration(execution: Required<PluginExecutionOptions>): boolean {
-        return this.defineCurrentEnvironment() === 'client' && execution.hydration === 'defer'
-    }
-
-    private storeOnActionSubscription(subscriber: PluginSubscriber, context: PiniaPluginContext): void {
-        const { store, callback } = subscriber?.storeOnActionSubscription?.(context) ?? {}
-
-        if (!store || !callback) {
-            return
-        }
-
-        if (!this._onActionSubscriptions.has(store)) {
-            this._onActionSubscriptions.set(store, new Set())
-        }
-        this._onActionSubscriptions.get(store)!.add(callback)
-        this._onActionSubscriptionsTraces.get(store)?.push(subscriber.name)
-    }
-
-    private storeMutationSubscription(subscriber: PluginSubscriber, subscription: StoreMutationSubscription): void {
+    private registerMutationSubscription(subscriber: PluginSubscriber, subscription: StoreMutationSubscription): void {
         const { store, callback } = subscription()
 
         if (!store || !callback) {
             return
         }
 
-        if (!this._onMutationSubscriptions.has(store)) {
-            this._onMutationSubscriptions.set(store, new Set())
-        }
-        this._onMutationSubscriptions.get(store)!.add(callback)
-        this._onMutationSubscriptionsTraces.get(store)?.push(subscriber.name)
+        this._registry.addMutationSubscription(store, callback, subscriber.name)
+        this._actionExecutor.hookStoreMutations(store)
+    }
 
-        if (this._onMutationUnsubscribes.has(store)) {
+    private registerOnActionSubscription(subscriber: PluginSubscriber, context: PiniaPluginContext): void {
+        const { store, callback } = subscriber?.storeOnActionSubscription?.(context) ?? {}
+
+        if (!store || !callback) {
             return
         }
 
-        const unsubscribe = store.$subscribe(async (mutation: SubscriptionCallbackMutation<StateTree>) => {
-            const callbacks = this._onMutationSubscriptions.get(store)
-            if (!callbacks?.size) {
-                return
-            }
+        this._registry.addOnActionSubscription(store, callback, subscriber.name)
+    }
 
-            const groupId = traceGroups.onMutation(store.$id, ++this._actionSeq)
-            this.traceGroupStart(() => ({ mutation, groupId }), store.$id, 'store:onMutation')
-            this.emit(store, STORE.MUTATION, () => ({ mutation }))
-            try {
-                await Promise.all([...callbacks].map(async (mutationCallback) => {
-                    try {
-                        await mutationCallback(mutation)
-                    } catch (error) {
-                        this.traceError('store:onMutation', error, store.$id, () => ({ groupId }))
-                    }
-                }))
-            } finally {
-                this.traceGroupEnd(() => ({ groupId }), store.$id)
-            }
+    private registerStoreCleanup(store: Store): void {
+        this._registry.registerStoreCleanup(store, {
+            onDispose: () => {
+                this._deliverer.clearStore(store)
+                this.emit(store, STORE.DISPOSE)
+            },
+            onError: error => this.traceError("store:dispose:error", error, store.$id)
         })
-
-        this._onMutationUnsubscribes.set(store, unsubscribe)
-    }
-
-    private subscriptionDelivery(
-        context: PiniaPluginContext,
-        pluginSubscriptions: PluginSubscriptions
-    ): void {
-        Object.entries(pluginSubscriptions).forEach(([pluginName, pluginSubscription]) => {
-            const subscriptionKey = this.defineSubscriptionKey(pluginName, context.store)
-            const execution = this.definePluginExecution(pluginSubscription.subscription)
-
-            if (
-                this._subscriptionsDelivered.has(subscriptionKey)
-                || this._subscriptionsScheduled.has(subscriptionKey)
-            ) {
-                return
-            }
-
-            if (!this.shouldInvokePlugin(execution)) {
-                return
-            }
-
-            if (this.shouldScheduleAfterHydration(execution)) {
-                const scheduler = this.defineHydrationScheduler(pluginSubscription.subscription)
-
-                this._subscriptionsScheduled.add(subscriptionKey)
-                scheduler(() => {
-                    if (this._disposedStores.has(context.store)) {
-                        return
-                    }
-                    this._subscriptionsScheduled.delete(subscriptionKey)
-                    this.subscriptionDeliverySafely(context, pluginName, pluginSubscription)
-                })
-                return
-            }
-
-            this.subscriptionDeliverySafely(context, pluginName, pluginSubscription)
-        })
-    }
-
-    private subscriptionDeliverySafely(
-        { store, options }: PiniaPluginContext,
-        pluginName: string,
-        pluginSubscription: PluginSubscriptionDefinition
-    ): void {
-        try {
-            if (this._subscriptionsDelivered.has(this.defineSubscriptionKey(pluginName, store))) {
-                return
-            }
-
-            const { subscription, subscriptionOptions, stores } = pluginSubscription
-
-            this.trace('Subscription:delivery', store.$id, () => ({
-                groupId: traceGroups.plugin(store.$id),
-                pluginName,
-                subscription,
-                subscriptionOptions
-            }))
-
-            const pluginOptions = {
-                storeOptions: { ...(options?.storeOptions ?? {}), ...subscriptionOptions }
-            }
-
-            subscription.invoke(
-                { store, options: { ...options, ...pluginOptions } } as PiniaPluginContext
-            )
-            this._subscriptionsDelivered.add(this.defineSubscriptionKey(pluginName, store))
-
-            if (!isEmpty(stores)) {
-                stores?.forEach(
-                    store => subscription.invoke({
-                        store,
-                        options: {
-                            ...options,
-                            ...pluginOptions,
-                            ...((store as AnyObject)?.storeOptions ?? {})
-                        }
-                    } as PiniaPluginContext)
-                )
-            }
-        } catch (e) {
-            this.traceError('subscription:delivery', e, store.$id, () => ({ groupId: traceGroups.plugin(store.$id) }))
-        }
-    }
-
-    private traceGroupEnd(payload: TracePayload, scope: string): void {
-        const tracerHandler = this._options?.tracerHandler
-        if (tracerHandler && (tracerHandler.hasTraceListeners?.() ?? true)) {
-            tracerHandler.closeGroup({
-                ...(typeof payload === 'function' ? payload() : (payload ?? {})),
-                scope
-            })
-        }
-    }
-
-    private traceGroupStart(payload: TracePayload, scope: string, label?: string, emitTrace = true): void {
-        const tracerHandler = this._options?.tracerHandler
-        if (tracerHandler && (tracerHandler.hasTraceListeners?.() ?? true)) {
-            payload = (typeof payload === 'function' ? payload() : (payload ?? {}));
-            tracerHandler.startGroup({
-                ...payload,
-                scope
-            } as TraceEvent)
-            if (emitTrace) { this.trace(label ?? 'context', scope, payload) }
-        }
     }
 }

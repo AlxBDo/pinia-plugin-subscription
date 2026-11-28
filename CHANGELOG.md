@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refactored `PluginSubscription` (834 → 271 lines) into focused collaborators in `src/core/`: `ExecutionPolicy` (stateless execution rules), `TraceGroupHelper` (trace groups and safe callback execution), `StoreSubscriptionsRegistry` (per-store subscriptions and cleanup, replacing the unused stub), `SubscriptionDeliverer` (delivery and scheduling tracking) and `StoreActionExecutor` (`$onAction`/`$subscribe` hooks); no public behavior change
+
 ### Added
 - SSR demo subscribers are now class-based (`PluginSubscriber` + a `Store` subclass) and emit traces through the tracer `PluginSubscription` provides (`this.trace()` / `this.traceError()`): hydration start/done, errors, and the `onMutation` trace group, all scoped to the store; the per-request tracer registry also listens on the server, so server traces print in the Node terminal and browser traces in the devtools console
 - SSR demo shows a concrete case of environment-aware hydration: one store filled by a server-only subscriber (request data) and a client-only deferred subscriber (browser data), with a server/browser panel layout and a hydration timeline; the `Accept-Language` header is validated before being serialized
