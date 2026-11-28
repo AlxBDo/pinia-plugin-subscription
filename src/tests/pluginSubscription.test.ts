@@ -233,8 +233,8 @@ describe('PluginSubscription', () => {
                 }
             })
 
-                ; (subscription as any).traceGroupStart(payload, 'cart')
-                ; (subscription as any).traceGroupEnd(payload, 'cart')
+                ; (subscription as any)._groups.start(payload, 'cart')
+                ; (subscription as any)._groups.end(payload, 'cart')
 
             expect(payload).not.toHaveBeenCalled()
         })
@@ -416,7 +416,7 @@ describe('PluginSubscription', () => {
             expect(secondInvoke).toHaveBeenCalledTimes(2)
 
             firstStore.$dispose!()
-            expect((pluginSub as any)._subscribersDelivered.has(getStoreInstanceScopedKey('x', secondStore))).toBe(true)
+            expect((pluginSub as any)._deliverer.isSubscriberDelivered(getStoreInstanceScopedKey('x', secondStore))).toBe(true)
             pluginSub.plugin(createContext(secondStore))
             expect(secondInvoke).toHaveBeenCalledTimes(2)
         })
@@ -1186,14 +1186,15 @@ describe('PluginSubscription', () => {
             pluginSub.plugin({ store: mockStore, options: {} } as any)
 
             const subscriberKey = getStoreInstanceScopedKey('dispose-tracker', mockStore)
-            expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(true)
+            expect((pluginSub as any)._deliverer.isSubscriberDelivered(subscriberKey)).toBe(true)
 
             mockStore.$dispose = vi.fn(() => {
-                ; (pluginSub as any).clearStoreTracking(mockStore)
+                ; (pluginSub as any)._registry.clearStore(mockStore)
+                ; (pluginSub as any)._deliverer.clearStore(mockStore)
             })
             mockStore.$dispose()
 
-            expect((pluginSub as any)._subscribersDelivered.has(subscriberKey)).toBe(false)
+            expect((pluginSub as any)._deliverer.isSubscriberDelivered(subscriberKey)).toBe(false)
         })
     })
 
@@ -1359,7 +1360,7 @@ describe('PluginSubscription', () => {
             pluginSub.plugin({ store: mockStore, options: {} } as any)
 
             expect(nestedInvoke).toHaveBeenCalledTimes(1)
-                ; (pluginSub as any).subscriptionDelivery(
+                ; (pluginSub as any)._deliverer.subscriptionDelivery(
                     { store: mockStore, options: {} },
                     subscriber.subscriptions
                 )
@@ -1456,12 +1457,12 @@ describe('PluginSubscription', () => {
             expect(nestedInvoke).not.toHaveBeenCalled()
             expect(subscriberScheduler).toHaveBeenCalledTimes(1)
             const subscriptionKey = getStoreInstanceScopedKey('child', mockStore)
-            expect((pluginSub as any)._subscriptionsScheduled.has(subscriptionKey)).toBe(true)
+            expect((pluginSub as any)._deliverer.isSubscriptionScheduled(subscriptionKey)).toBe(true)
 
             scheduledCallbacks[0]!()
 
             expect(nestedInvoke).toHaveBeenCalledTimes(1)
-            expect((pluginSub as any)._subscriptionsScheduled.has(subscriptionKey)).toBe(false)
+            expect((pluginSub as any)._deliverer.isSubscriptionScheduled(subscriptionKey)).toBe(false)
         })
     })
 
@@ -1839,7 +1840,7 @@ describe('PluginSubscription', () => {
             try {
                 const callback = vi.fn()
 
-                    ; (pluginSub as any)._hydrationScheduler(callback)
+                    ; (pluginSub as any)._policy.hydrationScheduler(callback)
 
                 expect(callback).not.toHaveBeenCalled()
 
